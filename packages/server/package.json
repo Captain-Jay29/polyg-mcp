@@ -1,0 +1,17 @@
+{
+  "name": "@polyg-mcp/server",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@polyg-mcp/core": "workspace:*",
+    "@polyg-mcp/shared": "workspace:*"
+  }
+}
