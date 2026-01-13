@@ -97,7 +97,167 @@ export const ExportGraphSchema = z.object({
 
 export const GetStatisticsSchema = z.object({});
 
-// Export types
+// ============================================================================
+// LLM Output Schemas - for validating LLM responses
+// ============================================================================
+
+// Intent types
+export const IntentTypeSchema = z.enum([
+  'semantic',
+  'temporal',
+  'causal',
+  'entity',
+]);
+
+// Entity mention from classifier
+export const EntityMentionSchema = z.object({
+  mention: z.string(),
+  type: z.string().optional(),
+  resolved: z.string().optional(),
+});
+
+// Timeframe from classifier
+export const TimeframeSchema = z.object({
+  type: z.enum(['specific', 'range', 'relative']),
+  value: z.string(),
+  end: z.string().optional(),
+});
+
+// Classifier output schema
+export const ClassifierOutputSchema = z.object({
+  intents: z.array(IntentTypeSchema),
+  entities: z.array(EntityMentionSchema),
+  timeframe: TimeframeSchema.optional(),
+  causal_direction: z.enum(['upstream', 'downstream', 'both']).optional(),
+  semantic_query: z.string().optional(),
+  confidence: z.number().min(0).max(1),
+});
+
+// Causal link for synthesizer reasoning
+export const CausalLinkSchema = z.object({
+  cause: z.string(),
+  effect: z.string(),
+  confidence: z.number().min(0).max(1),
+  evidence: z.string().optional(),
+});
+
+// Temporal event
+export const TemporalEventSchema = z.object({
+  uuid: z.string(),
+  description: z.string(),
+  occurred_at: z.coerce.date(),
+  duration: z.number().optional(),
+});
+
+// Temporal fact
+export const TemporalFactSchema = z.object({
+  uuid: z.string(),
+  subject: z.string(),
+  predicate: z.string(),
+  object: z.string(),
+  valid_from: z.coerce.date(),
+  valid_to: z.coerce.date().optional(),
+});
+
+// Temporal context
+export const TemporalContextSchema = z.object({
+  events: z.array(TemporalEventSchema).optional(),
+  facts: z.array(TemporalFactSchema).optional(),
+});
+
+// Entity
+export const EntitySchema = z.object({
+  uuid: z.string(),
+  name: z.string(),
+  entity_type: z.string(),
+  properties: z.record(z.unknown()).optional(),
+  created_at: z.coerce.date(),
+});
+
+// Concept
+export const ConceptSchema = z.object({
+  uuid: z.string(),
+  name: z.string(),
+  description: z.string().optional(),
+  embedding: z.array(z.number()).optional(),
+});
+
+// Semantic match
+export const SemanticMatchSchema = z.object({
+  concept: ConceptSchema,
+  score: z.number().min(0).max(1),
+});
+
+// Synthesizer reasoning
+export const SynthesizerReasoningSchema = z.object({
+  causal_chain: z.array(CausalLinkSchema).optional(),
+  temporal_context: TemporalContextSchema.optional(),
+  entities_involved: z.array(EntitySchema).optional(),
+  semantic_matches: z.array(SemanticMatchSchema).optional(),
+});
+
+// Synthesizer output schema
+export const SynthesizerOutputSchema = z.object({
+  answer: z.string(),
+  confidence: z.number().min(0).max(1),
+  reasoning: SynthesizerReasoningSchema,
+  sources: z.array(z.string()),
+  follow_ups: z.array(z.string()).optional(),
+});
+
+// ============================================================================
+// Configuration Schemas - for validating config at runtime
+// ============================================================================
+
+export const FalkorDBConfigSchema = z.object({
+  host: z.string().min(1),
+  port: z.number().int().min(1).max(65535),
+  password: z.string().optional(),
+  graphName: z.string().min(1),
+});
+
+export const LLMConfigSchema = z.object({
+  provider: z.enum(['openai', 'anthropic', 'ollama']),
+  model: z.string().min(1),
+  baseUrl: z.string().url().optional(),
+  apiKey: z.string().optional(),
+  classifierMaxTokens: z.number().int().positive(),
+  synthesizerMaxTokens: z.number().int().positive(),
+});
+
+export const EmbeddingsConfigSchema = z.object({
+  provider: z.enum(['openai', 'ollama']),
+  model: z.string().min(1),
+  dimensions: z.number().int().positive(),
+});
+
+export const ExecutionConfigSchema = z.object({
+  parallelTimeout: z.number().int().positive(),
+  maxRetries: z.number().int().min(0),
+});
+
+export const PolygConfigSchema = z.object({
+  falkordb: FalkorDBConfigSchema,
+  llm: LLMConfigSchema,
+  embeddings: EmbeddingsConfigSchema,
+  execution: ExecutionConfigSchema,
+});
+
+// ============================================================================
+// LLM Completion Options Schema
+// ============================================================================
+
+export const LLMCompletionOptionsSchema = z.object({
+  prompt: z.string().min(1),
+  responseFormat: z.enum(['text', 'json']).optional(),
+  maxTokens: z.number().int().positive().optional(),
+});
+
+// ============================================================================
+// Export inferred types from schemas
+// ============================================================================
+
+// MCP Tool input types
 export type RecallInput = z.infer<typeof RecallInputSchema>;
 export type RememberInput = z.infer<typeof RememberInputSchema>;
 export type GetEntityInput = z.infer<typeof GetEntitySchema>;
@@ -113,3 +273,28 @@ export type SearchSemanticInput = z.infer<typeof SearchSemanticSchema>;
 export type AddConceptInput = z.infer<typeof AddConceptSchema>;
 export type ClearGraphInput = z.infer<typeof ClearGraphSchema>;
 export type ExportGraphInput = z.infer<typeof ExportGraphSchema>;
+
+// LLM output types
+export type IntentType = z.infer<typeof IntentTypeSchema>;
+export type EntityMention = z.infer<typeof EntityMentionSchema>;
+export type Timeframe = z.infer<typeof TimeframeSchema>;
+export type ClassifierOutput = z.infer<typeof ClassifierOutputSchema>;
+export type CausalLink = z.infer<typeof CausalLinkSchema>;
+export type TemporalEvent = z.infer<typeof TemporalEventSchema>;
+export type TemporalFact = z.infer<typeof TemporalFactSchema>;
+export type TemporalContext = z.infer<typeof TemporalContextSchema>;
+export type Entity = z.infer<typeof EntitySchema>;
+export type Concept = z.infer<typeof ConceptSchema>;
+export type SemanticMatch = z.infer<typeof SemanticMatchSchema>;
+export type SynthesizerReasoning = z.infer<typeof SynthesizerReasoningSchema>;
+export type SynthesizerOutput = z.infer<typeof SynthesizerOutputSchema>;
+
+// Config types
+export type FalkorDBConfig = z.infer<typeof FalkorDBConfigSchema>;
+export type LLMConfig = z.infer<typeof LLMConfigSchema>;
+export type EmbeddingsConfig = z.infer<typeof EmbeddingsConfigSchema>;
+export type ExecutionConfig = z.infer<typeof ExecutionConfigSchema>;
+export type PolygConfig = z.infer<typeof PolygConfigSchema>;
+
+// LLM options
+export type LLMCompletionOptions = z.infer<typeof LLMCompletionOptionsSchema>;

@@ -38,6 +38,9 @@ importers:
       openai:
         specifier: ^6.16.0
         version: 6.16.0(zod@3.25.76)
+      zod:
+        specifier: ^3.23.0
+        version: 3.25.76
     devDependencies:
       typescript:
         specifier: ^5.5.0
