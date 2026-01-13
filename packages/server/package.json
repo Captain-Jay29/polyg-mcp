@@ -4,15 +4,21 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "bin": {
+    "polyg-mcp": "dist/main.js"
+  },
   "scripts": {
     "build": "tsc",
-    "dev": "tsx watch src/index.ts",
+    "dev": "tsx watch src/main.ts",
+    "start": "node dist/main.js",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.25.2",
     "@polyg-mcp/core": "workspace:*",
-    "@polyg-mcp/shared": "workspace:*"
+    "@polyg-mcp/shared": "workspace:*",
+    "zod": "^3.23.0"
   },
   "devDependencies": {
     "tsx": "^4.16.0",

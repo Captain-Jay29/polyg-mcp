@@ -7,6 +7,8 @@ import {
   ExecutionConfigSchema,
   type FalkorDBConfig,
   FalkorDBConfigSchema,
+  type HTTPServerOptions,
+  HTTPServerOptionsSchema,
   type LLMConfig,
   LLMConfigSchema,
   type PolygConfig,
@@ -20,6 +22,7 @@ export type {
   EmbeddingsConfig,
   ExecutionConfig,
   PolygConfig,
+  HTTPServerOptions,
 };
 
 /**
@@ -227,6 +230,20 @@ export function validateExecutionConfig(config: unknown): ExecutionConfig {
   if (!result.success) {
     throw new ConfigValidationError(
       `Invalid execution configuration: ${result.error.message}`,
+      result.error.errors,
+    );
+  }
+  return result.data;
+}
+
+/**
+ * Validate HTTP server options
+ */
+export function validateHTTPServerOptions(config: unknown): HTTPServerOptions {
+  const result = HTTPServerOptionsSchema.safeParse(config);
+  if (!result.success) {
+    throw new ConfigValidationError(
+      `Invalid HTTP server options: ${result.error.message}`,
       result.error.errors,
     );
   }

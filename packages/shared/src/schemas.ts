@@ -295,6 +295,45 @@ export const FalkorDBNodeSchema = z.object({
 });
 
 // ============================================================================
+// Server Configuration Schemas
+// ============================================================================
+
+// HTTP transport options
+export const HTTPServerOptionsSchema = z.object({
+  port: z.number().int().min(1).max(65535).describe('Port to listen on'),
+  host: z
+    .string()
+    .min(1)
+    .optional()
+    .describe('Host to bind to (default: 0.0.0.0)'),
+  stateful: z
+    .boolean()
+    .optional()
+    .describe('Enable stateful sessions (default: true)'),
+});
+
+// Health status response
+export const HealthStatusSchema = z.object({
+  status: z.enum(['ok', 'degraded', 'error']),
+  falkordb: z.enum(['connected', 'disconnected']),
+  graphs: z.number().int().min(0),
+  uptime: z.number().int().min(0),
+});
+
+// MCP tool result content
+export const ToolContentSchema = z.object({
+  type: z.literal('text'),
+  text: z.string(),
+});
+
+// MCP tool result
+export const ToolResultSchema = z.object({
+  content: z.array(ToolContentSchema),
+  isError: z.boolean().optional(),
+  structuredContent: z.unknown().optional(),
+});
+
+// ============================================================================
 // Export inferred types from schemas
 // ============================================================================
 
@@ -346,3 +385,9 @@ export type NodeData = z.infer<typeof NodeDataSchema>;
 export type StorageQueryResult = z.infer<typeof StorageQueryResultSchema>;
 export type StorageStatistics = z.infer<typeof StorageStatisticsSchema>;
 export type FalkorDBNode = z.infer<typeof FalkorDBNodeSchema>;
+
+// Server types
+export type HTTPServerOptions = z.infer<typeof HTTPServerOptionsSchema>;
+export type HealthStatus = z.infer<typeof HealthStatusSchema>;
+export type ToolContent = z.infer<typeof ToolContentSchema>;
+export type ToolResult = z.infer<typeof ToolResultSchema>;
