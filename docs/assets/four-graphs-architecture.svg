@@ -1,0 +1,230 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 500">
+  <defs>
+    <!-- Background gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0d1117"/>
+      <stop offset="100%" style="stop-color:#161b22"/>
+    </linearGradient>
+    
+    <!-- Card gradients -->
+    <linearGradient id="semanticGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3b82f6"/>
+      <stop offset="100%" style="stop-color:#1d4ed8"/>
+    </linearGradient>
+    
+    <linearGradient id="temporalGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#10b981"/>
+      <stop offset="100%" style="stop-color:#059669"/>
+    </linearGradient>
+    
+    <linearGradient id="causalGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f59e0b"/>
+      <stop offset="100%" style="stop-color:#d97706"/>
+    </linearGradient>
+    
+    <linearGradient id="entityGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ef4444"/>
+      <stop offset="100%" style="stop-color:#dc2626"/>
+    </linearGradient>
+    
+    <linearGradient id="centerGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#7c3aed"/>
+      <stop offset="100%" style="stop-color:#a855f7"/>
+    </linearGradient>
+    
+    <!-- Glow filter -->
+    <filter id="cardGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    
+    <filter id="softShadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#000" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="900" height="500" fill="url(#bgGrad)"/>
+  
+  <!-- Subtle grid -->
+  <g opacity="0.05">
+    <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse">
+      <path d="M 30 0 L 0 0 0 30" fill="none" stroke="#fff" stroke-width="0.5"/>
+    </pattern>
+    <rect width="900" height="500" fill="url(#grid)"/>
+  </g>
+  
+  <!-- Connection lines from center -->
+  <g stroke-width="3" fill="none" opacity="0.6">
+    <!-- To Semantic -->
+    <path d="M 450 250 Q 300 150 175 120" stroke="#3b82f6" stroke-dasharray="8,4">
+      <animate attributeName="stroke-dashoffset" from="0" to="24" dur="2s" repeatCount="indefinite"/>
+    </path>
+    <!-- To Temporal -->
+    <path d="M 450 250 Q 600 150 725 120" stroke="#10b981" stroke-dasharray="8,4">
+      <animate attributeName="stroke-dashoffset" from="0" to="24" dur="2s" repeatCount="indefinite"/>
+    </path>
+    <!-- To Causal -->
+    <path d="M 450 250 Q 300 350 175 380" stroke="#f59e0b" stroke-dasharray="8,4">
+      <animate attributeName="stroke-dashoffset" from="0" to="24" dur="2s" repeatCount="indefinite"/>
+    </path>
+    <!-- To Entity -->
+    <path d="M 450 250 Q 600 350 725 380" stroke="#ef4444" stroke-dasharray="8,4">
+      <animate attributeName="stroke-dashoffset" from="0" to="24" dur="2s" repeatCount="indefinite"/>
+    </path>
+  </g>
+  
+  <!-- Center Hub -->
+  <g transform="translate(450, 250)" filter="url(#cardGlow)">
+    <circle r="70" fill="url(#centerGrad)" opacity="0.2"/>
+    <circle r="55" fill="#161b22" stroke="url(#centerGrad)" stroke-width="3"/>
+    <text y="-8" font-family="system-ui, sans-serif" font-size="14" font-weight="700" fill="#fff" text-anchor="middle">polyg-mcp</text>
+    <text y="12" font-family="system-ui, sans-serif" font-size="11" fill="#8b949e" text-anchor="middle">Intent Router</text>
+    <!-- Brain icon simplified -->
+    <g transform="translate(-12, 18)" fill="none" stroke="#a855f7" stroke-width="1.5">
+      <ellipse cx="12" cy="8" rx="10" ry="8"/>
+      <path d="M5 6 Q12 4 19 6"/>
+      <path d="M6 10 Q12 8 18 10"/>
+    </g>
+  </g>
+  
+  <!-- Semantic Graph Card (Top Left) -->
+  <g transform="translate(50, 40)" filter="url(#softShadow)">
+    <rect width="200" height="160" rx="12" fill="#161b22" stroke="#3b82f6" stroke-width="2"/>
+    <rect width="200" height="40" rx="12" fill="url(#semanticGrad)"/>
+    <rect y="28" width="200" height="12" fill="url(#semanticGrad)"/>
+    
+    <!-- Icon -->
+    <g transform="translate(15, 10)">
+      <circle cx="10" cy="10" r="8" fill="none" stroke="#fff" stroke-width="2"/>
+      <circle cx="10" cy="10" r="3" fill="#fff"/>
+    </g>
+    
+    <text x="40" y="26" font-family="system-ui, sans-serif" font-size="16" font-weight="700" fill="#fff">Semantic</text>
+    
+    <text x="15" y="70" font-family="system-ui, sans-serif" font-size="12" fill="#8b949e">Concepts &amp; Similarity</text>
+    
+    <!-- Mini graph visualization -->
+    <g transform="translate(15, 85)">
+      <circle cx="20" cy="20" r="12" fill="#3b82f6" opacity="0.3"/>
+      <circle cx="60" cy="10" r="8" fill="#3b82f6" opacity="0.3"/>
+      <circle cx="50" cy="40" r="10" fill="#3b82f6" opacity="0.3"/>
+      <circle cx="100" cy="25" r="6" fill="#3b82f6" opacity="0.3"/>
+      <line x1="32" y1="20" x2="52" y2="12" stroke="#3b82f6" stroke-width="1"/>
+      <line x1="60" y1="18" x2="52" y2="32" stroke="#3b82f6" stroke-width="1"/>
+      <line x1="60" y1="40" x2="94" y2="28" stroke="#3b82f6" stroke-width="1"/>
+      <circle cx="20" cy="20" r="4" fill="#3b82f6"/>
+      <circle cx="60" cy="10" r="3" fill="#3b82f6"/>
+      <circle cx="50" cy="40" r="3" fill="#3b82f6"/>
+      <circle cx="100" cy="25" r="2" fill="#3b82f6"/>
+    </g>
+    
+    <text x="15" y="150" font-family="system-ui, sans-serif" font-size="10" fill="#6e7681" font-style="italic">"What do we know about auth?"</text>
+  </g>
+  
+  <!-- Temporal Graph Card (Top Right) -->
+  <g transform="translate(650, 40)" filter="url(#softShadow)">
+    <rect width="200" height="160" rx="12" fill="#161b22" stroke="#10b981" stroke-width="2"/>
+    <rect width="200" height="40" rx="12" fill="url(#temporalGrad)"/>
+    <rect y="28" width="200" height="12" fill="url(#temporalGrad)"/>
+    
+    <!-- Icon -->
+    <g transform="translate(15, 10)">
+      <circle cx="10" cy="10" r="8" fill="none" stroke="#fff" stroke-width="2"/>
+      <line x1="10" y1="10" x2="10" y2="5" stroke="#fff" stroke-width="2"/>
+      <line x1="10" y1="10" x2="14" y2="12" stroke="#fff" stroke-width="2"/>
+    </g>
+    
+    <text x="40" y="26" font-family="system-ui, sans-serif" font-size="16" font-weight="700" fill="#fff">Temporal</text>
+    
+    <text x="15" y="70" font-family="system-ui, sans-serif" font-size="12" fill="#8b949e">Events &amp; Time-bound Facts</text>
+    
+    <!-- Timeline visualization -->
+    <g transform="translate(15, 90)">
+      <line x1="0" y1="20" x2="170" y2="20" stroke="#10b981" stroke-width="2"/>
+      <circle cx="20" cy="20" r="6" fill="#10b981"/>
+      <circle cx="70" cy="20" r="6" fill="#10b981"/>
+      <circle cx="120" cy="20" r="6" fill="#10b981"/>
+      <circle cx="160" cy="20" r="6" fill="#10b981" opacity="0.5"/>
+      <text x="20" y="40" font-family="system-ui, sans-serif" font-size="8" fill="#6e7681" text-anchor="middle">Mon</text>
+      <text x="70" y="40" font-family="system-ui, sans-serif" font-size="8" fill="#6e7681" text-anchor="middle">Tue</text>
+      <text x="120" y="40" font-family="system-ui, sans-serif" font-size="8" fill="#6e7681" text-anchor="middle">Wed</text>
+      <text x="160" y="40" font-family="system-ui, sans-serif" font-size="8" fill="#6e7681" text-anchor="middle">Now</text>
+    </g>
+    
+    <text x="15" y="150" font-family="system-ui, sans-serif" font-size="10" fill="#6e7681" font-style="italic">"What happened last Tuesday?"</text>
+  </g>
+  
+  <!-- Causal Graph Card (Bottom Left) -->
+  <g transform="translate(50, 300)" filter="url(#softShadow)">
+    <rect width="200" height="160" rx="12" fill="#161b22" stroke="#f59e0b" stroke-width="2"/>
+    <rect width="200" height="40" rx="12" fill="url(#causalGrad)"/>
+    <rect y="28" width="200" height="12" fill="url(#causalGrad)"/>
+    
+    <!-- Icon -->
+    <g transform="translate(15, 10)">
+      <path d="M5 15 L15 15 L15 5" fill="none" stroke="#fff" stroke-width="2"/>
+      <path d="M10 15 L15 10" fill="none" stroke="#fff" stroke-width="2"/>
+    </g>
+    
+    <text x="40" y="26" font-family="system-ui, sans-serif" font-size="16" font-weight="700" fill="#fff">Causal</text>
+    
+    <text x="15" y="70" font-family="system-ui, sans-serif" font-size="12" fill="#8b949e">Cause → Effect Chains</text>
+    
+    <!-- Causal chain visualization -->
+    <g transform="translate(15, 85)">
+      <rect x="0" y="10" width="40" height="25" rx="4" fill="#f59e0b" opacity="0.3"/>
+      <rect x="60" y="10" width="40" height="25" rx="4" fill="#f59e0b" opacity="0.3"/>
+      <rect x="120" y="10" width="50" height="25" rx="4" fill="#f59e0b" opacity="0.3"/>
+      <path d="M42 22 L58 22" stroke="#f59e0b" stroke-width="2" marker-end="url(#arrowOrange)"/>
+      <path d="M102 22 L118 22" stroke="#f59e0b" stroke-width="2" marker-end="url(#arrowOrange)"/>
+      <text x="20" y="27" font-family="system-ui, sans-serif" font-size="8" fill="#fff" text-anchor="middle">A</text>
+      <text x="80" y="27" font-family="system-ui, sans-serif" font-size="8" fill="#fff" text-anchor="middle">B</text>
+      <text x="145" y="27" font-family="system-ui, sans-serif" font-size="8" fill="#fff" text-anchor="middle">C</text>
+      
+      <!-- Arrow markers -->
+      <defs>
+        <marker id="arrowOrange" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+          <path d="M0,0 L6,3 L0,6 Z" fill="#f59e0b"/>
+        </marker>
+      </defs>
+    </g>
+    
+    <text x="15" y="150" font-family="system-ui, sans-serif" font-size="10" fill="#6e7681" font-style="italic">"Why did X fail?"</text>
+  </g>
+  
+  <!-- Entity Graph Card (Bottom Right) -->
+  <g transform="translate(650, 300)" filter="url(#softShadow)">
+    <rect width="200" height="160" rx="12" fill="#161b22" stroke="#ef4444" stroke-width="2"/>
+    <rect width="200" height="40" rx="12" fill="url(#entityGrad)"/>
+    <rect y="28" width="200" height="12" fill="url(#entityGrad)"/>
+    
+    <!-- Icon -->
+    <g transform="translate(15, 10)">
+      <rect x="5" y="5" width="10" height="10" rx="2" fill="none" stroke="#fff" stroke-width="2"/>
+      <line x1="10" y1="15" x2="10" y2="18" stroke="#fff" stroke-width="2"/>
+    </g>
+    
+    <text x="40" y="26" font-family="system-ui, sans-serif" font-size="16" font-weight="700" fill="#fff">Entity</text>
+    
+    <text x="15" y="70" font-family="system-ui, sans-serif" font-size="12" fill="#8b949e">Persistent Objects</text>
+    
+    <!-- Entity cards visualization -->
+    <g transform="translate(15, 85)">
+      <rect x="0" y="0" width="50" height="35" rx="4" fill="#ef4444" opacity="0.2" stroke="#ef4444" stroke-width="1"/>
+      <rect x="60" y="5" width="50" height="35" rx="4" fill="#ef4444" opacity="0.2" stroke="#ef4444" stroke-width="1"/>
+      <rect x="120" y="0" width="50" height="35" rx="4" fill="#ef4444" opacity="0.2" stroke="#ef4444" stroke-width="1"/>
+      <text x="25" y="20" font-family="system-ui, sans-serif" font-size="9" fill="#ef4444" text-anchor="middle">User</text>
+      <text x="85" y="25" font-family="system-ui, sans-serif" font-size="9" fill="#ef4444" text-anchor="middle">Service</text>
+      <text x="145" y="20" font-family="system-ui, sans-serif" font-size="9" fill="#ef4444" text-anchor="middle">Team</text>
+    </g>
+    
+    <text x="15" y="150" font-family="system-ui, sans-serif" font-size="10" fill="#6e7681" font-style="italic">"Who owns the payment service?"</text>
+  </g>
+  
+  <!-- Title -->
+  <text x="450" y="485" font-family="system-ui, sans-serif" font-size="13" fill="#6e7681" text-anchor="middle">Four Orthogonal Memory Graphs • Queried in Parallel • Synthesized by LLM</text>
+</svg>

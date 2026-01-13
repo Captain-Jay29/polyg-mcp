@@ -1,0 +1,145 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 300">
+  <defs>
+    <!-- Gradient backgrounds -->
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0d1117"/>
+      <stop offset="50%" style="stop-color:#161b22"/>
+      <stop offset="100%" style="stop-color:#0d1117"/>
+    </linearGradient>
+    
+    <linearGradient id="accentGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#7c3aed"/>
+      <stop offset="50%" style="stop-color:#a855f7"/>
+      <stop offset="100%" style="stop-color:#c084fc"/>
+    </linearGradient>
+    
+    <linearGradient id="nodeGradient1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3b82f6"/>
+      <stop offset="100%" style="stop-color:#1d4ed8"/>
+    </linearGradient>
+    
+    <linearGradient id="nodeGradient2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#10b981"/>
+      <stop offset="100%" style="stop-color:#059669"/>
+    </linearGradient>
+    
+    <linearGradient id="nodeGradient3" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f59e0b"/>
+      <stop offset="100%" style="stop-color:#d97706"/>
+    </linearGradient>
+    
+    <linearGradient id="nodeGradient4" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ef4444"/>
+      <stop offset="100%" style="stop-color:#dc2626"/>
+    </linearGradient>
+    
+    <!-- Glow filters -->
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    
+    <filter id="softGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="8" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="1200" height="300" fill="url(#bgGradient)"/>
+  
+  <!-- Grid pattern -->
+  <g opacity="0.1">
+    <line x1="0" y1="50" x2="1200" y2="50" stroke="#fff" stroke-width="0.5"/>
+    <line x1="0" y1="100" x2="1200" y2="100" stroke="#fff" stroke-width="0.5"/>
+    <line x1="0" y1="150" x2="1200" y2="150" stroke="#fff" stroke-width="0.5"/>
+    <line x1="0" y1="200" x2="1200" y2="200" stroke="#fff" stroke-width="0.5"/>
+    <line x1="0" y1="250" x2="1200" y2="250" stroke="#fff" stroke-width="0.5"/>
+  </g>
+  
+  <!-- Decorative connection lines -->
+  <g opacity="0.4" stroke-width="2">
+    <!-- Semantic connections -->
+    <path d="M 920 80 Q 950 120 980 90" stroke="#3b82f6" fill="none" filter="url(#glow)"/>
+    <path d="M 980 90 Q 1010 130 1040 100" stroke="#3b82f6" fill="none" filter="url(#glow)"/>
+    
+    <!-- Temporal connections -->
+    <path d="M 920 140 Q 960 160 1000 140" stroke="#10b981" fill="none" filter="url(#glow)"/>
+    <path d="M 1000 140 Q 1040 180 1080 150" stroke="#10b981" fill="none" filter="url(#glow)"/>
+    
+    <!-- Causal connections -->
+    <path d="M 920 200 Q 970 230 1020 200" stroke="#f59e0b" fill="none" filter="url(#glow)"/>
+    <path d="M 1020 200 Q 1060 170 1100 210" stroke="#f59e0b" fill="none" filter="url(#glow)"/>
+    
+    <!-- Entity connections -->
+    <path d="M 940 240 Q 980 270 1020 240" stroke="#ef4444" fill="none" filter="url(#glow)"/>
+  </g>
+  
+  <!-- Graph nodes decoration -->
+  <g filter="url(#glow)">
+    <!-- Semantic graph nodes -->
+    <circle cx="920" cy="80" r="8" fill="url(#nodeGradient1)"/>
+    <circle cx="980" cy="90" r="6" fill="url(#nodeGradient1)"/>
+    <circle cx="1040" cy="100" r="10" fill="url(#nodeGradient1)"/>
+    <circle cx="1100" cy="85" r="5" fill="url(#nodeGradient1)"/>
+    
+    <!-- Temporal graph nodes -->
+    <circle cx="920" cy="140" r="7" fill="url(#nodeGradient2)"/>
+    <circle cx="1000" cy="140" r="9" fill="url(#nodeGradient2)"/>
+    <circle cx="1080" cy="150" r="6" fill="url(#nodeGradient2)"/>
+    
+    <!-- Causal graph nodes -->
+    <circle cx="920" cy="200" r="6" fill="url(#nodeGradient3)"/>
+    <circle cx="1020" cy="200" r="8" fill="url(#nodeGradient3)"/>
+    <circle cx="1100" cy="210" r="7" fill="url(#nodeGradient3)"/>
+    
+    <!-- Entity graph nodes -->
+    <circle cx="940" cy="240" r="9" fill="url(#nodeGradient4)"/>
+    <circle cx="1020" cy="240" r="6" fill="url(#nodeGradient4)"/>
+    <circle cx="1090" cy="250" r="5" fill="url(#nodeGradient4)"/>
+  </g>
+  
+  <!-- Brain icon -->
+  <g transform="translate(80, 90)" filter="url(#softGlow)">
+    <path d="M60 20 C30 20 10 45 10 70 C10 90 25 105 45 110 C45 115 50 120 60 120 C70 120 75 115 75 110 C95 105 110 90 110 70 C110 45 90 20 60 20" 
+          fill="none" stroke="url(#accentGradient)" stroke-width="3"/>
+    <path d="M40 50 Q60 40 80 50" stroke="url(#accentGradient)" stroke-width="2" fill="none"/>
+    <path d="M35 70 Q60 60 85 70" stroke="url(#accentGradient)" stroke-width="2" fill="none"/>
+    <path d="M40 90 Q60 80 80 90" stroke="url(#accentGradient)" stroke-width="2" fill="none"/>
+    <circle cx="50" cy="55" r="4" fill="#a855f7"/>
+    <circle cx="70" cy="55" r="4" fill="#a855f7"/>
+    <circle cx="45" cy="75" r="3" fill="#a855f7"/>
+    <circle cx="75" cy="75" r="3" fill="#a855f7"/>
+    <circle cx="60" cy="95" r="3" fill="#a855f7"/>
+  </g>
+  
+  <!-- Main title -->
+  <text x="220" y="130" font-family="system-ui, -apple-system, sans-serif" font-size="72" font-weight="800" fill="url(#accentGradient)">polyg-mcp</text>
+  
+  <!-- Subtitle -->
+  <text x="220" y="175" font-family="system-ui, -apple-system, sans-serif" font-size="22" font-weight="400" fill="#8b949e">Multi-Graph Memory MCP Server</text>
+  
+  <!-- Tagline -->
+  <text x="220" y="210" font-family="system-ui, -apple-system, sans-serif" font-size="16" fill="#6e7681">LLM-Powered Intent Classification • Parallel Graph Queries • Intelligent Synthesis</text>
+  
+  <!-- Version badge area -->
+  <g transform="translate(220, 230)">
+    <rect x="0" y="0" width="85" height="24" rx="4" fill="#238636"/>
+    <text x="42.5" y="16" font-family="system-ui, sans-serif" font-size="12" font-weight="600" fill="#fff" text-anchor="middle">TypeScript</text>
+    
+    <rect x="95" y="0" width="55" height="24" rx="4" fill="#1f6feb"/>
+    <text x="122.5" y="16" font-family="system-ui, sans-serif" font-size="12" font-weight="600" fill="#fff" text-anchor="middle">MCP</text>
+    
+    <rect x="160" y="0" width="75" height="24" rx="4" fill="#8957e5"/>
+    <text x="197.5" y="16" font-family="system-ui, sans-serif" font-size="12" font-weight="600" fill="#fff" text-anchor="middle">MAGMA</text>
+  </g>
+  
+  <!-- Accent line -->
+  <rect x="220" y="270" width="200" height="3" rx="1.5" fill="url(#accentGradient)" opacity="0.6"/>
+</svg>
