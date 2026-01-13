@@ -1,0 +1,65 @@
+# =============================================================================
+# Docker Build Ignore File
+# =============================================================================
+# These files are excluded from Docker build context to speed up builds
+# and reduce image size.
+
+# Git
+.git
+.gitignore
+
+# Dependencies (will be installed in container)
+node_modules
+.pnpm-store
+
+# Build outputs (will be built in container)
+**/dist
+*.tsbuildinfo
+.turbo
+
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+
+# IDE and editors
+.idea
+.vscode
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Testing
+coverage
+.nyc_output
+
+# Documentation (not needed in container)
+docs
+*.md
+!README.md
+
+# Examples and benchmarks
+examples
+benchmarks
+
+# GitHub
+.github
+
+# Docker files (avoid recursive copying)
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Temporary files
+tmp
+temp
+*.tmp

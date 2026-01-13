@@ -1,0 +1,31 @@
+# polyg-mcp Development Docker Compose Override
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+#
+# This configuration:
+# - Mounts source code for hot reload
+# - Runs in development mode
+# - Exposes additional ports for debugging
+
+services:
+  polyg-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    environment:
+      - NODE_ENV=development
+    volumes:
+      # Mount source code for hot reload
+      - ./packages/shared/src:/app/packages/shared/src:ro
+      - ./packages/core/src:/app/packages/core/src:ro
+      - ./packages/server/src:/app/packages/server/src:ro
+    # Override healthcheck for faster feedback in dev
+    healthcheck:
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  falkordb:
+    # In development, expose FalkorDB port for direct access
+    ports:
+      - "6379:6379"

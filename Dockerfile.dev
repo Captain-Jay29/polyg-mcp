@@ -1,0 +1,42 @@
+# polyg-mcp Development Dockerfile
+# Supports hot reload via volume mounts
+
+FROM node:20-alpine
+
+# Enable pnpm
+RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
+
+# Install curl for health checks
+RUN apk add --no-cache curl
+
+WORKDIR /app
+
+# Copy package files
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY packages/shared/package.json ./packages/shared/
+COPY packages/core/package.json ./packages/core/
+COPY packages/server/package.json ./packages/server/
+
+# Install all dependencies (including devDependencies)
+RUN pnpm install --frozen-lockfile
+
+# Copy tsconfig and turbo config
+COPY tsconfig.json ./
+COPY turbo.json ./
+
+# Copy source code (will be overridden by volume mounts)
+COPY packages/ ./packages/
+
+# Set environment
+ENV NODE_ENV=development
+ENV PORT=3000
+
+# Expose port
+EXPOSE 3000
+
+# Health check
+HEALTHCHECK --interval=10s --timeout=5s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:3000/health || exit 1
+
+# Run with tsx for hot reload
+CMD ["pnpm", "--filter", "@polyg-mcp/server", "dev"]
