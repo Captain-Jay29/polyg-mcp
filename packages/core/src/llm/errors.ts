@@ -80,6 +80,53 @@ export class ContextLengthError extends LLMError {
 }
 
 /**
+ * Thrown when input validation fails
+ */
+export class LLMValidationError extends LLMError {
+  constructor(
+    message: string,
+    public readonly field?: string,
+  ) {
+    super(message);
+    this.name = 'LLMValidationError';
+  }
+}
+
+/**
+ * Thrown when permission is denied (403)
+ */
+export class PermissionError extends LLMError {
+  constructor(message: string, cause?: Error) {
+    super(message, cause);
+    this.name = 'PermissionError';
+  }
+}
+
+/**
+ * Thrown when server error occurs (5xx)
+ */
+export class ServerError extends LLMError {
+  constructor(
+    message: string,
+    public readonly statusCode?: number,
+    cause?: Error,
+  ) {
+    super(message, cause);
+    this.name = 'ServerError';
+  }
+}
+
+/**
+ * Thrown when provider configuration is invalid
+ */
+export class ConfigurationError extends LLMError {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ConfigurationError';
+  }
+}
+
+/**
  * Check if an error is an LLMError or subclass
  */
 export function isLLMError(error: unknown): error is LLMError {

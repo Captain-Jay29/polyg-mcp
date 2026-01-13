@@ -6,8 +6,11 @@ import {
   ContentFilterError,
   ContextLengthError,
   LLMError,
+  LLMValidationError,
   ModelError,
+  PermissionError,
   RateLimitError,
+  ServerError,
 } from './errors.js';
 
 /**
@@ -30,6 +33,24 @@ export class OpenAIProvider implements LLMProvider {
    * Generate a completion using OpenAI's chat API
    */
   async complete(options: LLMCompletionOptions): Promise<string> {
+    // Input validation
+    if (!options.prompt || options.prompt.trim().length === 0) {
+      throw new LLMValidationError('Prompt cannot be empty', 'prompt');
+    }
+
+    if (options.maxTokens !== undefined) {
+      if (
+        typeof options.maxTokens !== 'number' ||
+        options.maxTokens < 1 ||
+        !Number.isInteger(options.maxTokens)
+      ) {
+        throw new LLMValidationError(
+          'maxTokens must be a positive integer',
+          'maxTokens',
+        );
+      }
+    }
+
     try {
       const response = await this.client.chat.completions.create({
         model: this.model,
@@ -62,13 +83,29 @@ export class OpenAIProvider implements LLMProvider {
 
     if (error instanceof APIError) {
       const message = error.message || 'OpenAI API error';
+      const status = error.status;
 
-      // Handle specific error types
-      if (error.status === 401) {
+      // Handle specific error types by status code
+      if (status === 401) {
         return new AuthenticationError('Invalid OpenAI API key', error);
       }
 
-      if (error.status === 429) {
+      if (status === 403) {
+        return new PermissionError(
+          'Permission denied. Check your API key permissions.',
+          error,
+        );
+      }
+
+      if (status === 404) {
+        return new ModelError(
+          `Model not found: ${this.model}`,
+          this.model,
+          error,
+        );
+      }
+
+      if (status === 429) {
         const retryAfter = this.parseRetryAfter(error);
         return new RateLimitError(
           'OpenAI rate limit exceeded',
@@ -77,15 +114,7 @@ export class OpenAIProvider implements LLMProvider {
         );
       }
 
-      if (error.status === 404) {
-        return new ModelError(
-          `Model not found: ${this.model}`,
-          this.model,
-          error,
-        );
-      }
-
-      if (error.status === 400) {
+      if (status === 400) {
         // Check for context length errors
         if (
           message.includes('context_length') ||
@@ -97,6 +126,17 @@ export class OpenAIProvider implements LLMProvider {
         if (message.includes('content_filter') || message.includes('safety')) {
           return new ContentFilterError(message, error);
         }
+        // Generic bad request - treat as validation error
+        return new LLMValidationError(message, undefined);
+      }
+
+      // Handle server errors (5xx)
+      if (status && status >= 500) {
+        return new ServerError(
+          `OpenAI server error: ${message}`,
+          status,
+          error,
+        );
       }
 
       return new LLMError(message, error);

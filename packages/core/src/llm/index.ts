@@ -1,7 +1,7 @@
 // LLM provider abstraction
 import type { LLMConfig, LLMProvider } from '@polyg-mcp/shared';
 import { AnthropicProvider } from './anthropic.js';
-import { AuthenticationError } from './errors.js';
+import { AuthenticationError, ConfigurationError } from './errors.js';
 import { OllamaProvider } from './ollama.js';
 import { OpenAIProvider } from './openai.js';
 
@@ -17,12 +17,18 @@ export {
   ModelError,
   ContentFilterError,
   ContextLengthError,
+  LLMValidationError,
+  PermissionError,
+  ServerError,
+  ConfigurationError,
   isLLMError,
   wrapLLMError,
 } from './errors.js';
 
 /**
  * Create an LLM provider based on configuration
+ * @throws {AuthenticationError} When API key is missing for providers that require it
+ * @throws {ConfigurationError} When provider is unknown
  */
 export function createLLMProvider(config: LLMConfig): LLMProvider {
   switch (config.provider) {
@@ -42,6 +48,8 @@ export function createLLMProvider(config: LLMConfig): LLMProvider {
       return new OllamaProvider(config.baseUrl, config.model);
 
     default:
-      throw new Error(`Unknown LLM provider: ${config.provider}`);
+      throw new ConfigurationError(
+        `Unknown LLM provider: ${config.provider}. Supported providers: openai, anthropic, ollama`,
+      );
   }
 }

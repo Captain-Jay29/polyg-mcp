@@ -1,6 +1,6 @@
 // Embedding provider abstraction
 import type { EmbeddingProvider, EmbeddingsConfig } from '@polyg-mcp/shared';
-import { EmbeddingAuthError } from './errors.js';
+import { EmbeddingAuthError, EmbeddingConfigError } from './errors.js';
 import { OllamaEmbeddings } from './ollama.js';
 import { OpenAIEmbeddings } from './openai.js';
 
@@ -14,6 +14,9 @@ export {
   EmbeddingRateLimitError,
   EmbeddingModelError,
   EmbeddingInputError,
+  EmbeddingPermissionError,
+  EmbeddingServerError,
+  EmbeddingConfigError,
   isEmbeddingError,
   wrapEmbeddingError,
 } from './errors.js';
@@ -36,6 +39,8 @@ export function createEmbeddingProvider(
       return new OllamaEmbeddings(undefined, config.model);
 
     default:
-      throw new Error(`Unknown embedding provider: ${config.provider}`);
+      throw new EmbeddingConfigError(
+        `Unknown embedding provider: ${config.provider}. Supported providers: openai, ollama`,
+      );
   }
 }

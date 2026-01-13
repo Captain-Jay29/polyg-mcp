@@ -5,8 +5,11 @@ import {
   ContentFilterError,
   ContextLengthError,
   LLMError,
+  LLMValidationError,
   ModelError,
+  PermissionError,
   RateLimitError,
+  ServerError,
 } from './errors.js';
 import { OpenAIProvider } from './openai.js';
 
@@ -262,6 +265,103 @@ describe('OpenAIProvider', () => {
       await expect(provider.complete({ prompt: 'test' })).rejects.toThrow(
         LLMError,
       );
+    });
+
+    it('should wrap 403 errors as PermissionError', async () => {
+      const { APIError } = await import('openai');
+      const OpenAI = (await import('openai')).default;
+      const mockClient = new OpenAI({ apiKey: 'test' });
+      const mockCreate = mockClient.chat.completions.create as ReturnType<
+        typeof vi.fn
+      >;
+
+      mockCreate.mockRejectedValueOnce(
+        new APIError(403, undefined, 'Permission denied', undefined),
+      );
+
+      const provider = new OpenAIProvider('sk-test-key');
+      await expect(provider.complete({ prompt: 'test' })).rejects.toThrow(
+        PermissionError,
+      );
+    });
+
+    it('should wrap 5xx errors as ServerError', async () => {
+      const { APIError } = await import('openai');
+      const OpenAI = (await import('openai')).default;
+      const mockClient = new OpenAI({ apiKey: 'test' });
+      const mockCreate = mockClient.chat.completions.create as ReturnType<
+        typeof vi.fn
+      >;
+
+      mockCreate.mockRejectedValueOnce(
+        new APIError(500, undefined, 'Internal server error', undefined),
+      );
+
+      const provider = new OpenAIProvider('sk-test-key');
+      await expect(provider.complete({ prompt: 'test' })).rejects.toThrow(
+        ServerError,
+      );
+    });
+
+    it('should wrap 503 errors as ServerError', async () => {
+      const { APIError } = await import('openai');
+      const OpenAI = (await import('openai')).default;
+      const mockClient = new OpenAI({ apiKey: 'test' });
+      const mockCreate = mockClient.chat.completions.create as ReturnType<
+        typeof vi.fn
+      >;
+
+      mockCreate.mockRejectedValueOnce(
+        new APIError(503, undefined, 'Service unavailable', undefined),
+      );
+
+      const provider = new OpenAIProvider('sk-test-key');
+      await expect(provider.complete({ prompt: 'test' })).rejects.toThrow(
+        ServerError,
+      );
+    });
+  });
+
+  describe('input validation', () => {
+    it('should throw LLMValidationError for empty prompt', async () => {
+      const provider = new OpenAIProvider('sk-test-key');
+      await expect(provider.complete({ prompt: '' })).rejects.toThrow(
+        LLMValidationError,
+      );
+      await expect(provider.complete({ prompt: '' })).rejects.toThrow(
+        'Prompt cannot be empty',
+      );
+    });
+
+    it('should throw LLMValidationError for whitespace-only prompt', async () => {
+      const provider = new OpenAIProvider('sk-test-key');
+      await expect(provider.complete({ prompt: '   ' })).rejects.toThrow(
+        LLMValidationError,
+      );
+    });
+
+    it('should throw LLMValidationError for negative maxTokens', async () => {
+      const provider = new OpenAIProvider('sk-test-key');
+      await expect(
+        provider.complete({ prompt: 'test', maxTokens: -1 }),
+      ).rejects.toThrow(LLMValidationError);
+      await expect(
+        provider.complete({ prompt: 'test', maxTokens: -1 }),
+      ).rejects.toThrow('maxTokens must be a positive integer');
+    });
+
+    it('should throw LLMValidationError for zero maxTokens', async () => {
+      const provider = new OpenAIProvider('sk-test-key');
+      await expect(
+        provider.complete({ prompt: 'test', maxTokens: 0 }),
+      ).rejects.toThrow(LLMValidationError);
+    });
+
+    it('should throw LLMValidationError for non-integer maxTokens', async () => {
+      const provider = new OpenAIProvider('sk-test-key');
+      await expect(
+        provider.complete({ prompt: 'test', maxTokens: 1.5 }),
+      ).rejects.toThrow(LLMValidationError);
     });
   });
 });

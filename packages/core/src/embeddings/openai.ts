@@ -6,7 +6,9 @@ import {
   EmbeddingError,
   EmbeddingInputError,
   EmbeddingModelError,
+  EmbeddingPermissionError,
   EmbeddingRateLimitError,
+  EmbeddingServerError,
 } from './errors.js';
 
 /**
@@ -70,6 +72,11 @@ export class OpenAIEmbeddings implements EmbeddingProvider {
         input: validTexts,
       });
 
+      // Validate response data
+      if (!response.data || response.data.length === 0) {
+        throw new EmbeddingError('No embeddings in response');
+      }
+
       // Sort by index to maintain order
       const sorted = response.data.sort((a, b) => a.index - b.index);
       return sorted.map((item) => item.embedding);
@@ -100,12 +107,20 @@ export class OpenAIEmbeddings implements EmbeddingProvider {
 
     if (error instanceof APIError) {
       const message = error.message || 'OpenAI API error';
+      const status = error.status;
 
-      if (error.status === 401) {
+      if (status === 401) {
         return new EmbeddingAuthError('Invalid OpenAI API key', error);
       }
 
-      if (error.status === 429) {
+      if (status === 403) {
+        return new EmbeddingPermissionError(
+          'Permission denied. Check your API key permissions.',
+          error,
+        );
+      }
+
+      if (status === 429) {
         return new EmbeddingRateLimitError(
           'OpenAI rate limit exceeded',
           undefined,
@@ -113,7 +128,7 @@ export class OpenAIEmbeddings implements EmbeddingProvider {
         );
       }
 
-      if (error.status === 404) {
+      if (status === 404) {
         return new EmbeddingModelError(
           `Embedding model not found: ${this.model}`,
           this.model,
@@ -121,10 +136,19 @@ export class OpenAIEmbeddings implements EmbeddingProvider {
         );
       }
 
-      if (error.status === 400) {
+      if (status === 400) {
         if (message.includes('too long') || message.includes('maximum')) {
           return new EmbeddingInputError(message, undefined, error);
         }
+      }
+
+      // Handle server errors (5xx)
+      if (status && status >= 500) {
+        return new EmbeddingServerError(
+          `OpenAI server error: ${message}`,
+          status,
+          error,
+        );
       }
 
       return new EmbeddingError(message, error);

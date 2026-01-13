@@ -5,7 +5,9 @@ import {
   EmbeddingError,
   EmbeddingInputError,
   EmbeddingModelError,
+  EmbeddingPermissionError,
   EmbeddingRateLimitError,
+  EmbeddingServerError,
 } from './errors.js';
 import { OpenAIEmbeddings } from './openai.js';
 
@@ -291,6 +293,82 @@ describe('OpenAIEmbeddings', () => {
 
       const provider = new OpenAIEmbeddings('sk-test-key');
       await expect(provider.embed('test')).rejects.toThrow(EmbeddingError);
+    });
+
+    it('should wrap 403 errors as EmbeddingPermissionError', async () => {
+      const { APIError } = await import('openai');
+      const OpenAI = (await import('openai')).default;
+      const mockClient = new OpenAI({ apiKey: 'test' });
+      const mockCreate = mockClient.embeddings.create as ReturnType<
+        typeof vi.fn
+      >;
+
+      mockCreate.mockRejectedValueOnce(
+        new APIError(403, undefined, 'Permission denied', undefined),
+      );
+
+      const provider = new OpenAIEmbeddings('sk-test-key');
+      await expect(provider.embed('test')).rejects.toThrow(
+        EmbeddingPermissionError,
+      );
+    });
+
+    it('should wrap 5xx errors as EmbeddingServerError', async () => {
+      const { APIError } = await import('openai');
+      const OpenAI = (await import('openai')).default;
+      const mockClient = new OpenAI({ apiKey: 'test' });
+      const mockCreate = mockClient.embeddings.create as ReturnType<
+        typeof vi.fn
+      >;
+
+      mockCreate.mockRejectedValueOnce(
+        new APIError(500, undefined, 'Internal server error', undefined),
+      );
+
+      const provider = new OpenAIEmbeddings('sk-test-key');
+      await expect(provider.embed('test')).rejects.toThrow(
+        EmbeddingServerError,
+      );
+    });
+
+    it('should wrap 502 errors as EmbeddingServerError', async () => {
+      const { APIError } = await import('openai');
+      const OpenAI = (await import('openai')).default;
+      const mockClient = new OpenAI({ apiKey: 'test' });
+      const mockCreate = mockClient.embeddings.create as ReturnType<
+        typeof vi.fn
+      >;
+
+      mockCreate.mockRejectedValueOnce(
+        new APIError(502, undefined, 'Bad gateway', undefined),
+      );
+
+      const provider = new OpenAIEmbeddings('sk-test-key');
+      await expect(provider.embed('test')).rejects.toThrow(
+        EmbeddingServerError,
+      );
+    });
+  });
+
+  describe('embedBatch response validation', () => {
+    it('should throw EmbeddingError when response data is empty', async () => {
+      const OpenAI = (await import('openai')).default;
+      const mockClient = new OpenAI({ apiKey: 'test' });
+      const mockCreate = mockClient.embeddings.create as ReturnType<
+        typeof vi.fn
+      >;
+
+      mockCreate.mockResolvedValue({
+        data: [],
+      });
+
+      const provider = new OpenAIEmbeddings('sk-test-key');
+      await expect(provider.embedBatch(['valid text'])).rejects.toThrow(
+        EmbeddingError,
+      );
+      await expect(provider.embedBatch(['valid text'])).rejects.toThrow(
+        'No embeddings in response',
+      );
     });
   });
 });

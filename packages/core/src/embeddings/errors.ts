@@ -70,6 +70,40 @@ export class EmbeddingInputError extends EmbeddingError {
 }
 
 /**
+ * Thrown when permission is denied (403)
+ */
+export class EmbeddingPermissionError extends EmbeddingError {
+  constructor(message: string, cause?: Error) {
+    super(message, cause);
+    this.name = 'EmbeddingPermissionError';
+  }
+}
+
+/**
+ * Thrown when server error occurs (5xx)
+ */
+export class EmbeddingServerError extends EmbeddingError {
+  constructor(
+    message: string,
+    public readonly statusCode?: number,
+    cause?: Error,
+  ) {
+    super(message, cause);
+    this.name = 'EmbeddingServerError';
+  }
+}
+
+/**
+ * Thrown when provider configuration is invalid
+ */
+export class EmbeddingConfigError extends EmbeddingError {
+  constructor(message: string) {
+    super(message);
+    this.name = 'EmbeddingConfigError';
+  }
+}
+
+/**
  * Check if an error is an EmbeddingError or subclass
  */
 export function isEmbeddingError(error: unknown): error is EmbeddingError {
