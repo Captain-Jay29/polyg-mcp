@@ -10,7 +10,8 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@polyg-mcp/shared": "workspace:*"
+    "@polyg-mcp/shared": "workspace:*",
+    "falkordb": "^6.4.1"
   },
   "devDependencies": {
     "typescript": "^5.5.0"
