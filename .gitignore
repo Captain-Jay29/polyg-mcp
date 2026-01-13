@@ -44,3 +44,6 @@ Thumbs.db
 # Benchmark results (keep structure, ignore data)
 benchmarks/results/*.yaml
 !benchmarks/results/.gitkeep
+
+# docs and plans
+docs/
