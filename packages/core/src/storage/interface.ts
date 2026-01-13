@@ -1,42 +1,29 @@
 // Storage interface - abstracts the underlying database implementation
+// Types are imported from shared package (Zod-validated)
 
-/**
- * Node data structure returned by storage operations
- */
-export interface NodeData {
-  uuid: string;
-  labels: string[];
-  properties: Record<string, unknown>;
-}
+export type {
+  ConnectionState,
+  NodeData,
+  StorageQueryResult,
+  StorageStatistics,
+} from '@polyg-mcp/shared';
 
-/**
- * Query result from storage operations
- */
-export interface StorageQueryResult {
-  records: Record<string, unknown>[];
-  metadata: string[];
-}
+// Re-export schemas for validation
+export {
+  ConnectionStateSchema,
+  FalkorDBNodeSchema,
+  NodeDataSchema,
+  StorageQueryResultSchema,
+  StorageStatisticsSchema,
+} from '@polyg-mcp/shared';
 
-/**
- * Statistics about stored data
- */
-export interface StorageStatistics {
-  semantic_nodes: number;
-  temporal_nodes: number;
-  causal_nodes: number;
-  entity_nodes: number;
-  total_relationships: number;
-}
-
-/**
- * Connection state enumeration
- */
-export enum ConnectionState {
-  Disconnected = 'disconnected',
-  Connecting = 'connecting',
-  Connected = 'connected',
-  Error = 'error',
-}
+// Import types for interface definition
+import type {
+  ConnectionState,
+  NodeData,
+  StorageQueryResult,
+  StorageStatistics,
+} from '@polyg-mcp/shared';
 
 /**
  * Storage adapter interface - implement this to support different databases

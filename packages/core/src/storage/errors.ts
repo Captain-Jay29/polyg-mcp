@@ -43,6 +43,16 @@ export class QueryError extends StorageError {
 }
 
 /**
+ * Thrown when storage configuration is invalid
+ */
+export class StorageConfigError extends StorageError {
+  constructor(message: string, cause?: Error) {
+    super(message, cause);
+    this.name = 'StorageConfigError';
+  }
+}
+
+/**
  * Thrown when input validation fails
  */
 export class ValidationError extends StorageError {

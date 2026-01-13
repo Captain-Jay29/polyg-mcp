@@ -17,6 +17,7 @@ export {
 // Error types
 export {
   StorageError,
+  StorageConfigError,
   ConnectionError,
   QueryError,
   ValidationError,

@@ -1,37 +1,32 @@
 // Core type definitions for polyg-mcp
+// Types are inferred from Zod schemas in schemas.ts for runtime validation
 
-// Intent Classification
-export type IntentType = 'semantic' | 'temporal' | 'causal' | 'entity';
+// Re-export types from schemas (these are now Zod-inferred)
+export type {
+  IntentType,
+  EntityMention,
+  Timeframe,
+  ClassifierOutput,
+  CausalLink,
+  TemporalEvent,
+  TemporalFact,
+  TemporalContext,
+  Entity,
+  Concept,
+  SemanticMatch,
+  SynthesizerOutput,
+  LLMCompletionOptions,
+} from './schemas.js';
+
+// Additional types not needing runtime validation
 
 export interface ClassifierInput {
   query: string;
   context?: string;
 }
 
-export interface ClassifierOutput {
-  intents: IntentType[];
-  entities: EntityMention[];
-  timeframe?: Timeframe;
-  causal_direction?: 'upstream' | 'downstream' | 'both';
-  semantic_query?: string;
-  confidence: number;
-}
-
-export interface EntityMention {
-  mention: string;
-  type?: string;
-  resolved?: string;
-}
-
-export interface Timeframe {
-  type: 'specific' | 'range' | 'relative';
-  value: string;
-  end?: string;
-}
-
-// Graph Results
 export interface GraphResult {
-  graph: IntentType;
+  graph: 'semantic' | 'temporal' | 'causal' | 'entity';
   data: unknown;
 }
 
@@ -40,97 +35,28 @@ export interface GraphResults {
   failed: { graph: string; error: Error }[];
 }
 
-// Synthesizer
 export interface SynthesizerInput {
   original_query: string;
-  classification: ClassifierOutput;
+  classification: import('./schemas.js').ClassifierOutput;
   graph_results: GraphResults;
 }
 
-export interface SynthesizerOutput {
-  answer: string;
-  confidence: number;
-  reasoning: {
-    causal_chain?: CausalLink[];
-    temporal_context?: TemporalContext;
-    entities_involved?: Entity[];
-    semantic_matches?: SemanticMatch[];
-  };
-  sources: string[];
-  follow_ups?: string[];
+// LLM Provider interface
+export interface LLMProvider {
+  complete(
+    options: import('./schemas.js').LLMCompletionOptions,
+  ): Promise<string>;
 }
 
-// Entity Graph Types
-export interface Entity {
-  uuid: string;
-  name: string;
-  entity_type: string;
-  properties?: Record<string, unknown>;
-  created_at: Date;
+// Embedding Provider interface
+export interface EmbeddingProvider {
+  embed(text: string): Promise<number[]>;
+  embedBatch(texts: string[]): Promise<number[][]>;
 }
 
-// Temporal Graph Types
-export interface TemporalEvent {
-  uuid: string;
-  description: string;
-  occurred_at: Date;
-  duration?: number;
-}
-
-export interface TemporalFact {
-  uuid: string;
-  subject: string;
-  predicate: string;
-  object: string;
-  valid_from: Date;
-  valid_to?: Date;
-}
-
-export interface TemporalContext {
-  events?: TemporalEvent[];
-  facts?: TemporalFact[];
-}
-
-// Causal Graph Types
+// Causal node type (not in schema as it's internal)
 export interface CausalNode {
   uuid: string;
   description: string;
   node_type: string;
-}
-
-export interface CausalLink {
-  cause: string;
-  effect: string;
-  confidence: number;
-  evidence?: string;
-}
-
-// Semantic Graph Types
-export interface Concept {
-  uuid: string;
-  name: string;
-  description?: string;
-  embedding?: number[];
-}
-
-export interface SemanticMatch {
-  concept: Concept;
-  score: number;
-}
-
-// LLM Provider Types
-export interface LLMCompletionOptions {
-  prompt: string;
-  responseFormat?: 'text' | 'json';
-  maxTokens?: number;
-}
-
-export interface LLMProvider {
-  complete(options: LLMCompletionOptions): Promise<string>;
-}
-
-// Embedding Provider Types
-export interface EmbeddingProvider {
-  embed(text: string): Promise<number[]>;
-  embedBatch(texts: string[]): Promise<number[][]>;
 }
