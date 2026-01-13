@@ -1,19 +1,25 @@
 // Management MCP tools
-import type { ClearGraphInput, ExportGraphInput } from '@polyg-mcp/shared';
+// These are now registered directly in the PolygMCPServer class
+// This file exports the types and schemas for reference
 
-export async function getStatistics(): Promise<Record<string, number>> {
-  // TODO: Return stats for all graphs
-  throw new Error('Not implemented');
-}
+import { z } from 'zod';
 
-export async function clearGraph(
-  input: ClearGraphInput,
-): Promise<{ cleared: boolean }> {
-  // TODO: Clear specified graph(s)
-  throw new Error('Not implemented');
-}
+/**
+ * Schema for clear_graph tool input
+ */
+export const ClearGraphInputSchema = z.object({
+  graph: z
+    .enum(['semantic', 'temporal', 'causal', 'entity', 'all'])
+    .describe('Which graph to clear'),
+});
 
-export async function exportGraph(input: ExportGraphInput): Promise<string> {
-  // TODO: Export graph in specified format
-  throw new Error('Not implemented');
-}
+export type ClearGraphInput = z.infer<typeof ClearGraphInputSchema>;
+
+/**
+ * Schema for export_graph tool input (to be implemented)
+ */
+export const ExportGraphInputSchema = z.object({
+  format: z.enum(['cypher', 'json']).describe('Export format'),
+});
+
+export type ExportGraphInput = z.infer<typeof ExportGraphInputSchema>;
