@@ -1,141 +1,209 @@
+// FalkorDB adapter - database connection and query execution
 import { randomUUID } from 'node:crypto';
 import type { FalkorDBConfig } from '@polyg-mcp/shared';
-// FalkorDB adapter - database connection and query execution
 import { FalkorDB, type Graph } from 'falkordb';
+import {
+  ConnectionError,
+  QueryError,
+  ValidationError,
+  wrapError,
+} from './errors.js';
+import {
+  ConnectionState,
+  type IStorageAdapter,
+  type NodeData,
+  type StorageQueryResult,
+  type StorageStatistics,
+  isValidIdentifier,
+} from './interface.js';
 
-// FalkorDB query param types
+// FalkorDB query param types (internal)
 type QueryParam = null | string | number | boolean | QueryParams | QueryParam[];
 type QueryParams = { [key: string]: QueryParam };
 
-export interface QueryResult {
-  records: Record<string, unknown>[];
-  metadata: string[];
+// FalkorDB node structure (internal)
+interface FalkorDBNode {
+  id: number;
+  labels: string[];
+  properties: Record<string, unknown>;
 }
 
-// Parse FalkorDB metadata strings like "Nodes created: 1"
-function parseMetadata(metadata: string[]): Record<string, number> {
-  const result: Record<string, number> = {};
-  for (const line of metadata) {
-    const match = line.match(/^(.+):\s*(\d+)/);
-    if (match) {
-      const key = match[1].toLowerCase().replace(/\s+/g, '_');
-      result[key] = Number.parseInt(match[2], 10);
-    }
-  }
-  return result;
-}
-
-export class FalkorDBAdapter {
+/**
+ * FalkorDB storage adapter implementation
+ * Provides graph database operations with proper error handling and validation
+ */
+export class FalkorDBAdapter implements IStorageAdapter {
   private client: FalkorDB | null = null;
   private graph: Graph | null = null;
-  private graphName: string;
+  private connectionState: ConnectionState = ConnectionState.Disconnected;
+  private readonly graphName: string;
 
-  constructor(private config: FalkorDBConfig) {
+  constructor(private readonly config: FalkorDBConfig) {
     this.graphName = config.graphName;
   }
 
-  async connect(): Promise<void> {
-    this.client = await FalkorDB.connect({
-      socket: {
-        host: this.config.host,
-        port: this.config.port,
-      },
-      password: this.config.password,
-    });
-    this.graph = this.client.selectGraph(this.graphName);
+  /**
+   * Get current connection state
+   */
+  getConnectionState(): ConnectionState {
+    return this.connectionState;
   }
 
-  async disconnect(): Promise<void> {
-    if (this.client) {
-      await this.client.close();
+  /**
+   * Connect to FalkorDB
+   * @throws ConnectionError if connection fails
+   */
+  async connect(): Promise<void> {
+    // Prevent double-connect
+    if (this.connectionState === ConnectionState.Connected) {
+      return;
+    }
+
+    if (this.connectionState === ConnectionState.Connecting) {
+      throw new ConnectionError('Connection already in progress');
+    }
+
+    this.connectionState = ConnectionState.Connecting;
+
+    try {
+      this.client = await FalkorDB.connect({
+        socket: {
+          host: this.config.host,
+          port: this.config.port,
+        },
+        password: this.config.password,
+      });
+      this.graph = this.client.selectGraph(this.graphName);
+      this.connectionState = ConnectionState.Connected;
+    } catch (error) {
+      this.connectionState = ConnectionState.Error;
       this.client = null;
       this.graph = null;
+      throw new ConnectionError(
+        `Failed to connect to FalkorDB at ${this.config.host}:${this.config.port}`,
+        error instanceof Error ? error : undefined,
+      );
     }
   }
 
-  async query(
-    cypher: string,
-    params?: Record<string, QueryParam>,
-  ): Promise<QueryResult> {
-    const graph = this.getGraph();
-
-    const result = await graph.query<Record<string, unknown>[]>(cypher, {
-      params: params as QueryParams,
-    });
-
-    // Convert result to our format
-    const records: Record<string, unknown>[] = [];
-    if (result.data) {
-      for (const row of result.data) {
-        // Row is already transformed by falkordb client
-        if (Array.isArray(row)) {
-          // If it's still an array, we need to handle it
-          records.push({ value: row });
-        } else if (typeof row === 'object' && row !== null) {
-          records.push(row as Record<string, unknown>);
-        } else {
-          records.push({ value: row });
-        }
+  /**
+   * Disconnect from FalkorDB
+   */
+  async disconnect(): Promise<void> {
+    if (this.client) {
+      try {
+        await this.client.close();
+      } catch {
+        // Ignore disconnect errors
+      } finally {
+        this.client = null;
+        this.graph = null;
+        this.connectionState = ConnectionState.Disconnected;
       }
     }
-
-    return {
-      records,
-      metadata: result.metadata || [],
-    };
   }
 
+  /**
+   * Check if database is healthy and responsive
+   */
+  async healthCheck(): Promise<boolean> {
+    if (this.connectionState !== ConnectionState.Connected) {
+      return false;
+    }
+
+    try {
+      await this.graph?.query('RETURN 1');
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Execute a raw Cypher query
+   * @throws QueryError if query execution fails
+   */
+  async query(
+    cypher: string,
+    params?: Record<string, unknown>,
+  ): Promise<StorageQueryResult> {
+    const graph = this.requireConnection();
+
+    try {
+      const result = await graph.query<Record<string, unknown>[]>(cypher, {
+        params: params as QueryParams,
+      });
+
+      // Convert result to our format
+      const records: Record<string, unknown>[] = [];
+      if (result.data) {
+        for (const row of result.data) {
+          if (Array.isArray(row)) {
+            records.push({ value: row });
+          } else if (typeof row === 'object' && row !== null) {
+            records.push(row as Record<string, unknown>);
+          } else {
+            records.push({ value: row });
+          }
+        }
+      }
+
+      return {
+        records,
+        metadata: result.metadata || [],
+      };
+    } catch (error) {
+      throw new QueryError(
+        'Query execution failed',
+        cypher,
+        error instanceof Error ? error : undefined,
+      );
+    }
+  }
+
+  /**
+   * Create a new node with the given label and properties
+   * @throws ValidationError if label is invalid
+   * @throws QueryError if creation fails
+   */
   async createNode(
     label: string,
-    properties: Record<string, QueryParam>,
+    properties: Record<string, unknown>,
   ): Promise<string> {
-    const graph = this.getGraph();
+    // Validate label to prevent Cypher injection
+    if (!isValidIdentifier(label)) {
+      throw new ValidationError(
+        `Invalid label: "${label}". Labels must be alphanumeric with underscores, starting with a letter.`,
+        'label',
+      );
+    }
 
+    const graph = this.requireConnection();
     const uuid = randomUUID();
     const props = { ...properties, uuid };
 
-    // Build property string for Cypher
+    // Build parameterized property string
     const propEntries = Object.entries(props);
     const propString = propEntries.map(([k]) => `${k}: $${k}`).join(', ');
 
-    await graph.query(`CREATE (n:${label} {${propString}})`, {
-      params: props as QueryParams,
-    });
-
-    return uuid;
+    try {
+      await graph.query(`CREATE (n:${label} {${propString}})`, {
+        params: props as QueryParams,
+      });
+      return uuid;
+    } catch (error) {
+      throw new QueryError(
+        `Failed to create node with label "${label}"`,
+        `CREATE (n:${label} {...})`,
+        error instanceof Error ? error : undefined,
+      );
+    }
   }
 
-  async createRelationship(
-    fromUuid: string,
-    toUuid: string,
-    type: string,
-    properties?: Record<string, QueryParam>,
-  ): Promise<void> {
-    const graph = this.getGraph();
-
-    const props = properties || {};
-    const propEntries = Object.entries(props);
-    const propString =
-      propEntries.length > 0
-        ? ` {${propEntries.map(([k]) => `${k}: $${k}`).join(', ')}}`
-        : '';
-
-    await graph.query(
-      `MATCH (a {uuid: $fromUuid}), (b {uuid: $toUuid})
-       CREATE (a)-[r:${type}${propString}]->(b)`,
-      { params: { fromUuid, toUuid, ...props } as QueryParams },
-    );
-  }
-
-  async deleteNode(uuid: string): Promise<void> {
-    const graph = this.getGraph();
-
-    await graph.query('MATCH (n {uuid: $uuid}) DETACH DELETE n', {
-      params: { uuid },
-    });
-  }
-
-  async findNodeByUuid(uuid: string): Promise<Record<string, unknown> | null> {
+  /**
+   * Find a node by its UUID
+   */
+  async findNodeByUuid(uuid: string): Promise<NodeData | null> {
     const result = await this.query('MATCH (n {uuid: $uuid}) RETURN n', {
       uuid,
     });
@@ -144,45 +212,121 @@ export class FalkorDBAdapter {
       return null;
     }
 
-    // FalkorDB returns nodes with { id, labels, properties } structure
-    const nodeData = result.records[0].n as {
-      id: number;
-      labels: string[];
-      properties: Record<string, unknown>;
-    };
-
-    return nodeData?.properties || null;
+    return this.parseNodeData(result.records[0].n);
   }
 
-  async findNodesByLabel(
-    label: string,
-    limit = 100,
-  ): Promise<Record<string, unknown>[]> {
+  /**
+   * Find all nodes with a specific label
+   */
+  async findNodesByLabel(label: string, limit = 100): Promise<NodeData[]> {
+    // Validate label
+    if (!isValidIdentifier(label)) {
+      throw new ValidationError(
+        `Invalid label: "${label}". Labels must be alphanumeric with underscores.`,
+        'label',
+      );
+    }
+
     const result = await this.query(
       `MATCH (n:${label}) RETURN n LIMIT $limit`,
       { limit },
     );
 
-    // FalkorDB returns nodes with { id, labels, properties } structure
-    return result.records.map((r) => {
-      const nodeData = r.n as {
-        id: number;
-        labels: string[];
-        properties: Record<string, unknown>;
-      };
-      return nodeData?.properties || {};
-    });
+    return result.records
+      .map((r) => this.parseNodeData(r.n))
+      .filter((n): n is NodeData => n !== null);
   }
 
+  /**
+   * Delete a node by UUID
+   * @returns true if node was deleted, false if not found
+   */
+  async deleteNode(uuid: string): Promise<boolean> {
+    const graph = this.requireConnection();
+
+    try {
+      const result = await graph.query(
+        'MATCH (n {uuid: $uuid}) DETACH DELETE n',
+        { params: { uuid } },
+      );
+
+      // Check metadata for deletion count
+      const deletedCount = this.parseMetadataValue(
+        result.metadata,
+        'nodes_deleted',
+      );
+      return deletedCount > 0;
+    } catch (error) {
+      throw new QueryError(
+        `Failed to delete node with UUID "${uuid}"`,
+        'MATCH (n {uuid: $uuid}) DETACH DELETE n',
+        error instanceof Error ? error : undefined,
+      );
+    }
+  }
+
+  /**
+   * Create a relationship between two nodes
+   * @throws ValidationError if relationship type is invalid
+   */
+  async createRelationship(
+    fromUuid: string,
+    toUuid: string,
+    type: string,
+    properties?: Record<string, unknown>,
+  ): Promise<void> {
+    // Validate relationship type
+    if (!isValidIdentifier(type)) {
+      throw new ValidationError(
+        `Invalid relationship type: "${type}". Types must be alphanumeric with underscores.`,
+        'type',
+      );
+    }
+
+    const graph = this.requireConnection();
+    const props = properties || {};
+    const propEntries = Object.entries(props);
+    const propString =
+      propEntries.length > 0
+        ? ` {${propEntries.map(([k]) => `${k}: $${k}`).join(', ')}}`
+        : '';
+
+    try {
+      await graph.query(
+        `MATCH (a {uuid: $fromUuid}), (b {uuid: $toUuid})
+         CREATE (a)-[r:${type}${propString}]->(b)`,
+        { params: { fromUuid, toUuid, ...props } as QueryParams },
+      );
+    } catch (error) {
+      throw new QueryError(
+        `Failed to create ${type} relationship between ${fromUuid} and ${toUuid}`,
+        `MATCH ... CREATE ...-[:${type}]->...`,
+        error instanceof Error ? error : undefined,
+      );
+    }
+  }
+
+  /**
+   * Search for nodes by vector similarity
+   */
   async vectorSearch(
     embedding: number[],
     label: string,
     limit: number,
     embeddingProperty = 'embedding',
-  ): Promise<QueryResult> {
-    // FalkorDB uses vecf32 for vector similarity search
-    // Query nodes with the closest embeddings using euclidean distance
-    const result = await this.query(
+  ): Promise<StorageQueryResult> {
+    // Validate label and property name
+    if (!isValidIdentifier(label)) {
+      throw new ValidationError(`Invalid label: "${label}"`, 'label');
+    }
+    if (!isValidIdentifier(embeddingProperty)) {
+      throw new ValidationError(
+        `Invalid embedding property: "${embeddingProperty}"`,
+        'embeddingProperty',
+      );
+    }
+
+    return this.query(
       `MATCH (n:${label})
        WHERE n.${embeddingProperty} IS NOT NULL
        WITH n, vec.euclideanDistance(n.${embeddingProperty}, vecf32($embedding)) AS distance
@@ -191,13 +335,13 @@ export class FalkorDBAdapter {
        RETURN n, distance`,
       { embedding, limit },
     );
-
-    return result;
   }
 
-  async getStatistics(): Promise<Record<string, number>> {
-    // Count nodes by label prefix (S_, T_, C_, E_ for our 4 graphs)
-    const stats: Record<string, number> = {
+  /**
+   * Get statistics about stored data
+   */
+  async getStatistics(): Promise<StorageStatistics> {
+    const stats: StorageStatistics = {
       semantic_nodes: 0,
       temporal_nodes: 0,
       causal_nodes: 0,
@@ -205,76 +349,127 @@ export class FalkorDBAdapter {
       total_relationships: 0,
     };
 
+    // If not connected, return zeros
+    if (this.connectionState !== ConnectionState.Connected) {
+      return stats;
+    }
+
     try {
-      // Semantic nodes (S_ prefix)
-      const semanticResult = await this.query(
-        `MATCH (n) WHERE any(label IN labels(n) WHERE label STARTS WITH 'S_') RETURN count(n) as count`,
-      );
-      stats.semantic_nodes = (semanticResult.records[0]?.count as number) || 0;
+      const queries = [
+        {
+          key: 'semantic_nodes' as const,
+          query: `MATCH (n) WHERE any(label IN labels(n) WHERE label STARTS WITH 'S_') RETURN count(n) as count`,
+        },
+        {
+          key: 'temporal_nodes' as const,
+          query: `MATCH (n) WHERE any(label IN labels(n) WHERE label STARTS WITH 'T_') RETURN count(n) as count`,
+        },
+        {
+          key: 'causal_nodes' as const,
+          query: `MATCH (n) WHERE any(label IN labels(n) WHERE label STARTS WITH 'C_') RETURN count(n) as count`,
+        },
+        {
+          key: 'entity_nodes' as const,
+          query: `MATCH (n) WHERE any(label IN labels(n) WHERE label STARTS WITH 'E_') RETURN count(n) as count`,
+        },
+        {
+          key: 'total_relationships' as const,
+          query: 'MATCH ()-[r]->() RETURN count(r) as count',
+        },
+      ];
 
-      // Temporal nodes (T_ prefix)
-      const temporalResult = await this.query(
-        `MATCH (n) WHERE any(label IN labels(n) WHERE label STARTS WITH 'T_') RETURN count(n) as count`,
-      );
-      stats.temporal_nodes = (temporalResult.records[0]?.count as number) || 0;
-
-      // Causal nodes (C_ prefix)
-      const causalResult = await this.query(
-        `MATCH (n) WHERE any(label IN labels(n) WHERE label STARTS WITH 'C_') RETURN count(n) as count`,
-      );
-      stats.causal_nodes = (causalResult.records[0]?.count as number) || 0;
-
-      // Entity nodes (E_ prefix)
-      const entityResult = await this.query(
-        `MATCH (n) WHERE any(label IN labels(n) WHERE label STARTS WITH 'E_') RETURN count(n) as count`,
-      );
-      stats.entity_nodes = (entityResult.records[0]?.count as number) || 0;
-
-      // Total relationships
-      const relResult = await this.query(
-        'MATCH ()-[r]->() RETURN count(r) as count',
-      );
-      stats.total_relationships = (relResult.records[0]?.count as number) || 0;
+      for (const { key, query } of queries) {
+        try {
+          const result = await this.query(query);
+          stats[key] = (result.records[0]?.count as number) || 0;
+        } catch {
+          // Individual query failures don't fail the whole operation
+          stats[key] = 0;
+        }
+      }
     } catch {
-      // If queries fail (empty graph), return zeros
+      // If we can't get stats, return zeros
     }
 
     return stats;
   }
 
+  /**
+   * Clear all data from the graph
+   */
   async clearGraph(): Promise<void> {
-    const graph = this.getGraph();
-    await graph.query('MATCH (n) DETACH DELETE n');
+    const graph = this.requireConnection();
+
+    try {
+      await graph.query('MATCH (n) DETACH DELETE n');
+    } catch (error) {
+      throw new QueryError(
+        'Failed to clear graph',
+        'MATCH (n) DETACH DELETE n',
+        error instanceof Error ? error : undefined,
+      );
+    }
   }
 
-  async healthCheck(): Promise<boolean> {
-    try {
-      if (!this.client || !this.graph) {
-        return false;
-      }
-      // Simple query to check connectivity
-      await this.graph.query('RETURN 1');
-      return true;
-    } catch {
-      return false;
+  // ============ Private Methods ============
+
+  /**
+   * Get the graph instance, throwing if not connected
+   */
+  private requireConnection(): Graph {
+    if (this.connectionState !== ConnectionState.Connected || !this.graph) {
+      throw new ConnectionError(
+        'Not connected to FalkorDB. Call connect() first.',
+      );
     }
+    return this.graph;
   }
 
   /**
-   * Parse metadata from query results
+   * Parse FalkorDB node data into our NodeData format
    */
-  getMetadataStats(metadata: string[]): Record<string, number> {
-    return parseMetadata(metadata);
-  }
-
-  private ensureConnected(): void {
-    if (!this.client || !this.graph) {
-      throw new Error('FalkorDB client not connected. Call connect() first.');
+  private parseNodeData(data: unknown): NodeData | null {
+    if (!data || typeof data !== 'object') {
+      return null;
     }
+
+    const node = data as FalkorDBNode;
+    if (!node.properties || typeof node.properties !== 'object') {
+      return null;
+    }
+
+    const uuid = node.properties.uuid;
+    if (typeof uuid !== 'string') {
+      return null;
+    }
+
+    return {
+      uuid,
+      labels: Array.isArray(node.labels) ? node.labels : [],
+      properties: node.properties,
+    };
   }
 
-  private getGraph(): Graph {
-    this.ensureConnected();
-    return this.graph as Graph;
+  /**
+   * Parse a specific value from FalkorDB metadata array
+   */
+  private parseMetadataValue(metadata: string[], key: string): number {
+    const normalizedKey = key.toLowerCase().replace(/_/g, ' ');
+
+    for (const line of metadata) {
+      const match = line.match(/^(.+):\s*(\d+)/);
+      if (match) {
+        const metaKey = match[1].toLowerCase();
+        if (metaKey.includes(normalizedKey)) {
+          return Number.parseInt(match[2], 10);
+        }
+      }
+    }
+
+    return 0;
   }
 }
+
+// Re-export types for consumers
+export type { NodeData, StorageQueryResult, StorageStatistics };
+export { ConnectionState };

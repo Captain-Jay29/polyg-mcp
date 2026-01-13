@@ -1,7 +1,12 @@
 // Integration tests for FalkorDB adapter
 // Requires running FalkorDB container: docker run -d -p 6379:6379 falkordb/falkordb
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { FalkorDBAdapter } from './falkordb.js';
+import {
+  ConnectionError,
+  ConnectionState,
+  FalkorDBAdapter,
+  ValidationError,
+} from './index.js';
 
 const TEST_CONFIG = {
   host: 'localhost',
@@ -32,7 +37,6 @@ describe('FalkorDBAdapter', () => {
   });
 
   beforeEach(async () => {
-    // Clear the graph before each test
     await adapter.clearGraph();
   });
 
@@ -40,6 +44,15 @@ describe('FalkorDBAdapter', () => {
     it('should report healthy when connected', async () => {
       const healthy = await adapter.healthCheck();
       expect(healthy).toBe(true);
+    });
+
+    it('should report correct connection state', () => {
+      expect(adapter.getConnectionState()).toBe(ConnectionState.Connected);
+    });
+
+    it('should handle double connect gracefully', async () => {
+      await adapter.connect();
+      expect(adapter.getConnectionState()).toBe(ConnectionState.Connected);
     });
   });
 
@@ -52,7 +65,7 @@ describe('FalkorDBAdapter', () => {
 
       expect(uuid).toBeDefined();
       expect(typeof uuid).toBe('string');
-      expect(uuid.length).toBe(36); // UUID format
+      expect(uuid.length).toBe(36);
     });
 
     it('should create a node with all properties', async () => {
@@ -65,10 +78,22 @@ describe('FalkorDBAdapter', () => {
 
       const node = await adapter.findNodeByUuid(uuid);
       expect(node).not.toBeNull();
-      expect(node?.name).toBe('Alice');
-      expect(node?.entity_type).toBe('Person');
-      expect(node?.age).toBe(30);
-      expect(node?.active).toBe(true);
+      expect(node?.properties.name).toBe('Alice');
+      expect(node?.properties.entity_type).toBe('Person');
+      expect(node?.properties.age).toBe(30);
+      expect(node?.properties.active).toBe(true);
+    });
+
+    it('should throw ValidationError for invalid label', async () => {
+      await expect(
+        adapter.createNode('Invalid-Label!', { name: 'Test' }),
+      ).rejects.toThrow(ValidationError);
+    });
+
+    it('should throw ValidationError for label starting with number', async () => {
+      await expect(
+        adapter.createNode('123Label', { name: 'Test' }),
+      ).rejects.toThrow(ValidationError);
     });
   });
 
@@ -81,8 +106,9 @@ describe('FalkorDBAdapter', () => {
 
       const node = await adapter.findNodeByUuid(uuid);
       expect(node).not.toBeNull();
-      expect(node?.name).toBe('Bob');
+      expect(node?.properties.name).toBe('Bob');
       expect(node?.uuid).toBe(uuid);
+      expect(node?.labels).toContain('E_Entity');
     });
 
     it('should return null for non-existent UUID', async () => {
@@ -113,6 +139,12 @@ describe('FalkorDBAdapter', () => {
 
       const entities = await adapter.findNodesByLabel('E_Entity', 2);
       expect(entities.length).toBe(2);
+    });
+
+    it('should throw ValidationError for invalid label', async () => {
+      await expect(adapter.findNodesByLabel('Invalid-Label!')).rejects.toThrow(
+        ValidationError,
+      );
     });
   });
 
@@ -149,16 +181,33 @@ describe('FalkorDBAdapter', () => {
       expect(result.records[0].since).toBe('2024-01-01');
       expect(result.records[0].dept).toBe('Engineering');
     });
+
+    it('should throw ValidationError for invalid relationship type', async () => {
+      const uuid1 = await adapter.createNode('E_Entity', { name: 'Alice' });
+      const uuid2 = await adapter.createNode('E_Entity', { name: 'Bob' });
+
+      await expect(
+        adapter.createRelationship(uuid1, uuid2, 'INVALID-TYPE!'),
+      ).rejects.toThrow(ValidationError);
+    });
   });
 
   describe('deleteNode', () => {
-    it('should delete a node by UUID', async () => {
+    it('should delete a node by UUID and return true', async () => {
       const uuid = await adapter.createNode('E_Entity', { name: 'ToDelete' });
 
-      await adapter.deleteNode(uuid);
+      const deleted = await adapter.deleteNode(uuid);
+      expect(deleted).toBe(true);
 
       const node = await adapter.findNodeByUuid(uuid);
       expect(node).toBeNull();
+    });
+
+    it('should return false for non-existent node', async () => {
+      const deleted = await adapter.deleteNode(
+        '00000000-0000-0000-0000-000000000000',
+      );
+      expect(deleted).toBe(false);
     });
 
     it('should delete a node and its relationships', async () => {
@@ -168,7 +217,6 @@ describe('FalkorDBAdapter', () => {
 
       await adapter.deleteNode(uuid1);
 
-      // Verify relationship is also gone
       const result = await adapter.query(
         'MATCH ()-[r:KNOWS]->() RETURN count(r) as count',
       );
@@ -203,7 +251,7 @@ describe('FalkorDBAdapter', () => {
 
     it('should return metadata with query results', async () => {
       const result = await adapter.query(
-        `CREATE (n:E_Entity {name: 'MetadataTest'}) RETURN n`,
+        "CREATE (n:E_Entity {name: 'MetadataTest'}) RETURN n",
       );
 
       expect(result.metadata).toBeDefined();
@@ -213,7 +261,6 @@ describe('FalkorDBAdapter', () => {
 
   describe('getStatistics', () => {
     it('should return statistics for all graph types', async () => {
-      // Create nodes with different prefixes
       await adapter.createNode('S_Concept', { name: 'Concept1' });
       await adapter.createNode('T_Event', { name: 'Event1' });
       await adapter.createNode('C_Node', { name: 'Cause1' });
@@ -248,6 +295,31 @@ describe('FalkorDBAdapter', () => {
       const stats = await adapter.getStatistics();
       expect(stats.entity_nodes).toBe(0);
       expect(stats.total_relationships).toBe(0);
+    });
+  });
+
+  describe('error handling', () => {
+    it('should throw ConnectionError when not connected', async () => {
+      const disconnectedAdapter = new FalkorDBAdapter(TEST_CONFIG);
+
+      await expect(disconnectedAdapter.query('RETURN 1')).rejects.toThrow(
+        ConnectionError,
+      );
+    });
+
+    it('should report unhealthy when not connected', async () => {
+      const disconnectedAdapter = new FalkorDBAdapter(TEST_CONFIG);
+      const healthy = await disconnectedAdapter.healthCheck();
+      expect(healthy).toBe(false);
+    });
+
+    it('should return zeros from getStatistics when not connected', async () => {
+      const disconnectedAdapter = new FalkorDBAdapter(TEST_CONFIG);
+      const stats = await disconnectedAdapter.getStatistics();
+
+      expect(stats.semantic_nodes).toBe(0);
+      expect(stats.temporal_nodes).toBe(0);
+      expect(stats.entity_nodes).toBe(0);
     });
   });
 });
