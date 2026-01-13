@@ -5,6 +5,7 @@ import {
   ConnectionError,
   ConnectionState,
   FalkorDBAdapter,
+  StorageConfigError,
   ValidationError,
 } from './index.js';
 
@@ -13,6 +14,85 @@ const TEST_CONFIG = {
   port: 6379,
   graphName: 'polyg_test',
 };
+
+describe('FalkorDBAdapter Configuration Validation', () => {
+  it('should accept valid configuration', () => {
+    const adapter = new FalkorDBAdapter({
+      host: 'localhost',
+      port: 6379,
+      graphName: 'test',
+    });
+    expect(adapter).toBeInstanceOf(FalkorDBAdapter);
+  });
+
+  it('should accept configuration with password', () => {
+    const adapter = new FalkorDBAdapter({
+      host: 'localhost',
+      port: 6379,
+      graphName: 'test',
+      password: 'secret',
+    });
+    expect(adapter).toBeInstanceOf(FalkorDBAdapter);
+  });
+
+  it('should throw StorageConfigError for missing host', () => {
+    const invalidConfig = { port: 6379, graphName: 'test' };
+    expect(
+      () => new FalkorDBAdapter(invalidConfig as unknown as typeof TEST_CONFIG),
+    ).toThrow(StorageConfigError);
+  });
+
+  it('should throw StorageConfigError for empty host', () => {
+    expect(
+      () =>
+        new FalkorDBAdapter({
+          host: '',
+          port: 6379,
+          graphName: 'test',
+        }),
+    ).toThrow(StorageConfigError);
+  });
+
+  it('should throw StorageConfigError for invalid port (too low)', () => {
+    expect(
+      () =>
+        new FalkorDBAdapter({
+          host: 'localhost',
+          port: 0,
+          graphName: 'test',
+        }),
+    ).toThrow(StorageConfigError);
+  });
+
+  it('should throw StorageConfigError for invalid port (too high)', () => {
+    expect(
+      () =>
+        new FalkorDBAdapter({
+          host: 'localhost',
+          port: 70000,
+          graphName: 'test',
+        }),
+    ).toThrow(StorageConfigError);
+  });
+
+  it('should throw StorageConfigError for missing graphName', () => {
+    const invalidConfig = { host: 'localhost', port: 6379 };
+    expect(
+      () => new FalkorDBAdapter(invalidConfig as unknown as typeof TEST_CONFIG),
+    ).toThrow(StorageConfigError);
+  });
+
+  it('should throw StorageConfigError for empty graphName', () => {
+    expect(
+      () =>
+        new FalkorDBAdapter({
+          host: 'localhost',
+          port: 6379,
+          graphName: '',
+        }),
+    ).toThrow(StorageConfigError);
+  });
+});
 
 describe('FalkorDBAdapter', () => {
   let adapter: FalkorDBAdapter;

@@ -1,32 +1,36 @@
 // FalkorDB adapter - database connection and query execution
 import { randomUUID } from 'node:crypto';
-import type { FalkorDBConfig } from '@polyg-mcp/shared';
+import {
+  type FalkorDBConfig,
+  FalkorDBNodeSchema,
+  type NodeData,
+  type StorageQueryResult,
+  type StorageStatistics,
+  validateFalkorDBConfig,
+} from '@polyg-mcp/shared';
 import { FalkorDB, type Graph } from 'falkordb';
 import {
   ConnectionError,
   QueryError,
+  StorageConfigError,
   ValidationError,
-  wrapError,
 } from './errors.js';
-import {
-  ConnectionState,
-  type IStorageAdapter,
-  type NodeData,
-  type StorageQueryResult,
-  type StorageStatistics,
-  isValidIdentifier,
-} from './interface.js';
+import { type IStorageAdapter, isValidIdentifier } from './interface.js';
 
 // FalkorDB query param types (internal)
 type QueryParam = null | string | number | boolean | QueryParams | QueryParam[];
 type QueryParams = { [key: string]: QueryParam };
 
-// FalkorDB node structure (internal)
-interface FalkorDBNode {
-  id: number;
-  labels: string[];
-  properties: Record<string, unknown>;
-}
+// Connection state enum (matches shared schema)
+const ConnectionState = {
+  Disconnected: 'disconnected',
+  Connecting: 'connecting',
+  Connected: 'connected',
+  Error: 'error',
+} as const;
+
+type ConnectionStateType =
+  (typeof ConnectionState)[keyof typeof ConnectionState];
 
 /**
  * FalkorDB storage adapter implementation
@@ -35,17 +39,31 @@ interface FalkorDBNode {
 export class FalkorDBAdapter implements IStorageAdapter {
   private client: FalkorDB | null = null;
   private graph: Graph | null = null;
-  private connectionState: ConnectionState = ConnectionState.Disconnected;
+  private connectionState: ConnectionStateType = ConnectionState.Disconnected;
   private readonly graphName: string;
+  private readonly validatedConfig: FalkorDBConfig;
 
-  constructor(private readonly config: FalkorDBConfig) {
-    this.graphName = config.graphName;
+  /**
+   * Create a new FalkorDB adapter
+   * @throws StorageConfigError if configuration is invalid
+   */
+  constructor(config: FalkorDBConfig) {
+    // Validate configuration using Zod
+    try {
+      this.validatedConfig = validateFalkorDBConfig(config);
+    } catch (error) {
+      throw new StorageConfigError(
+        `Invalid FalkorDB configuration: ${error instanceof Error ? error.message : String(error)}`,
+        error instanceof Error ? error : undefined,
+      );
+    }
+    this.graphName = this.validatedConfig.graphName;
   }
 
   /**
    * Get current connection state
    */
-  getConnectionState(): ConnectionState {
+  getConnectionState(): ConnectionStateType {
     return this.connectionState;
   }
 
@@ -68,10 +86,10 @@ export class FalkorDBAdapter implements IStorageAdapter {
     try {
       this.client = await FalkorDB.connect({
         socket: {
-          host: this.config.host,
-          port: this.config.port,
+          host: this.validatedConfig.host,
+          port: this.validatedConfig.port,
         },
-        password: this.config.password,
+        password: this.validatedConfig.password,
       });
       this.graph = this.client.selectGraph(this.graphName);
       this.connectionState = ConnectionState.Connected;
@@ -80,7 +98,7 @@ export class FalkorDBAdapter implements IStorageAdapter {
       this.client = null;
       this.graph = null;
       throw new ConnectionError(
-        `Failed to connect to FalkorDB at ${this.config.host}:${this.config.port}`,
+        `Failed to connect to FalkorDB at ${this.validatedConfig.host}:${this.validatedConfig.port}`,
         error instanceof Error ? error : undefined,
       );
     }
@@ -426,26 +444,37 @@ export class FalkorDBAdapter implements IStorageAdapter {
   }
 
   /**
-   * Parse FalkorDB node data into our NodeData format
+   * Parse FalkorDB node data into our NodeData format using Zod validation
    */
   private parseNodeData(data: unknown): NodeData | null {
     if (!data || typeof data !== 'object') {
       return null;
     }
 
-    const node = data as FalkorDBNode;
-    if (!node.properties || typeof node.properties !== 'object') {
+    // Use Zod to parse and validate the FalkorDB node structure
+    const nodeResult = FalkorDBNodeSchema.safeParse(data);
+    if (!nodeResult.success) {
       return null;
     }
 
+    const node = nodeResult.data;
+
+    // Extract and validate uuid
     const uuid = node.properties.uuid;
     if (typeof uuid !== 'string') {
       return null;
     }
 
+    // Validate UUID format (basic check)
+    const uuidRegex =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(uuid)) {
+      return null;
+    }
+
     return {
       uuid,
-      labels: Array.isArray(node.labels) ? node.labels : [],
+      labels: node.labels,
       properties: node.properties,
     };
   }

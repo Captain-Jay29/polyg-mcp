@@ -254,6 +254,47 @@ export const LLMCompletionOptionsSchema = z.object({
 });
 
 // ============================================================================
+// Storage Schemas - for validating data from FalkorDB
+// ============================================================================
+
+// Connection state enum values
+export const ConnectionStateSchema = z.enum([
+  'disconnected',
+  'connecting',
+  'connected',
+  'error',
+]);
+
+// Node data returned from storage operations
+export const NodeDataSchema = z.object({
+  uuid: z.string().uuid(),
+  labels: z.array(z.string()),
+  properties: z.record(z.unknown()),
+});
+
+// Query result from storage operations
+export const StorageQueryResultSchema = z.object({
+  records: z.array(z.record(z.unknown())),
+  metadata: z.array(z.string()),
+});
+
+// Statistics about stored data
+export const StorageStatisticsSchema = z.object({
+  semantic_nodes: z.number().int().min(0),
+  temporal_nodes: z.number().int().min(0),
+  causal_nodes: z.number().int().min(0),
+  entity_nodes: z.number().int().min(0),
+  total_relationships: z.number().int().min(0),
+});
+
+// FalkorDB internal node structure (for parsing raw responses)
+export const FalkorDBNodeSchema = z.object({
+  id: z.number().optional(),
+  labels: z.array(z.string()).default([]),
+  properties: z.record(z.unknown()).default({}),
+});
+
+// ============================================================================
 // Export inferred types from schemas
 // ============================================================================
 
@@ -298,3 +339,10 @@ export type PolygConfig = z.infer<typeof PolygConfigSchema>;
 
 // LLM options
 export type LLMCompletionOptions = z.infer<typeof LLMCompletionOptionsSchema>;
+
+// Storage types
+export type ConnectionState = z.infer<typeof ConnectionStateSchema>;
+export type NodeData = z.infer<typeof NodeDataSchema>;
+export type StorageQueryResult = z.infer<typeof StorageQueryResultSchema>;
+export type StorageStatistics = z.infer<typeof StorageStatisticsSchema>;
+export type FalkorDBNode = z.infer<typeof FalkorDBNodeSchema>;
