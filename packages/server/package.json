@@ -13,5 +13,9 @@
   "dependencies": {
     "@polyg-mcp/core": "workspace:*",
     "@polyg-mcp/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.16.0",
+    "typescript": "^5.5.0"
   }
 }

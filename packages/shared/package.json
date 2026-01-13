@@ -8,5 +8,8 @@
     "build": "tsc",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0"
   }
 }

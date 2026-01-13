@@ -11,5 +11,8 @@
   },
   "dependencies": {
     "@polyg-mcp/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0"
   }
 }
