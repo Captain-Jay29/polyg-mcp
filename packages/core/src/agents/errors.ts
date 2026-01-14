@@ -39,7 +39,7 @@ export class LLMResponseValidationError extends AgentError {
   constructor(
     message: string,
     public readonly rawResponse: string,
-    public readonly validationErrors: ZodError['errors'],
+    public readonly validationErrors: ZodError['issues'],
     cause?: Error,
   ) {
     super(message, cause);
@@ -51,10 +51,7 @@ export class LLMResponseValidationError extends AgentError {
    */
   getFormattedErrors(): string {
     return this.validationErrors
-      .map(
-        (err: { path: (string | number)[]; message: string }) =>
-          `  - ${err.path.join('.')}: ${err.message}`,
-      )
+      .map((err) => `  - ${err.path.join('.')}: ${err.message}`)
       .join('\n');
   }
 }

@@ -69,9 +69,9 @@ export class IntentClassifier {
 
     if (!result.success) {
       throw new LLMResponseValidationError(
-        `LLM response failed schema validation:\n${result.error.errors.map((e) => `  - ${e.path.join('.')}: ${e.message}`).join('\n')}`,
+        `LLM response failed schema validation:\n${result.error.issues.map((e: { path: PropertyKey[]; message: string }) => `  - ${e.path.join('.')}: ${e.message}`).join('\n')}`,
         response,
-        result.error.errors,
+        result.error.issues,
       );
     }
 

@@ -223,7 +223,7 @@ export class CausalGraph {
         { nodeId },
       );
 
-      return result.records.map((record) => ({
+      return result.records.map((record: Record<string, unknown>) => ({
         cause: this.safeParseNode(record.c).description,
         effect: this.safeParseNode(record.e).description,
         confidence: safeNumber(record.confidence, 1.0),
@@ -258,7 +258,7 @@ export class CausalGraph {
         { nodeId },
       );
 
-      return result.records.map((record) => ({
+      return result.records.map((record: Record<string, unknown>) => ({
         cause: this.safeParseNode(record.c).description,
         effect: this.safeParseNode(record.e).description,
         confidence: safeNumber(record.confidence, 1.0),

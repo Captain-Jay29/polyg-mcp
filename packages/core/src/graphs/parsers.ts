@@ -12,7 +12,7 @@ import { z } from 'zod';
  * Schema for raw FalkorDB node structure
  */
 const FalkorDBNodeSchema = z.object({
-  properties: z.record(z.unknown()),
+  properties: z.record(z.string(), z.unknown()),
 });
 
 /**

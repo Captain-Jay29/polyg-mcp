@@ -353,7 +353,9 @@ export class EntityGraph {
         type: entityType,
       });
 
-      return result.records.map((r) => this.safeParseEntity(r.n));
+      return result.records.map((r: Record<string, unknown>) =>
+        this.safeParseEntity(r.n),
+      );
     } catch (error) {
       if (error instanceof GraphParseError) {
         throw error;
@@ -377,7 +379,9 @@ export class EntityGraph {
         { type: entityType, limit },
       );
 
-      return result.records.map((r) => this.safeParseEntity(r.n));
+      return result.records.map((r: Record<string, unknown>) =>
+        this.safeParseEntity(r.n),
+      );
     } catch (error) {
       if (error instanceof GraphParseError) {
         throw error;

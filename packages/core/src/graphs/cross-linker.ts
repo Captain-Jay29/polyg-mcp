@@ -93,7 +93,7 @@ export class CrossLinker {
         { sourceId },
       );
 
-      return result.records.map((record) => ({
+      return result.records.map((record: Record<string, unknown>) => ({
         sourceId: safeString(record.sourceId),
         targetId: safeString(record.targetId),
         linkType: safeString(record.linkType) as CrossLinkType,
@@ -123,7 +123,7 @@ export class CrossLinker {
         { targetId },
       );
 
-      return result.records.map((record) => ({
+      return result.records.map((record: Record<string, unknown>) => ({
         sourceId: safeString(record.sourceId),
         targetId: safeString(record.targetId),
         linkType: safeString(record.linkType) as CrossLinkType,
@@ -155,7 +155,9 @@ export class CrossLinker {
         {},
       );
 
-      return result.records.map((record) => safeString(record.uuid));
+      return result.records.map((record: Record<string, unknown>) =>
+        safeString(record.uuid),
+      );
     } catch (error) {
       throw wrapGraphError(
         error,
@@ -177,7 +179,7 @@ export class CrossLinker {
         {},
       );
 
-      return result.records.map((record) => ({
+      return result.records.map((record: Record<string, unknown>) => ({
         sourceId: safeString(record.sourceId),
         targetId: safeString(record.targetId),
         linkType: safeString(record.linkType) as CrossLinkType,

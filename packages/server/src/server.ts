@@ -61,7 +61,7 @@ export class PolygMCPServer {
     const configResult = PolygConfigSchema.safeParse(config);
     if (!configResult.success) {
       throw new ServerConfigError(
-        `Invalid server configuration:\n${configResult.error.errors.map((e) => `  - ${e.path.join('.')}: ${e.message}`).join('\n')}`,
+        `Invalid server configuration:\n${configResult.error.issues.map((e: { path: PropertyKey[]; message: string }) => `  - ${e.path.join('.')}: ${e.message}`).join('\n')}`,
         undefined,
       );
     }
