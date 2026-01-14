@@ -1,6 +1,19 @@
 // Server error types for polyg-mcp
 // Follows the same pattern as core package errors
 
+import {
+  CausalTraversalError,
+  EmbeddingGenerationError,
+  EntityNotFoundError,
+  EntityResolutionError,
+  type GraphError,
+  GraphParseError,
+  GraphQueryError,
+  RelationshipError,
+  TemporalError,
+  isGraphError,
+} from '@polyg-mcp/core';
+
 /**
  * Base error class for all server-related errors
  */
@@ -147,6 +160,9 @@ export function formatToolError(
     errorMessage = `Validation error in ${toolName}:\n${error.validationErrors.map((e) => `  - ${e.path}: ${e.message}`).join('\n')}`;
   } else if (error instanceof ToolExecutionError) {
     errorMessage = `Error executing ${toolName}: ${error.message}`;
+  } else if (isGraphError(error)) {
+    // Handle graph-specific errors with user-friendly messages
+    errorMessage = formatGraphError(error, toolName);
   } else if (error instanceof Error) {
     errorMessage = `Error in ${toolName}: ${error.message}`;
   } else {
@@ -157,4 +173,48 @@ export function formatToolError(
     content: [{ type: 'text' as const, text: errorMessage }],
     isError: true,
   };
+}
+
+/**
+ * Format graph-specific errors with user-friendly messages
+ */
+function formatGraphError(error: GraphError, toolName: string): string {
+  if (error instanceof EntityNotFoundError) {
+    const identifier = error.identifier ? ` '${error.identifier}'` : '';
+    return `Entity${identifier} not found`;
+  }
+
+  if (error instanceof EntityResolutionError) {
+    return `Could not resolve entity: ${error.message}`;
+  }
+
+  if (error instanceof EmbeddingGenerationError) {
+    return `Failed to generate embedding: ${error.message}`;
+  }
+
+  if (error instanceof GraphParseError) {
+    const nodeType = error.nodeType ? ` (${error.nodeType})` : '';
+    return `Failed to parse graph data${nodeType}: ${error.message}`;
+  }
+
+  if (error instanceof GraphQueryError) {
+    const operation = error.operation ? ` during ${error.operation}` : '';
+    return `Graph query failed${operation}: ${error.message}`;
+  }
+
+  if (error instanceof RelationshipError) {
+    return `Failed to ${error.message.includes('remove') ? 'remove' : 'create'} relationship: ${error.message}`;
+  }
+
+  if (error instanceof TemporalError) {
+    return `Temporal query failed: ${error.message}`;
+  }
+
+  if (error instanceof CausalTraversalError) {
+    const direction = error.direction ? ` (${error.direction})` : '';
+    return `Causal traversal failed${direction}: ${error.message}`;
+  }
+
+  // Generic graph error
+  return `Graph error in ${toolName}: ${error.message}`;
 }
