@@ -217,16 +217,15 @@ export const FalkorDBConfigSchema = z.object({
 });
 
 export const LLMConfigSchema = z.object({
-  provider: z.enum(['openai', 'anthropic', 'ollama']),
+  provider: z.literal('openai'),
   model: z.string().min(1),
-  baseUrl: z.string().url().optional(),
   apiKey: z.string().optional(),
   classifierMaxTokens: z.number().int().positive(),
   synthesizerMaxTokens: z.number().int().positive(),
 });
 
 export const EmbeddingsConfigSchema = z.object({
-  provider: z.enum(['openai', 'ollama']),
+  provider: z.literal('openai'),
   model: z.string().min(1),
   dimensions: z.number().int().positive(),
 });

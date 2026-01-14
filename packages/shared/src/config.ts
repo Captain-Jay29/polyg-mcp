@@ -52,35 +52,6 @@ export class ConfigValidationError extends Error {
 }
 
 /**
- * Parse environment variable as a validated LLM provider
- */
-function parseEnvLLMProvider(): 'openai' | 'anthropic' | 'ollama' {
-  const provider = process.env.LLM_PROVIDER;
-  if (!provider) return 'openai';
-  if (
-    provider === 'openai' ||
-    provider === 'anthropic' ||
-    provider === 'ollama'
-  ) {
-    return provider;
-  }
-  // Return default and let Zod catch invalid values
-  return 'openai';
-}
-
-/**
- * Parse environment variable as a validated embedding provider
- */
-function parseEnvEmbeddingProvider(): 'openai' | 'ollama' {
-  const provider = process.env.EMBEDDING_PROVIDER;
-  if (!provider) return 'openai';
-  if (provider === 'openai' || provider === 'ollama') {
-    return provider;
-  }
-  return 'openai';
-}
-
-/**
  * Parse environment variable as a valid port number
  */
 function parseEnvPort(envVar: string | undefined, defaultPort: number): number {
@@ -105,15 +76,14 @@ function buildRawConfig(): unknown {
       graphName: process.env.FALKORDB_GRAPH || 'polyg',
     },
     llm: {
-      provider: parseEnvLLMProvider(),
+      provider: 'openai',
       model: process.env.LLM_MODEL || 'gpt-4o-mini',
-      baseUrl: process.env.OLLAMA_BASE_URL,
-      apiKey: process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY,
+      apiKey: process.env.OPENAI_API_KEY,
       classifierMaxTokens: 500,
       synthesizerMaxTokens: 1000,
     },
     embeddings: {
-      provider: parseEnvEmbeddingProvider(),
+      provider: 'openai',
       model: process.env.EMBEDDING_MODEL || 'text-embedding-3-small',
       dimensions: 1536,
     },
