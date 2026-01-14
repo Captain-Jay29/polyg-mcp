@@ -46,10 +46,7 @@ export class ConfigValidationError extends Error {
    */
   getFormattedErrors(): string {
     return this.errors
-      .map(
-        (err: { path: (string | number)[]; message: string }) =>
-          `  - ${err.path.join('.')}: ${err.message}`,
-      )
+      .map((err) => `  - ${err.path.join('.')}: ${err.message}`)
       .join('\n');
   }
 }
