@@ -5,7 +5,13 @@ import type {
   SemanticMatch,
 } from '@polyg-mcp/shared';
 import type { FalkorDBAdapter } from '../storage/falkordb.js';
-import { parseConcept } from './parsers.js';
+import {
+  EmbeddingGenerationError,
+  GraphParseError,
+  RelationshipError,
+  wrapGraphError,
+} from './errors.js';
+import { ParseError, parseConcept } from './parsers.js';
 
 // Node label for semantic graph
 const CONCEPT_LABEL = 'S_Concept';
@@ -23,179 +29,342 @@ export class SemanticGraph {
   ) {}
 
   /**
+   * Safely parse a concept node
+   */
+  private safeParseConcept(node: unknown): Concept {
+    try {
+      return parseConcept(node);
+    } catch (error) {
+      if (error instanceof ParseError) {
+        throw new GraphParseError(error.message, error.nodeType, error);
+      }
+      throw error;
+    }
+  }
+
+  /**
    * Add a new concept with auto-generated embedding
    */
   async addConcept(name: string, description?: string): Promise<Concept> {
-    // Generate embedding for the concept
-    const textToEmbed = description ? `${name}: ${description}` : name;
-    const embedding = await this.embeddings.embed(textToEmbed);
+    try {
+      // Generate embedding for the concept
+      const textToEmbed = description ? `${name}: ${description}` : name;
+      let embedding: number[];
 
-    const nodeProps: Record<string, unknown> = {
-      name,
-      embedding: JSON.stringify(embedding),
-      created_at: new Date().toISOString(),
-    };
+      try {
+        embedding = await this.embeddings.embed(textToEmbed);
+      } catch (error) {
+        throw new EmbeddingGenerationError(
+          `Failed to generate embedding for concept: ${name}`,
+          textToEmbed,
+          error instanceof Error ? error : undefined,
+        );
+      }
 
-    if (description) {
-      nodeProps.description = description;
+      const nodeProps: Record<string, unknown> = {
+        name,
+        embedding: JSON.stringify(embedding),
+        created_at: new Date().toISOString(),
+      };
+
+      if (description) {
+        nodeProps.description = description;
+      }
+
+      const uuid = await this.db.createNode(CONCEPT_LABEL, nodeProps);
+
+      return {
+        uuid,
+        name,
+        description,
+        embedding,
+      };
+    } catch (error) {
+      if (error instanceof EmbeddingGenerationError) {
+        throw error;
+      }
+      throw wrapGraphError(
+        error,
+        `Failed to add concept: ${name}`,
+        'Semantic',
+        'addConcept',
+      );
     }
-
-    const uuid = await this.db.createNode(CONCEPT_LABEL, nodeProps);
-
-    return {
-      uuid,
-      name,
-      description,
-      embedding,
-    };
   }
 
   /**
    * Search for concepts similar to a query string
    */
   async search(query: string, limit = 10): Promise<SemanticMatch[]> {
-    // Generate embedding for the query
-    const queryEmbedding = await this.embeddings.embed(query);
+    try {
+      // Generate embedding for the query
+      let queryEmbedding: number[];
 
-    // Get all concepts and compute similarity
-    const result = await this.db.query(
-      `MATCH (c:${CONCEPT_LABEL}) RETURN c`,
-      {},
-    );
-
-    const matches: SemanticMatch[] = [];
-
-    for (const record of result.records) {
-      const concept = parseConcept(record.c);
-      if (concept.embedding) {
-        const score = this.cosineSimilarity(queryEmbedding, concept.embedding);
-        matches.push({ concept, score });
+      try {
+        queryEmbedding = await this.embeddings.embed(query);
+      } catch (error) {
+        throw new EmbeddingGenerationError(
+          'Failed to generate embedding for search query',
+          query,
+          error instanceof Error ? error : undefined,
+        );
       }
-    }
 
-    // Sort by score descending and limit
-    return matches.sort((a, b) => b.score - a.score).slice(0, limit);
+      // Get all concepts and compute similarity
+      const result = await this.db.query(
+        `MATCH (c:${CONCEPT_LABEL}) RETURN c`,
+        {},
+      );
+
+      const matches: SemanticMatch[] = [];
+
+      for (const record of result.records) {
+        const concept = this.safeParseConcept(record.c);
+        if (concept.embedding) {
+          const score = this.cosineSimilarity(
+            queryEmbedding,
+            concept.embedding,
+          );
+          matches.push({ concept, score });
+        }
+      }
+
+      // Sort by score descending and limit
+      return matches.sort((a, b) => b.score - a.score).slice(0, limit);
+    } catch (error) {
+      if (
+        error instanceof EmbeddingGenerationError ||
+        error instanceof GraphParseError
+      ) {
+        throw error;
+      }
+      throw wrapGraphError(
+        error,
+        `Failed to search concepts: ${query}`,
+        'Semantic',
+        'search',
+      );
+    }
   }
 
   /**
    * Find concepts similar to an existing concept
    */
   async getSimilar(conceptId: string, limit = 10): Promise<SemanticMatch[]> {
-    const concept = await this.getConcept(conceptId);
-    if (!concept || !concept.embedding) {
-      return [];
-    }
-
-    // Get all other concepts
-    const result = await this.db.query(
-      `MATCH (c:${CONCEPT_LABEL}) WHERE c.uuid <> $uuid RETURN c`,
-      { uuid: conceptId },
-    );
-
-    const matches: SemanticMatch[] = [];
-
-    for (const record of result.records) {
-      const other = parseConcept(record.c);
-      if (other.embedding) {
-        const score = this.cosineSimilarity(concept.embedding, other.embedding);
-        matches.push({ concept: other, score });
+    try {
+      const concept = await this.getConcept(conceptId);
+      if (!concept || !concept.embedding) {
+        return [];
       }
-    }
 
-    return matches.sort((a, b) => b.score - a.score).slice(0, limit);
+      // Get all other concepts
+      const result = await this.db.query(
+        `MATCH (c:${CONCEPT_LABEL}) WHERE c.uuid <> $uuid RETURN c`,
+        { uuid: conceptId },
+      );
+
+      const matches: SemanticMatch[] = [];
+
+      for (const record of result.records) {
+        const other = this.safeParseConcept(record.c);
+        if (other.embedding) {
+          const score = this.cosineSimilarity(
+            concept.embedding,
+            other.embedding,
+          );
+          matches.push({ concept: other, score });
+        }
+      }
+
+      return matches.sort((a, b) => b.score - a.score).slice(0, limit);
+    } catch (error) {
+      if (error instanceof GraphParseError) {
+        throw error;
+      }
+      throw wrapGraphError(
+        error,
+        `Failed to get similar concepts for: ${conceptId}`,
+        'Semantic',
+        'getSimilar',
+      );
+    }
   }
 
   /**
    * Get a concept by UUID
    */
   async getConcept(uuid: string): Promise<Concept | null> {
-    const result = await this.db.query(
-      `MATCH (c:${CONCEPT_LABEL} {uuid: $uuid}) RETURN c`,
-      { uuid },
-    );
+    try {
+      const result = await this.db.query(
+        `MATCH (c:${CONCEPT_LABEL} {uuid: $uuid}) RETURN c`,
+        { uuid },
+      );
 
-    if (result.records.length === 0) {
-      return null;
+      if (result.records.length === 0) {
+        return null;
+      }
+
+      return this.safeParseConcept(result.records[0].c);
+    } catch (error) {
+      if (error instanceof GraphParseError) {
+        throw error;
+      }
+      throw wrapGraphError(
+        error,
+        `Failed to get concept: ${uuid}`,
+        'Semantic',
+        'getConcept',
+      );
     }
-
-    return parseConcept(result.records[0].c);
   }
 
   /**
    * Get a concept by name
    */
   async getConceptByName(name: string): Promise<Concept | null> {
-    const result = await this.db.query(
-      `MATCH (c:${CONCEPT_LABEL}) WHERE toLower(c.name) = toLower($name) RETURN c LIMIT 1`,
-      { name },
-    );
+    try {
+      const result = await this.db.query(
+        `MATCH (c:${CONCEPT_LABEL}) WHERE toLower(c.name) = toLower($name) RETURN c LIMIT 1`,
+        { name },
+      );
 
-    if (result.records.length === 0) {
-      return null;
+      if (result.records.length === 0) {
+        return null;
+      }
+
+      return this.safeParseConcept(result.records[0].c);
+    } catch (error) {
+      if (error instanceof GraphParseError) {
+        throw error;
+      }
+      throw wrapGraphError(
+        error,
+        `Failed to get concept by name: ${name}`,
+        'Semantic',
+        'getConceptByName',
+      );
     }
-
-    return parseConcept(result.records[0].c);
   }
 
   /**
    * Link a concept to an entity (cross-graph)
    */
   async linkToEntity(conceptId: string, entityId: string): Promise<void> {
-    await this.db.query(
-      `MATCH (c:${CONCEPT_LABEL} {uuid: $conceptId}), (e {uuid: $entityId})
-       CREATE (c)-[:${REPRESENTS_REL} {created_at: $createdAt}]->(e)`,
-      {
+    try {
+      await this.db.query(
+        `MATCH (c:${CONCEPT_LABEL} {uuid: $conceptId}), (e {uuid: $entityId})
+         CREATE (c)-[:${REPRESENTS_REL} {created_at: $createdAt}]->(e)`,
+        {
+          conceptId,
+          entityId,
+          createdAt: new Date().toISOString(),
+        },
+      );
+    } catch (error) {
+      throw new RelationshipError(
+        'Failed to link concept to entity',
         conceptId,
         entityId,
-        createdAt: new Date().toISOString(),
-      },
-    );
+        REPRESENTS_REL,
+        error instanceof Error ? error : undefined,
+      );
+    }
   }
 
   /**
    * Update a concept's embedding (useful for re-indexing)
    */
   async updateEmbedding(uuid: string): Promise<Concept | null> {
-    const concept = await this.getConcept(uuid);
-    if (!concept) {
-      return null;
+    try {
+      const concept = await this.getConcept(uuid);
+      if (!concept) {
+        return null;
+      }
+
+      const textToEmbed = concept.description
+        ? `${concept.name}: ${concept.description}`
+        : concept.name;
+
+      let embedding: number[];
+
+      try {
+        embedding = await this.embeddings.embed(textToEmbed);
+      } catch (error) {
+        throw new EmbeddingGenerationError(
+          `Failed to generate embedding for concept: ${concept.name}`,
+          textToEmbed,
+          error instanceof Error ? error : undefined,
+        );
+      }
+
+      await this.db.query(
+        `MATCH (c:${CONCEPT_LABEL} {uuid: $uuid}) SET c.embedding = $embedding`,
+        { uuid, embedding: JSON.stringify(embedding) },
+      );
+
+      return {
+        ...concept,
+        embedding,
+      };
+    } catch (error) {
+      if (
+        error instanceof EmbeddingGenerationError ||
+        error instanceof GraphParseError
+      ) {
+        throw error;
+      }
+      throw wrapGraphError(
+        error,
+        `Failed to update embedding for concept: ${uuid}`,
+        'Semantic',
+        'updateEmbedding',
+      );
     }
-
-    const textToEmbed = concept.description
-      ? `${concept.name}: ${concept.description}`
-      : concept.name;
-    const embedding = await this.embeddings.embed(textToEmbed);
-
-    await this.db.query(
-      `MATCH (c:${CONCEPT_LABEL} {uuid: $uuid}) SET c.embedding = $embedding`,
-      { uuid, embedding: JSON.stringify(embedding) },
-    );
-
-    return {
-      ...concept,
-      embedding,
-    };
   }
 
   /**
    * Find or create a concept by name
    */
   async findOrCreate(name: string, description?: string): Promise<Concept> {
-    const existing = await this.getConceptByName(name);
-    if (existing) {
-      return existing;
+    try {
+      const existing = await this.getConceptByName(name);
+      if (existing) {
+        return existing;
+      }
+      return this.addConcept(name, description);
+    } catch (error) {
+      if (
+        error instanceof EmbeddingGenerationError ||
+        error instanceof GraphParseError
+      ) {
+        throw error;
+      }
+      throw wrapGraphError(
+        error,
+        `Failed to find or create concept: ${name}`,
+        'Semantic',
+        'findOrCreate',
+      );
     }
-    return this.addConcept(name, description);
   }
 
   /**
    * Delete a concept
    */
   async deleteConcept(uuid: string): Promise<void> {
-    await this.db.query(
-      `MATCH (c:${CONCEPT_LABEL} {uuid: $uuid}) DETACH DELETE c`,
-      { uuid },
-    );
+    try {
+      await this.db.query(
+        `MATCH (c:${CONCEPT_LABEL} {uuid: $uuid}) DETACH DELETE c`,
+        { uuid },
+      );
+    } catch (error) {
+      throw wrapGraphError(
+        error,
+        `Failed to delete concept: ${uuid}`,
+        'Semantic',
+        'deleteConcept',
+      );
+    }
   }
 
   /**
