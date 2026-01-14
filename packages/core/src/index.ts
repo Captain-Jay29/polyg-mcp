@@ -5,5 +5,6 @@ export * from './executor/index.js';
 export * from './storage/index.js';
 export * from './llm/index.js';
 export * from './embeddings/index.js';
+export { Orchestrator, type OrchestratorConfig } from './orchestrator.js';
 
 export const VERSION = '0.1.0';

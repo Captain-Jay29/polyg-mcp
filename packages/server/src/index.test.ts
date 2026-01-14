@@ -1,6 +1,15 @@
 import type { FalkorDBAdapter } from '@polyg-mcp/core';
-import { DEFAULT_CONFIG } from '@polyg-mcp/shared';
+import { DEFAULT_CONFIG, type PolygConfig } from '@polyg-mcp/shared';
 import { describe, expect, it, vi } from 'vitest';
+
+// Test config with a mock API key for LLM/embedding providers
+const TEST_CONFIG: PolygConfig = {
+  ...DEFAULT_CONFIG,
+  llm: {
+    ...DEFAULT_CONFIG.llm,
+    apiKey: 'test-api-key-for-testing-only',
+  },
+};
 import {
   HTTPTransport,
   HealthChecker,
@@ -38,23 +47,23 @@ describe('server exports', () => {
 
 describe('PolygMCPServer', () => {
   it('should create server with valid config', () => {
-    const server = new PolygMCPServer(DEFAULT_CONFIG);
+    const server = new PolygMCPServer(TEST_CONFIG);
     expect(server).toBeDefined();
     expect(server.isConnected()).toBe(false);
   });
 
   it('should expose MCP server instance', () => {
-    const server = new PolygMCPServer(DEFAULT_CONFIG);
+    const server = new PolygMCPServer(TEST_CONFIG);
     expect(server.getMcpServer()).toBeDefined();
   });
 
   it('should expose database adapter', () => {
-    const server = new PolygMCPServer(DEFAULT_CONFIG);
+    const server = new PolygMCPServer(TEST_CONFIG);
     expect(server.getDatabase()).toBeDefined();
   });
 
   it('should expose health checker', () => {
-    const server = new PolygMCPServer(DEFAULT_CONFIG);
+    const server = new PolygMCPServer(TEST_CONFIG);
     expect(server.getHealthChecker()).toBeDefined();
   });
 });
