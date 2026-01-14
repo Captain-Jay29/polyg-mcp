@@ -15,6 +15,7 @@ import {
   AddEventSchema,
   AddFactSchema,
   type CausalLink,
+  ClearGraphSchema,
   ConfigValidationError,
   type EmbeddingProvider,
   ExplainWhySchema,
@@ -29,7 +30,6 @@ import {
   RememberInputSchema,
   SearchSemanticSchema,
 } from '@polyg-mcp/shared';
-import { z } from 'zod';
 import {
   ServerConfigError,
   ServerStartError,
@@ -324,11 +324,7 @@ export class PolygMCPServer {
       {
         description:
           'Clear all data from specified graph(s). Use with caution!',
-        inputSchema: {
-          graph: z
-            .enum(['semantic', 'temporal', 'causal', 'entity', 'all'])
-            .describe('Which graph to clear'),
-        },
+        inputSchema: ClearGraphSchema,
       },
       async (args) => {
         try {
