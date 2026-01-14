@@ -1,6 +1,7 @@
 // Entity Graph - persistent entities, properties, and hierarchies
 import type { Entity } from '@polyg-mcp/shared';
 import type { FalkorDBAdapter } from '../storage/falkordb.js';
+import { parseEntity, safeString } from './parsers.js';
 
 export interface EntityRelationship {
   source: Entity;
@@ -57,7 +58,7 @@ export class EntityGraph {
     );
 
     if (byUuid.records.length > 0) {
-      return this.parseEntity(byUuid.records[0].n);
+      return parseEntity(byUuid.records[0].n);
     }
 
     // Try by name
@@ -67,7 +68,7 @@ export class EntityGraph {
     );
 
     if (byName.records.length > 0) {
-      return this.parseEntity(byName.records[0].n);
+      return parseEntity(byName.records[0].n);
     }
 
     return null;
@@ -173,17 +174,17 @@ export class EntityGraph {
 
     for (const record of outgoing.records) {
       relationships.push({
-        source: this.parseEntity(record.s),
-        target: this.parseEntity(record.t),
-        relationshipType: record.relType as string,
+        source: parseEntity(record.s),
+        target: parseEntity(record.t),
+        relationshipType: safeString(record.relType),
       });
     }
 
     for (const record of incoming.records) {
       relationships.push({
-        source: this.parseEntity(record.s),
-        target: this.parseEntity(record.t),
-        relationshipType: record.relType as string,
+        source: parseEntity(record.s),
+        target: parseEntity(record.t),
+        relationshipType: safeString(record.relType),
       });
     }
 
@@ -211,7 +212,7 @@ export class EntityGraph {
         const result = await this.db.query(query, { mention, type });
 
         if (result.records.length > 0) {
-          entity = this.parseEntity(result.records[0].n);
+          entity = parseEntity(result.records[0].n);
         }
       }
 
@@ -236,7 +237,7 @@ export class EntityGraph {
       type: entityType,
     });
 
-    return result.records.map((r) => this.parseEntity(r.n));
+    return result.records.map((r) => parseEntity(r.n));
   }
 
   /**
@@ -248,31 +249,6 @@ export class EntityGraph {
       { type: entityType, limit },
     );
 
-    return result.records.map((r) => this.parseEntity(r.n));
-  }
-
-  /**
-   * Parse a FalkorDB node into an Entity
-   */
-  private parseEntity(node: unknown): Entity {
-    const n = node as Record<string, unknown>;
-    const props = n.properties as Record<string, unknown>;
-
-    let parsedProperties: Record<string, unknown> = {};
-    if (typeof props.properties === 'string') {
-      try {
-        parsedProperties = JSON.parse(props.properties);
-      } catch {
-        parsedProperties = {};
-      }
-    }
-
-    return {
-      uuid: props.uuid as string,
-      name: props.name as string,
-      entity_type: props.entity_type as string,
-      properties: parsedProperties,
-      created_at: new Date(props.created_at as string),
-    };
+    return result.records.map((r) => parseEntity(r.n));
   }
 }

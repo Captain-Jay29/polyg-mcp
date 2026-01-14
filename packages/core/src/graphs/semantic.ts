@@ -5,6 +5,7 @@ import type {
   SemanticMatch,
 } from '@polyg-mcp/shared';
 import type { FalkorDBAdapter } from '../storage/falkordb.js';
+import { parseConcept } from './parsers.js';
 
 // Node label for semantic graph
 const CONCEPT_LABEL = 'S_Concept';
@@ -65,7 +66,7 @@ export class SemanticGraph {
     const matches: SemanticMatch[] = [];
 
     for (const record of result.records) {
-      const concept = this.parseConcept(record.c);
+      const concept = parseConcept(record.c);
       if (concept.embedding) {
         const score = this.cosineSimilarity(queryEmbedding, concept.embedding);
         matches.push({ concept, score });
@@ -94,7 +95,7 @@ export class SemanticGraph {
     const matches: SemanticMatch[] = [];
 
     for (const record of result.records) {
-      const other = this.parseConcept(record.c);
+      const other = parseConcept(record.c);
       if (other.embedding) {
         const score = this.cosineSimilarity(concept.embedding, other.embedding);
         matches.push({ concept: other, score });
@@ -117,7 +118,7 @@ export class SemanticGraph {
       return null;
     }
 
-    return this.parseConcept(result.records[0].c);
+    return parseConcept(result.records[0].c);
   }
 
   /**
@@ -133,7 +134,7 @@ export class SemanticGraph {
       return null;
     }
 
-    return this.parseConcept(result.records[0].c);
+    return parseConcept(result.records[0].c);
   }
 
   /**
@@ -221,29 +222,5 @@ export class SemanticGraph {
     }
 
     return dotProduct / denominator;
-  }
-
-  /**
-   * Parse a FalkorDB node into a Concept
-   */
-  private parseConcept(node: unknown): Concept {
-    const n = node as Record<string, unknown>;
-    const props = n.properties as Record<string, unknown>;
-
-    let embedding: number[] | undefined;
-    if (typeof props.embedding === 'string') {
-      try {
-        embedding = JSON.parse(props.embedding);
-      } catch {
-        embedding = undefined;
-      }
-    }
-
-    return {
-      uuid: props.uuid as string,
-      name: props.name as string,
-      description: props.description as string | undefined,
-      embedding,
-    };
   }
 }

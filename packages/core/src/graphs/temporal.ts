@@ -6,6 +6,7 @@ import type {
   Timeframe,
 } from '@polyg-mcp/shared';
 import type { FalkorDBAdapter } from '../storage/falkordb.js';
+import { parseTemporalEvent, parseTemporalFact } from './parsers.js';
 
 // Node labels for temporal graph
 const EVENT_LABEL = 'T_Event';
@@ -128,7 +129,7 @@ export class TemporalGraph {
     }
 
     const result = await this.db.query(query, params);
-    return result.records.map((r) => this.parseEvent(r.e));
+    return result.records.map((r) => parseTemporalEvent(r.e));
   }
 
   /**
@@ -145,7 +146,7 @@ export class TemporalGraph {
       { time: timestamp },
     );
 
-    return result.records.map((r) => this.parseFact(r.f));
+    return result.records.map((r) => parseTemporalFact(r.f));
   }
 
   /**
@@ -160,7 +161,7 @@ export class TemporalGraph {
       { from: from.toISOString(), to: to.toISOString() },
     );
 
-    return result.records.map((r) => this.parseFact(r.f));
+    return result.records.map((r) => parseTemporalFact(r.f));
   }
 
   /**
@@ -191,7 +192,7 @@ export class TemporalGraph {
       return null;
     }
 
-    return this.parseEvent(result.records[0].e);
+    return parseTemporalEvent(result.records[0].e);
   }
 
   /**
@@ -207,7 +208,7 @@ export class TemporalGraph {
       return null;
     }
 
-    return this.parseFact(result.records[0].f);
+    return parseTemporalFact(result.records[0].f);
   }
 
   /**
@@ -294,37 +295,5 @@ export class TemporalGraph {
 
     // Default to last week
     return { from: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000), to: now };
-  }
-
-  /**
-   * Parse a FalkorDB node into a TemporalEvent
-   */
-  private parseEvent(node: unknown): TemporalEvent {
-    const n = node as Record<string, unknown>;
-    const props = n.properties as Record<string, unknown>;
-
-    return {
-      uuid: props.uuid as string,
-      description: props.description as string,
-      occurred_at: new Date(props.occurred_at as string),
-      duration: props.duration as number | undefined,
-    };
-  }
-
-  /**
-   * Parse a FalkorDB node into a TemporalFact
-   */
-  private parseFact(node: unknown): TemporalFact {
-    const n = node as Record<string, unknown>;
-    const props = n.properties as Record<string, unknown>;
-
-    return {
-      uuid: props.uuid as string,
-      subject: props.subject as string,
-      predicate: props.predicate as string,
-      object: props.object as string,
-      valid_from: new Date(props.valid_from as string),
-      valid_to: props.valid_to ? new Date(props.valid_to as string) : undefined,
-    };
   }
 }

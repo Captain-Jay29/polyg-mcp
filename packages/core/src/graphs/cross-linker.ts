@@ -1,5 +1,6 @@
 // Cross-Graph Linker - manages X_ relationships between graphs
 import type { FalkorDBAdapter } from '../storage/falkordb.js';
+import { safeNumber, safeString } from './parsers.js';
 
 export type CrossLinkType =
   | 'X_REPRESENTS' // Concept → Entity
@@ -71,11 +72,11 @@ export class CrossLinker {
     );
 
     return result.records.map((record) => ({
-      sourceId: record.sourceId as string,
-      targetId: record.targetId as string,
-      linkType: record.linkType as CrossLinkType,
+      sourceId: safeString(record.sourceId),
+      targetId: safeString(record.targetId),
+      linkType: safeString(record.linkType) as CrossLinkType,
       createdAt: record.createdAt
-        ? new Date(record.createdAt as string)
+        ? new Date(safeString(record.createdAt))
         : undefined,
     }));
   }
@@ -92,11 +93,11 @@ export class CrossLinker {
     );
 
     return result.records.map((record) => ({
-      sourceId: record.sourceId as string,
-      targetId: record.targetId as string,
-      linkType: record.linkType as CrossLinkType,
+      sourceId: safeString(record.sourceId),
+      targetId: safeString(record.targetId),
+      linkType: safeString(record.linkType) as CrossLinkType,
       createdAt: record.createdAt
-        ? new Date(record.createdAt as string)
+        ? new Date(safeString(record.createdAt))
         : undefined,
     }));
   }
@@ -114,7 +115,7 @@ export class CrossLinker {
       {},
     );
 
-    return result.records.map((record) => record.uuid as string);
+    return result.records.map((record) => safeString(record.uuid));
   }
 
   /**
@@ -128,11 +129,11 @@ export class CrossLinker {
     );
 
     return result.records.map((record) => ({
-      sourceId: record.sourceId as string,
-      targetId: record.targetId as string,
-      linkType: record.linkType as CrossLinkType,
+      sourceId: safeString(record.sourceId),
+      targetId: safeString(record.targetId),
+      linkType: safeString(record.linkType) as CrossLinkType,
       createdAt: record.createdAt
-        ? new Date(record.createdAt as string)
+        ? new Date(safeString(record.createdAt))
         : undefined,
     }));
   }
@@ -151,7 +152,7 @@ export class CrossLinker {
       { sourceId, targetId },
     );
 
-    const count = result.records[0]?.count as number;
+    const count = safeNumber(result.records[0]?.count, 0);
     return count > 0;
   }
 
@@ -172,7 +173,7 @@ export class CrossLinker {
         `MATCH ()-[r:${linkType}]->() RETURN count(r) as count`,
         {},
       );
-      stats[linkType] = (result.records[0]?.count as number) || 0;
+      stats[linkType] = safeNumber(result.records[0]?.count, 0);
     }
 
     return stats as Record<CrossLinkType, number>;
@@ -190,7 +191,7 @@ export class CrossLinker {
       { sourceId },
     );
 
-    return (result.records[0]?.deleted as number) || 0;
+    return safeNumber(result.records[0]?.deleted, 0);
   }
 
   /**
@@ -205,6 +206,6 @@ export class CrossLinker {
       { targetId },
     );
 
-    return (result.records[0]?.deleted as number) || 0;
+    return safeNumber(result.records[0]?.deleted, 0);
   }
 }

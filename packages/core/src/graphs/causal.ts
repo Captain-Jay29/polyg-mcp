@@ -1,6 +1,7 @@
 // Causal Graph - cause-effect relationships and reasoning chains
 import type { CausalLink, CausalNode } from '@polyg-mcp/shared';
 import type { FalkorDBAdapter } from '../storage/falkordb.js';
+import { parseCausalNode, safeNumber, safeString } from './parsers.js';
 
 // Node labels for causal graph
 const NODE_LABEL = 'C_Node';
@@ -90,7 +91,7 @@ export class CausalGraph {
       return null;
     }
 
-    return this.parseNode(result.records[0].n);
+    return parseCausalNode(result.records[0].n);
   }
 
   /**
@@ -111,7 +112,7 @@ export class CausalGraph {
       );
 
       for (const record of matchResult.records) {
-        const node = this.parseNode(record.n);
+        const node = parseCausalNode(record.n);
 
         if (direction === 'upstream' || direction === 'both') {
           const upstream = await this.getUpstreamCauses(node.uuid, maxDepth);
@@ -151,10 +152,10 @@ export class CausalGraph {
     );
 
     return result.records.map((record) => ({
-      cause: this.parseNode(record.c).description,
-      effect: this.parseNode(record.e).description,
-      confidence: (record.confidence as number) || 1.0,
-      evidence: record.evidence as string | undefined,
+      cause: parseCausalNode(record.c).description,
+      effect: parseCausalNode(record.e).description,
+      confidence: safeNumber(record.confidence, 1.0),
+      evidence: record.evidence ? safeString(record.evidence) : undefined,
     }));
   }
 
@@ -174,10 +175,10 @@ export class CausalGraph {
     );
 
     return result.records.map((record) => ({
-      cause: this.parseNode(record.c).description,
-      effect: this.parseNode(record.e).description,
-      confidence: (record.confidence as number) || 1.0,
-      evidence: record.evidence as string | undefined,
+      cause: parseCausalNode(record.c).description,
+      effect: parseCausalNode(record.e).description,
+      confidence: safeNumber(record.confidence, 1.0),
+      evidence: record.evidence ? safeString(record.evidence) : undefined,
     }));
   }
 
@@ -194,7 +195,7 @@ export class CausalGraph {
     const allLinks: CausalLink[] = [];
 
     for (const record of matchResult.records) {
-      const node = this.parseNode(record.n);
+      const node = parseCausalNode(record.n);
       const upstream = await this.getUpstreamCauses(node.uuid, 5);
       allLinks.push(...upstream);
     }
@@ -247,24 +248,10 @@ export class CausalGraph {
     );
 
     if (result.records.length > 0) {
-      return this.parseNode(result.records[0].n);
+      return parseCausalNode(result.records[0].n);
     }
 
     // Create new
     return this.addNode(description, nodeType);
-  }
-
-  /**
-   * Parse a FalkorDB node into a CausalNode
-   */
-  private parseNode(node: unknown): CausalNode {
-    const n = node as Record<string, unknown>;
-    const props = n.properties as Record<string, unknown>;
-
-    return {
-      uuid: props.uuid as string,
-      description: props.description as string,
-      node_type: props.node_type as string,
-    };
   }
 }
