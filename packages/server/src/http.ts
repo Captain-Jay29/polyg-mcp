@@ -42,7 +42,10 @@ export class HTTPTransport {
     const result = HTTPServerOptionsSchema.safeParse(options);
     if (!result.success) {
       const errorMessages = result.error.issues
-        .map((e) => `  - ${e.path.join('.')}: ${e.message}`)
+        .map(
+          (e: { path: PropertyKey[]; message: string }) =>
+            `  - ${e.path.join('.')}: ${e.message}`,
+        )
         .join('\n');
       throw new TransportConfigError(
         `Invalid HTTP transport options:\n${errorMessages}`,

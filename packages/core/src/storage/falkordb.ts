@@ -251,8 +251,8 @@ export class FalkorDBAdapter implements IStorageAdapter {
     );
 
     return result.records
-      .map((r) => this.parseNodeData(r.n))
-      .filter((n): n is NodeData => n !== null);
+      .map((r: Record<string, unknown>) => this.parseNodeData(r.n))
+      .filter((n: NodeData | null): n is NodeData => n !== null);
   }
 
   /**

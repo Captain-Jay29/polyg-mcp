@@ -197,7 +197,9 @@ export class TemporalGraph {
       }
 
       const result = await this.db.query(query, params);
-      return result.records.map((r) => this.safeParseEvent(r.e));
+      return result.records.map((r: Record<string, unknown>) =>
+        this.safeParseEvent(r.e),
+      );
     } catch (error) {
       if (error instanceof GraphParseError) {
         throw error;
@@ -225,7 +227,9 @@ export class TemporalGraph {
         { time: timestamp },
       );
 
-      return result.records.map((r) => this.safeParseFact(r.f));
+      return result.records.map((r: Record<string, unknown>) =>
+        this.safeParseFact(r.f),
+      );
     } catch (error) {
       if (error instanceof GraphParseError) {
         throw error;
@@ -251,7 +255,9 @@ export class TemporalGraph {
         { from: from.toISOString(), to: to.toISOString() },
       );
 
-      return result.records.map((r) => this.safeParseFact(r.f));
+      return result.records.map((r: Record<string, unknown>) =>
+        this.safeParseFact(r.f),
+      );
     } catch (error) {
       if (error instanceof GraphParseError) {
         throw error;
