@@ -39,7 +39,7 @@ export class LLMResponseValidationError extends AgentError {
   constructor(
     message: string,
     public readonly rawResponse: string,
-    public readonly validationErrors: ZodError['errors'],
+    public readonly validationErrors: ZodError['issues'],
     cause?: Error,
   ) {
     super(message, cause);
