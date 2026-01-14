@@ -1,6 +1,7 @@
 // Orchestrator - central class connecting all pipeline components
 import type {
   ClassifierInput,
+  ClassifierOutput,
   EmbeddingProvider,
   GraphResults,
   LLMProvider,
@@ -76,23 +77,43 @@ export class Orchestrator {
    * Recall - the main LLM-powered query pipeline
    *
    * Flow: Query → IntentClassifier → ParallelGraphExecutor → Synthesizer → Response
+   * @throws {Error} With step-specific context if any stage fails
    */
   async recall(query: string, context?: string): Promise<SynthesizerOutput> {
     // Step 1: Classify the query intent
-    const classifierInput: ClassifierInput = { query, context };
-    const classification = await this.classifier.classify(classifierInput);
+    let classification: ClassifierOutput;
+    try {
+      const classifierInput: ClassifierInput = { query, context };
+      classification = await this.classifier.classify(classifierInput);
+    } catch (error) {
+      throw new Error(
+        `Intent classification failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
 
     // Step 2: Execute parallel graph queries based on intents
-    const graphResults: GraphResults =
-      await this.executor.execute(classification);
+    let graphResults: GraphResults;
+    try {
+      graphResults = await this.executor.execute(classification);
+    } catch (error) {
+      throw new Error(
+        `Graph query execution failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
 
     // Step 3: Synthesize the results into a coherent response
-    const synthesizerInput: SynthesizerInput = {
-      original_query: query,
-      classification,
-      graph_results: graphResults,
-    };
-    return this.synthesizer.synthesize(synthesizerInput);
+    try {
+      const synthesizerInput: SynthesizerInput = {
+        original_query: query,
+        classification,
+        graph_results: graphResults,
+      };
+      return await this.synthesizer.synthesize(synthesizerInput);
+    } catch (error) {
+      throw new Error(
+        `Response synthesis failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   }
 
   /**
@@ -100,6 +121,7 @@ export class Orchestrator {
    *
    * This is a simplified version that extracts entities and facts.
    * A more sophisticated version would use LLM for extraction.
+   * @throws {Error} If storing the content fails
    */
   async remember(
     content: string,
@@ -109,10 +131,20 @@ export class Orchestrator {
     facts_added: number;
     events_logged: number;
   }> {
+    // Validate input
+    if (!content || content.trim().length === 0) {
+      throw new Error('Content cannot be empty');
+    }
+
     // For now, create a simple event to log what was remembered
     // Future: Use LLM to extract entities, facts, and causal relationships
-
-    await this.temporalGraph.addEvent(content, new Date());
+    try {
+      await this.temporalGraph.addEvent(content, new Date());
+    } catch (error) {
+      throw new Error(
+        `Failed to store content in temporal graph: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
 
     return {
       entities_created: 0,

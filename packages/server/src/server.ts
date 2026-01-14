@@ -1,6 +1,7 @@
 // MCP Server setup
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import {
+  type CausalNode,
   FalkorDBAdapter,
   Orchestrator,
   StorageConfigError,
@@ -15,9 +16,11 @@ import {
   AddFactSchema,
   type CausalLink,
   ConfigValidationError,
+  type EmbeddingProvider,
   ExplainWhySchema,
   GetCausalChainSchema,
   GetEntitySchema,
+  type LLMProvider,
   LinkEntitiesSchema,
   type PolygConfig,
   PolygConfigSchema,
@@ -33,6 +36,7 @@ import {
   ServerStopError,
   ToolExecutionError,
   formatToolError,
+  safeParseDate,
 } from './errors.js';
 import { HealthChecker, type HealthStatus } from './health.js';
 
@@ -81,23 +85,42 @@ export class PolygMCPServer {
       );
     }
 
-    // Initialize LLM and Embedding providers
-    const llmProvider = createLLMProvider({
-      provider: this.validatedConfig.llm.provider,
-      model: this.validatedConfig.llm.model,
-      apiKey: this.validatedConfig.llm.apiKey,
-      classifierMaxTokens: this.validatedConfig.llm.classifierMaxTokens,
-      synthesizerMaxTokens: this.validatedConfig.llm.synthesizerMaxTokens,
-    });
+    // Initialize LLM provider
+    let llmProvider: LLMProvider;
+    try {
+      llmProvider = createLLMProvider({
+        provider: this.validatedConfig.llm.provider,
+        model: this.validatedConfig.llm.model,
+        apiKey: this.validatedConfig.llm.apiKey,
+        classifierMaxTokens: this.validatedConfig.llm.classifierMaxTokens,
+        synthesizerMaxTokens: this.validatedConfig.llm.synthesizerMaxTokens,
+      });
+    } catch (error) {
+      throw new ServerConfigError(
+        `LLM provider initialization failed: ${error instanceof Error ? error.message : String(error)}`,
+        'llm',
+        error instanceof Error ? error : undefined,
+      );
+    }
 
-    const embeddingProvider = createEmbeddingProvider(
-      {
-        provider: this.validatedConfig.embeddings.provider,
-        model: this.validatedConfig.embeddings.model,
-        dimensions: this.validatedConfig.embeddings.dimensions,
-      },
-      this.validatedConfig.llm.apiKey, // Use same API key for embeddings
-    );
+    // Initialize Embedding provider
+    let embeddingProvider: EmbeddingProvider;
+    try {
+      embeddingProvider = createEmbeddingProvider(
+        {
+          provider: this.validatedConfig.embeddings.provider,
+          model: this.validatedConfig.embeddings.model,
+          dimensions: this.validatedConfig.embeddings.dimensions,
+        },
+        this.validatedConfig.llm.apiKey, // Use same API key for embeddings
+      );
+    } catch (error) {
+      throw new ServerConfigError(
+        `Embedding provider initialization failed: ${error instanceof Error ? error.message : String(error)}`,
+        'embeddings',
+        error instanceof Error ? error : undefined,
+      );
+    }
 
     // Initialize Orchestrator with all components
     this.orchestrator = new Orchestrator(
@@ -447,10 +470,16 @@ export class PolygMCPServer {
           let result: Record<string, unknown> = { entity };
 
           if (args.include_relationships) {
-            const relationships = await graphs.entity.getRelationships(
-              entity.uuid,
-            );
-            result = { entity, relationships };
+            try {
+              const relationships = await graphs.entity.getRelationships(
+                entity.uuid,
+              );
+              result = { entity, relationships };
+            } catch (error) {
+              throw new Error(
+                `Failed to fetch relationships for entity '${entity.name}': ${error instanceof Error ? error.message : String(error)}`,
+              );
+            }
           }
 
           return {
@@ -543,11 +572,11 @@ export class PolygMCPServer {
       },
       async (args) => {
         try {
+          const fromDate = safeParseDate(args.from, 'from');
+          const toDate = safeParseDate(args.to, 'to');
+
           const graphs = this.orchestrator.getGraphs();
-          const results = await graphs.temporal.queryTimeline(
-            new Date(args.from),
-            new Date(args.to),
-          );
+          const results = await graphs.temporal.queryTimeline(fromDate, toDate);
           return {
             content: [
               {
@@ -573,10 +602,12 @@ export class PolygMCPServer {
       },
       async (args) => {
         try {
+          const occurredAt = safeParseDate(args.occurred_at, 'occurred_at');
+
           const graphs = this.orchestrator.getGraphs();
           const event = await graphs.temporal.addEvent(
             args.description,
-            new Date(args.occurred_at),
+            occurredAt,
           );
           return {
             content: [
@@ -603,13 +634,18 @@ export class PolygMCPServer {
       },
       async (args) => {
         try {
+          const validFrom = safeParseDate(args.valid_from, 'valid_from');
+          const validTo = args.valid_to
+            ? safeParseDate(args.valid_to, 'valid_to')
+            : undefined;
+
           const graphs = this.orchestrator.getGraphs();
           const fact = await graphs.temporal.addFact(
             args.subject,
             args.predicate,
             args.object,
-            new Date(args.valid_from),
-            args.valid_to ? new Date(args.valid_to) : undefined,
+            validFrom,
+            validTo,
           );
           return {
             content: [
@@ -677,22 +713,44 @@ export class PolygMCPServer {
         try {
           const graphs = this.orchestrator.getGraphs();
 
-          // First ensure both nodes exist (create as generic nodes if needed)
-          let causeNode = await graphs.causal.getNode(args.cause);
-          if (!causeNode) {
-            causeNode = await graphs.causal.addNode(args.cause, 'cause');
+          // Get or create cause node with specific error context
+          let causeNode: CausalNode | null;
+          try {
+            causeNode = await graphs.causal.getNode(args.cause);
+            if (!causeNode) {
+              causeNode = await graphs.causal.addNode(args.cause, 'cause');
+            }
+          } catch (error) {
+            throw new Error(
+              `Failed to get/create cause node '${args.cause}': ${error instanceof Error ? error.message : String(error)}`,
+            );
           }
 
-          let effectNode = await graphs.causal.getNode(args.effect);
-          if (!effectNode) {
-            effectNode = await graphs.causal.addNode(args.effect, 'effect');
+          // Get or create effect node with specific error context
+          let effectNode: CausalNode | null;
+          try {
+            effectNode = await graphs.causal.getNode(args.effect);
+            if (!effectNode) {
+              effectNode = await graphs.causal.addNode(args.effect, 'effect');
+            }
+          } catch (error) {
+            throw new Error(
+              `Failed to get/create effect node '${args.effect}': ${error instanceof Error ? error.message : String(error)}`,
+            );
           }
 
-          await graphs.causal.addLink(
-            causeNode.uuid,
-            effectNode.uuid,
-            args.confidence,
-          );
+          // Create the causal link with specific error context
+          try {
+            await graphs.causal.addLink(
+              causeNode.uuid,
+              effectNode.uuid,
+              args.confidence,
+            );
+          } catch (error) {
+            throw new Error(
+              `Failed to create link between '${args.cause}' and '${args.effect}': ${error instanceof Error ? error.message : String(error)}`,
+            );
+          }
 
           return {
             content: [
