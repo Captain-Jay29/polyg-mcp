@@ -6,20 +6,20 @@ import type {
 } from '@polyg-mcp/shared';
 
 export async function getCausalChain(
-  input: GetCausalChainInput,
+  _input: GetCausalChainInput,
 ): Promise<unknown> {
   // TODO: Traverse causal chain (bypass LLM)
   throw new Error('Not implemented');
 }
 
 export async function addCausalLink(
-  input: AddCausalLinkInput,
+  _input: AddCausalLinkInput,
 ): Promise<unknown> {
   // TODO: Add causal link
   throw new Error('Not implemented');
 }
 
-export async function explainWhy(input: ExplainWhyInput): Promise<unknown> {
+export async function explainWhy(_input: ExplainWhyInput): Promise<unknown> {
   // TODO: Find causal explanation
   throw new Error('Not implemented');
 }

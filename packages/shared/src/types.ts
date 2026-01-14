@@ -3,19 +3,19 @@
 
 // Re-export types from schemas (these are now Zod-inferred)
 export type {
-  IntentType,
-  EntityMention,
-  Timeframe,
-  ClassifierOutput,
   CausalLink,
-  TemporalEvent,
-  TemporalFact,
-  TemporalContext,
-  Entity,
+  ClassifierOutput,
   Concept,
+  Entity,
+  EntityMention,
+  IntentType,
+  LLMCompletionOptions,
   SemanticMatch,
   SynthesizerOutput,
-  LLMCompletionOptions,
+  TemporalContext,
+  TemporalEvent,
+  TemporalFact,
+  Timeframe,
 } from './schemas.js';
 
 // Additional types not needing runtime validation

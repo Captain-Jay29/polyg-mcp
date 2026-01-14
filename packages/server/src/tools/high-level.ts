@@ -5,12 +5,12 @@ import type {
   SynthesizerOutput,
 } from '@polyg-mcp/shared';
 
-export async function recall(input: RecallInput): Promise<SynthesizerOutput> {
+export async function recall(_input: RecallInput): Promise<SynthesizerOutput> {
   // TODO: Full LLM pipeline - classify → query → synthesize
   throw new Error('Not implemented');
 }
 
-export async function remember(input: RememberInput): Promise<{
+export async function remember(_input: RememberInput): Promise<{
   entities_created: number;
   facts_added: number;
   events_logged: number;

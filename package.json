@@ -19,7 +19,7 @@
     "clean": "turbo run clean && rm -rf node_modules"
   },
   "devDependencies": {
-    "@biomejs/biome": "^1.9.0",
+    "@biomejs/biome": "^2.3.11",
     "@types/node": "^25.0.8",
     "@vitest/coverage-v8": "^2.0.0",
     "turbo": "^2.0.0",

@@ -9,9 +9,9 @@ import {
   type GraphError,
   GraphParseError,
   GraphQueryError,
+  isGraphError,
   RelationshipError,
   TemporalError,
-  isGraphError,
 } from '@polyg-mcp/core';
 
 /**

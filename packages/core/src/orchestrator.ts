@@ -47,9 +47,9 @@ export class Orchestrator {
   private readonly executor: ParallelGraphExecutor;
 
   constructor(
-    private readonly db: FalkorDBAdapter,
-    private readonly llm: LLMProvider,
-    private readonly embeddings: EmbeddingProvider,
+    readonly db: FalkorDBAdapter,
+    readonly llm: LLMProvider,
+    readonly embeddings: EmbeddingProvider,
     config: OrchestratorConfig = {},
   ) {
     // Initialize graphs

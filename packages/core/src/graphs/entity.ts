@@ -7,8 +7,7 @@ import {
   RelationshipError,
   wrapGraphError,
 } from './errors.js';
-import { parseEntity, safeString } from './parsers.js';
-import { ParseError } from './parsers.js';
+import { ParseError, parseEntity, safeString } from './parsers.js';
 
 export interface EntityRelationship {
   source: Entity;

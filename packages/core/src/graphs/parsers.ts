@@ -243,7 +243,7 @@ export function parseConcept(node: unknown): Concept {
 /**
  * Schema for query result record with relationship data
  */
-const RelationshipRecordSchema = z.object({
+const _RelationshipRecordSchema = z.object({
   relType: z.string(),
 });
 

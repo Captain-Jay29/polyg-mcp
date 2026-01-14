@@ -10,9 +10,12 @@ const TEST_CONFIG: PolygConfig = {
     apiKey: 'test-api-key-for-testing-only',
   },
 };
+
 import {
-  HTTPTransport,
+  formatToolError,
   HealthChecker,
+  HTTPTransport,
+  isServerError,
   PolygMCPServer,
   ServerConfigError,
   ServerError,
@@ -22,8 +25,6 @@ import {
   ToolInputValidationError,
   TransportConfigError,
   VERSION,
-  formatToolError,
-  isServerError,
   wrapServerError,
 } from './index.js';
 
