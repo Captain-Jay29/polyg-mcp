@@ -218,3 +218,27 @@ function formatGraphError(error: GraphError, toolName: string): string {
   // Generic graph error
   return `Graph error in ${toolName}: ${error.message}`;
 }
+
+/**
+ * Safely parse a date string, throwing a descriptive error if invalid
+ */
+export function safeParseDate(dateStr: string, fieldName: string): Date {
+  if (!dateStr || dateStr.trim().length === 0) {
+    throw new ToolInputValidationError(
+      `Missing required date field: ${fieldName}`,
+      'date_parse',
+      [{ path: fieldName, message: 'Date string is required' }],
+    );
+  }
+
+  const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) {
+    throw new ToolInputValidationError(
+      `Invalid date format for '${fieldName}': ${dateStr}`,
+      'date_parse',
+      [{ path: fieldName, message: `Invalid date format: ${dateStr}` }],
+    );
+  }
+
+  return date;
+}

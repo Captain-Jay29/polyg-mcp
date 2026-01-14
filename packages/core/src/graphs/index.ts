@@ -6,6 +6,7 @@ export { EntityGraph } from './entity.js';
 export { CrossLinker } from './cross-linker.js';
 export type { EntityRelationship } from './entity.js';
 export type { CrossLink, CrossLinkType } from './cross-linker.js';
+export type { CausalNode } from './parsers.js';
 
 // Graph errors - for MCP to catch and display appropriately
 export {
