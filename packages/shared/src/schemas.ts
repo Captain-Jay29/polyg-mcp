@@ -28,7 +28,10 @@ export const GetEntitySchema = z.object({
 export const AddEntitySchema = z.object({
   name: z.string().describe('Entity name'),
   entity_type: z.string().describe('Entity type'),
-  properties: z.record(z.unknown()).optional().describe('Entity properties'),
+  properties: z
+    .record(z.string(), z.unknown())
+    .optional()
+    .describe('Entity properties'),
 });
 
 export const LinkEntitiesSchema = z.object({
@@ -170,7 +173,7 @@ export const EntitySchema = z.object({
   uuid: z.string(),
   name: z.string(),
   entity_type: z.string(),
-  properties: z.record(z.unknown()).optional(),
+  properties: z.record(z.string(), z.unknown()).optional(),
   created_at: z.coerce.date(),
 });
 
@@ -268,12 +271,12 @@ export const ConnectionStateSchema = z.enum([
 export const NodeDataSchema = z.object({
   uuid: z.string().uuid(),
   labels: z.array(z.string()),
-  properties: z.record(z.unknown()),
+  properties: z.record(z.string(), z.unknown()),
 });
 
 // Query result from storage operations
 export const StorageQueryResultSchema = z.object({
-  records: z.array(z.record(z.unknown())),
+  records: z.array(z.record(z.string(), z.unknown())),
   metadata: z.array(z.string()),
 });
 
@@ -290,7 +293,7 @@ export const StorageStatisticsSchema = z.object({
 export const FalkorDBNodeSchema = z.object({
   id: z.number().optional(),
   labels: z.array(z.string()).default([]),
-  properties: z.record(z.unknown()).default({}),
+  properties: z.record(z.string(), z.unknown()).default({}),
 });
 
 // ============================================================================

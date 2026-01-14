@@ -31,7 +31,7 @@ export type {
 export class ConfigValidationError extends Error {
   constructor(
     message: string,
-    public readonly errors: ZodError['errors'],
+    public readonly errors: ZodError['issues'],
   ) {
     super(message);
     this.name = 'ConfigValidationError';
@@ -46,7 +46,10 @@ export class ConfigValidationError extends Error {
    */
   getFormattedErrors(): string {
     return this.errors
-      .map((err) => `  - ${err.path.join('.')}: ${err.message}`)
+      .map(
+        (err: { path: (string | number)[]; message: string }) =>
+          `  - ${err.path.join('.')}: ${err.message}`,
+      )
       .join('\n');
   }
 }
@@ -142,8 +145,8 @@ export function loadConfig(overrides?: Partial<PolygConfig>): PolygConfig {
 
   if (!result.success) {
     throw new ConfigValidationError(
-      `Invalid configuration:\n${result.error.errors.map((e) => `  - ${e.path.join('.')}: ${e.message}`).join('\n')}`,
-      result.error.errors,
+      `Invalid configuration:\n${result.error.issues.map((e) => `  - ${e.path.join('.')}: ${e.message}`).join('\n')}`,
+      result.error.issues,
     );
   }
 
@@ -158,7 +161,7 @@ export function validateFalkorDBConfig(config: unknown): FalkorDBConfig {
   if (!result.success) {
     throw new ConfigValidationError(
       `Invalid FalkorDB configuration: ${result.error.message}`,
-      result.error.errors,
+      result.error.issues,
     );
   }
   return result.data;
@@ -172,7 +175,7 @@ export function validateLLMConfig(config: unknown): LLMConfig {
   if (!result.success) {
     throw new ConfigValidationError(
       `Invalid LLM configuration: ${result.error.message}`,
-      result.error.errors,
+      result.error.issues,
     );
   }
   return result.data;
@@ -186,7 +189,7 @@ export function validateEmbeddingsConfig(config: unknown): EmbeddingsConfig {
   if (!result.success) {
     throw new ConfigValidationError(
       `Invalid embeddings configuration: ${result.error.message}`,
-      result.error.errors,
+      result.error.issues,
     );
   }
   return result.data;
@@ -200,7 +203,7 @@ export function validateExecutionConfig(config: unknown): ExecutionConfig {
   if (!result.success) {
     throw new ConfigValidationError(
       `Invalid execution configuration: ${result.error.message}`,
-      result.error.errors,
+      result.error.issues,
     );
   }
   return result.data;
@@ -214,7 +217,7 @@ export function validateHTTPServerOptions(config: unknown): HTTPServerOptions {
   if (!result.success) {
     throw new ConfigValidationError(
       `Invalid HTTP server options: ${result.error.message}`,
-      result.error.errors,
+      result.error.issues,
     );
   }
   return result.data;
