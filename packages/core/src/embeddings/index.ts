@@ -3,21 +3,20 @@ import type { EmbeddingProvider, EmbeddingsConfig } from '@polyg-mcp/shared';
 import { EmbeddingAuthError, EmbeddingConfigError } from './errors.js';
 import { OpenAIEmbeddings } from './openai.js';
 
-export { OpenAIEmbeddings } from './openai.js';
-
 // Export error types
 export {
-  EmbeddingError,
   EmbeddingAuthError,
-  EmbeddingRateLimitError,
-  EmbeddingModelError,
-  EmbeddingInputError,
-  EmbeddingPermissionError,
-  EmbeddingServerError,
   EmbeddingConfigError,
+  EmbeddingError,
+  EmbeddingInputError,
+  EmbeddingModelError,
+  EmbeddingPermissionError,
+  EmbeddingRateLimitError,
+  EmbeddingServerError,
   isEmbeddingError,
   wrapEmbeddingError,
 } from './errors.js';
+export { OpenAIEmbeddings } from './openai.js';
 
 /**
  * Create an embedding provider based on configuration

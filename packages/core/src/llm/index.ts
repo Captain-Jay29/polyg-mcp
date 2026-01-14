@@ -3,23 +3,22 @@ import type { LLMConfig, LLMProvider } from '@polyg-mcp/shared';
 import { AuthenticationError, ConfigurationError } from './errors.js';
 import { OpenAIProvider } from './openai.js';
 
-export { OpenAIProvider } from './openai.js';
-
 // Export error types
 export {
-  LLMError,
   AuthenticationError,
-  RateLimitError,
-  ModelError,
+  ConfigurationError,
   ContentFilterError,
   ContextLengthError,
-  LLMValidationError,
-  PermissionError,
-  ServerError,
-  ConfigurationError,
   isLLMError,
+  LLMError,
+  LLMValidationError,
+  ModelError,
+  PermissionError,
+  RateLimitError,
+  ServerError,
   wrapLLMError,
 } from './errors.js';
+export { OpenAIProvider } from './openai.js';
 
 /**
  * Create an LLM provider based on configuration
