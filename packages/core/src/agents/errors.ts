@@ -51,10 +51,7 @@ export class LLMResponseValidationError extends AgentError {
    */
   getFormattedErrors(): string {
     return this.validationErrors
-      .map(
-        (err: { path: (string | number)[]; message: string }) =>
-          `  - ${err.path.join('.')}: ${err.message}`,
-      )
+      .map((err) => `  - ${err.path.join('.')}: ${err.message}`)
       .join('\n');
   }
 }
