@@ -1,32 +1,81 @@
-version: '3.8'
+# polyg-mcp Docker Compose Configuration
+# Full stack: MCP Server + FalkorDB
 
 services:
+  # ==========================================================================
+  # polyg-mcp MCP Server
+  # ==========================================================================
   polyg-mcp:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: polyg-mcp
     ports:
       - "${PORT:-3000}:3000"
     environment:
+      # FalkorDB connection
       - FALKORDB_HOST=falkordb
       - FALKORDB_PORT=6379
+      - FALKORDB_PASSWORD=${FALKORDB_PASSWORD:-}
+      - FALKORDB_GRAPH=${FALKORDB_GRAPH:-polyg}
+      # LLM configuration
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - LLM_PROVIDER=${LLM_PROVIDER:-openai}
       - LLM_MODEL=${LLM_MODEL:-gpt-4o-mini}
+      # Embedding configuration
+      - EMBEDDING_PROVIDER=${EMBEDDING_PROVIDER:-openai}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-text-embedding-3-small}
+      # Ollama (if using local LLM)
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-}
+      # Server
+      - PORT=3000
+      - NODE_ENV=production
     depends_on:
       falkordb:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
     restart: unless-stopped
+    networks:
+      - polyg-network
 
+  # ==========================================================================
+  # FalkorDB Graph Database
+  # ==========================================================================
   falkordb:
     image: falkordb/falkordb:latest
+    container_name: polyg-falkordb
     ports:
-      - "6379:6379"
+      - "${FALKORDB_EXTERNAL_PORT:-6379}:6379"
+    environment:
+      - FALKORDB_ARGS=--requirepass ${FALKORDB_PASSWORD:-}
     volumes:
       - falkordb_data:/data
-    restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 5s
+    restart: unless-stopped
+    networks:
+      - polyg-network
 
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  polyg-network:
+    driver: bridge
+
+# =============================================================================
+# Volumes
+# =============================================================================
 volumes:
   falkordb_data:
+    driver: local
