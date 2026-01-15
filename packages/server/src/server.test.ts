@@ -233,8 +233,13 @@ describe('PolygMCPServer tool handlers', () => {
     it('should link two entities', async () => {
       const graphs = server.getOrchestrator().getGraphs();
 
-      const alice = await graphs.entity.addEntity('Alice', 'person');
-      const bob = await graphs.entity.addEntity('Bob', 'person');
+      // Use unique names to avoid conflicts with parallel test runs
+      const uniqueId = Date.now().toString();
+      const alice = await graphs.entity.addEntity(
+        `Alice_${uniqueId}`,
+        'person',
+      );
+      const bob = await graphs.entity.addEntity(`Bob_${uniqueId}`, 'person');
 
       // Link them
       await graphs.entity.linkEntities(alice.uuid, bob.uuid, 'knows');
