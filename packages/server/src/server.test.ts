@@ -28,7 +28,9 @@ describe('PolygMCPServer', () => {
           host: '',
         },
       };
-      expect(() => new PolygMCPServer(invalidConfig)).toThrow(ServerConfigError);
+      expect(() => new PolygMCPServer(invalidConfig)).toThrow(
+        ServerConfigError,
+      );
     });
 
     it('should throw ServerConfigError for invalid falkordb port', () => {
@@ -39,7 +41,9 @@ describe('PolygMCPServer', () => {
           port: -1,
         },
       };
-      expect(() => new PolygMCPServer(invalidConfig)).toThrow(ServerConfigError);
+      expect(() => new PolygMCPServer(invalidConfig)).toThrow(
+        ServerConfigError,
+      );
     });
 
     it('should throw ServerConfigError for missing LLM API key', () => {
@@ -50,7 +54,9 @@ describe('PolygMCPServer', () => {
           apiKey: '',
         },
       };
-      expect(() => new PolygMCPServer(invalidConfig)).toThrow(ServerConfigError);
+      expect(() => new PolygMCPServer(invalidConfig)).toThrow(
+        ServerConfigError,
+      );
     });
 
     it('should expose MCP server instance', () => {

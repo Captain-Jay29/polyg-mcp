@@ -31,11 +31,15 @@ describe('HTTPTransport', () => {
     });
 
     it('should throw TransportConfigError for port 0', () => {
-      expect(() => new HTTPTransport({ port: 0 })).toThrow(TransportConfigError);
+      expect(() => new HTTPTransport({ port: 0 })).toThrow(
+        TransportConfigError,
+      );
     });
 
     it('should throw TransportConfigError for negative port', () => {
-      expect(() => new HTTPTransport({ port: -1 })).toThrow(TransportConfigError);
+      expect(() => new HTTPTransport({ port: -1 })).toThrow(
+        TransportConfigError,
+      );
     });
 
     it('should throw TransportConfigError for port > 65535', () => {
@@ -188,7 +192,10 @@ describe('HTTPTransport', () => {
       expect(response.ok).toBe(true);
       expect(response.status).toBe(200);
 
-      const data = (await response.json()) as { status: string; falkordb: string };
+      const data = (await response.json()) as {
+        status: string;
+        falkordb: string;
+      };
       expect(data.status).toBe('ok');
       expect(data.falkordb).toBe('connected');
     });
