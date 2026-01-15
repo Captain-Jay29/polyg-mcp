@@ -53,7 +53,11 @@ describe('ParallelGraphExecutor', () => {
     it('should query semantic graph when intent is semantic with semantic_query', async () => {
       vi.mocked(graphs.semantic.search).mockResolvedValue([
         {
-          concept: { uuid: 'concept-1', name: 'Test Concept', description: 'A test' },
+          concept: {
+            uuid: 'concept-1',
+            name: 'Test Concept',
+            description: 'A test',
+          },
           score: 0.95,
         },
       ]);
