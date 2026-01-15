@@ -27,7 +27,11 @@ describe('CrossLinker', () => {
     it('should create a cross-graph link', async () => {
       vi.mocked(db.query).mockResolvedValue({ records: [], metadata: [] });
 
-      await crossLinker.createLink('source-uuid', 'target-uuid', 'X_REPRESENTS');
+      await crossLinker.createLink(
+        'source-uuid',
+        'target-uuid',
+        'X_REPRESENTS',
+      );
 
       expect(db.query).toHaveBeenCalledWith(
         expect.stringContaining('X_REPRESENTS'),
@@ -98,7 +102,11 @@ describe('CrossLinker', () => {
     it('should remove a specific cross-graph link', async () => {
       vi.mocked(db.query).mockResolvedValue({ records: [], metadata: [] });
 
-      await crossLinker.removeLink('source-uuid', 'target-uuid', 'X_REPRESENTS');
+      await crossLinker.removeLink(
+        'source-uuid',
+        'target-uuid',
+        'X_REPRESENTS',
+      );
 
       expect(db.query).toHaveBeenCalledWith(
         expect.stringContaining('DELETE r'),
@@ -181,7 +189,9 @@ describe('CrossLinker', () => {
       const links = await crossLinker.getLinksFrom('src');
 
       expect(links[0].createdAt).toBeInstanceOf(Date);
-      expect(links[0].createdAt?.toISOString()).toBe('2024-06-15T12:30:00.000Z');
+      expect(links[0].createdAt?.toISOString()).toBe(
+        '2024-06-15T12:30:00.000Z',
+      );
     });
 
     it('should handle missing createdAt', async () => {
@@ -552,7 +562,9 @@ describe('CrossLinker', () => {
       'X_AFFECTS',
     ];
 
-    it.each(validLinkTypes)('should accept %s as valid link type', async (linkType) => {
+    it.each(
+      validLinkTypes,
+    )('should accept %s as valid link type', async (linkType) => {
       vi.mocked(db.query).mockResolvedValue({ records: [], metadata: [] });
 
       await expect(
