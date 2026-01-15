@@ -199,42 +199,56 @@ describe('PolygMCPServer tool handlers', () => {
   describe('entity tools', () => {
     it('should add an entity', async () => {
       const graphs = server.getOrchestrator().getGraphs();
+      const uniqueId = Date.now().toString();
+      const name = `Alice_${uniqueId}`;
 
-      const entity = await graphs.entity.addEntity('Alice', 'person', {
+      const entity = await graphs.entity.addEntity(name, 'person', {
         role: 'engineer',
       });
 
       expect(entity.uuid).toBeDefined();
-      expect(entity.name).toBe('Alice');
+      expect(entity.name).toBe(name);
       expect(entity.entity_type).toBe('person');
       expect(entity.properties).toEqual({ role: 'engineer' });
     });
 
     it('should retrieve an entity by UUID', async () => {
       const graphs = server.getOrchestrator().getGraphs();
+      const uniqueId = Date.now().toString();
+      const name = `Bob_${uniqueId}`;
 
-      const created = await graphs.entity.addEntity('Bob', 'person');
+      const created = await graphs.entity.addEntity(name, 'person');
       const retrieved = await graphs.entity.getEntity(created.uuid);
 
       expect(retrieved).not.toBeNull();
-      expect(retrieved?.name).toBe('Bob');
+      expect(retrieved?.name).toBe(name);
     });
 
     it('should retrieve an entity by name', async () => {
       const graphs = server.getOrchestrator().getGraphs();
+      const uniqueId = Date.now().toString();
+      const name = `Charlie_${uniqueId}`;
 
-      await graphs.entity.addEntity('Charlie', 'person');
-      const retrieved = await graphs.entity.getEntity('Charlie');
+      await graphs.entity.addEntity(name, 'person');
+      const retrieved = await graphs.entity.getEntity(name);
 
       expect(retrieved).not.toBeNull();
-      expect(retrieved?.name).toBe('Charlie');
+      expect(retrieved?.name).toBe(name);
     });
 
     it('should link two entities', async () => {
       const graphs = server.getOrchestrator().getGraphs();
 
-      const alice = await graphs.entity.addEntity('Alice', 'person');
-      const bob = await graphs.entity.addEntity('Bob', 'person');
+      // Use unique names to avoid conflicts with parallel test runs
+      const uniqueId = Date.now().toString();
+      const alice = await graphs.entity.addEntity(
+        `Alice_link_${uniqueId}`,
+        'person',
+      );
+      const bob = await graphs.entity.addEntity(
+        `Bob_link_${uniqueId}`,
+        'person',
+      );
 
       // Link them
       await graphs.entity.linkEntities(alice.uuid, bob.uuid, 'knows');
