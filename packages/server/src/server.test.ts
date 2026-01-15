@@ -3,6 +3,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ServerConfigError, ServerStartError } from './errors.js';
 import { PolygMCPServer } from './server.js';
 
+// Set KEEP_TEST_DATA=1 to preserve test data for visualization
+const KEEP_TEST_DATA = process.env.KEEP_TEST_DATA === '1';
+
 // Test config with mock API key
 const TEST_CONFIG: PolygConfig = {
   ...DEFAULT_CONFIG,
@@ -183,8 +186,10 @@ describe('PolygMCPServer tool handlers', () => {
   beforeEach(async () => {
     server = new PolygMCPServer(TEST_CONFIG);
     await server.start();
-    // Clear any existing data
-    await server.getDatabase().clearGraph();
+    // Clear any existing data unless KEEP_TEST_DATA is set
+    if (!KEEP_TEST_DATA) {
+      await server.getDatabase().clearGraph();
+    }
   });
 
   afterEach(async () => {
