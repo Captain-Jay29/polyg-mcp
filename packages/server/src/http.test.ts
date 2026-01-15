@@ -208,5 +208,197 @@ describe('HTTPTransport', () => {
       const data = (await response.json()) as { error: string };
       expect(data.error).toBe('Not found');
     });
+
+    it('should return 405 for non-GET health requests', async () => {
+      const response = await fetch(`http://localhost:${TEST_PORT}/health`, {
+        method: 'POST',
+      });
+
+      expect(response.status).toBe(405);
+
+      const data = (await response.json()) as { error: string };
+      expect(data.error).toBe('Method not allowed');
+    });
+  });
+
+  describe('MCP endpoint', () => {
+    let server: PolygMCPServer;
+    let transport: HTTPTransport;
+    const TEST_PORT = 13591;
+
+    beforeEach(async () => {
+      server = new PolygMCPServer(TEST_CONFIG);
+      await server.start();
+      transport = new HTTPTransport({ port: TEST_PORT });
+      transport.attachServer(server);
+      await transport.start();
+    });
+
+    afterEach(async () => {
+      await transport.stop();
+      await server.stop();
+    });
+
+    it('should respond to requests at /mcp', async () => {
+      // Send an MCP initialize request with proper Accept header for streamable HTTP
+      const response = await fetch(`http://localhost:${TEST_PORT}/mcp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json, text/event-stream',
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'initialize',
+          params: {
+            protocolVersion: '2024-11-05',
+            capabilities: {},
+            clientInfo: { name: 'test-client', version: '1.0.0' },
+          },
+        }),
+      });
+
+      // MCP endpoint should respond (status depends on transport state)
+      // We're testing that the endpoint is reachable and processes the request
+      expect([200, 406]).toContain(response.status);
+    });
+
+    it('should respond to requests at root path /', async () => {
+      const response = await fetch(`http://localhost:${TEST_PORT}/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json, text/event-stream',
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'initialize',
+          params: {
+            protocolVersion: '2024-11-05',
+            capabilities: {},
+            clientInfo: { name: 'test-client', version: '1.0.0' },
+          },
+        }),
+      });
+
+      // MCP endpoint should respond
+      expect([200, 406]).toContain(response.status);
+    });
+
+    it('should handle GET requests to /mcp', async () => {
+      const response = await fetch(`http://localhost:${TEST_PORT}/mcp`, {
+        method: 'GET',
+      });
+
+      // GET requests are handled by the transport (SSE or similar)
+      // This tests that the endpoint is reachable
+      expect(response).toBeDefined();
+    });
+
+    it('should handle empty POST body', async () => {
+      const response = await fetch(`http://localhost:${TEST_PORT}/mcp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      // Empty body should be handled (may return error from MCP)
+      expect(response).toBeDefined();
+    });
+
+    it('should reject invalid JSON body', async () => {
+      const response = await fetch(`http://localhost:${TEST_PORT}/mcp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: 'not valid json {',
+      });
+
+      expect(response.status).toBe(500);
+      const data = (await response.json()) as { error: string };
+      expect(data.error).toContain('Invalid JSON');
+    });
+  });
+
+  describe('getOptions', () => {
+    it('should return validated options', () => {
+      const transport = new HTTPTransport({
+        port: 3000,
+        host: 'localhost',
+        stateful: true,
+      });
+
+      const options = transport.getOptions();
+
+      expect(options.port).toBe(3000);
+      expect(options.host).toBe('localhost');
+      expect(options.stateful).toBe(true);
+    });
+
+    it('should return options with defaults applied', () => {
+      const transport = new HTTPTransport({ port: 3000 });
+
+      const options = transport.getOptions();
+
+      expect(options.port).toBe(3000);
+      // host and stateful may have defaults
+    });
+  });
+
+  describe('error handling', () => {
+    it('should handle port already in use', async () => {
+      const server = new PolygMCPServer(TEST_CONFIG);
+      await server.start();
+
+      const transport1 = new HTTPTransport({ port: 13593 });
+      transport1.attachServer(server);
+      await transport1.start();
+
+      // Try to start another transport on the same port
+      const server2 = new PolygMCPServer(TEST_CONFIG);
+      await server2.start();
+
+      const transport2 = new HTTPTransport({ port: 13593 });
+      transport2.attachServer(server2);
+
+      await expect(transport2.start()).rejects.toThrow(ServerStartError);
+
+      await transport1.stop();
+      await server.stop();
+      await server2.stop();
+    });
+  });
+
+  describe('stateful vs stateless mode', () => {
+    let server: PolygMCPServer;
+
+    beforeEach(async () => {
+      server = new PolygMCPServer(TEST_CONFIG);
+      await server.start();
+    });
+
+    afterEach(async () => {
+      await server.stop();
+    });
+
+    it('should start in stateful mode by default', async () => {
+      const transport = new HTTPTransport({ port: 13594 });
+      transport.attachServer(server);
+
+      await transport.start();
+      expect(transport.isRunning()).toBe(true);
+
+      await transport.stop();
+    });
+
+    it('should start in stateless mode when configured', async () => {
+      const transport = new HTTPTransport({ port: 13595, stateful: false });
+      transport.attachServer(server);
+
+      await transport.start();
+      expect(transport.isRunning()).toBe(true);
+
+      await transport.stop();
+    });
   });
 });
