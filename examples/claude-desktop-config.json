@@ -1,0 +1,20 @@
+{
+  "$schema": "https://raw.githubusercontent.com/anthropics/claude-desktop/main/schemas/config.schema.json",
+  "mcpServers": {
+    "polyg-mcp": {
+      "command": "node",
+      "args": ["/path/to/polyg-mcp/packages/server/dist/main.js"],
+      "env": {
+        "POLYG_FALKORDB_HOST": "localhost",
+        "POLYG_FALKORDB_PORT": "6379",
+        "POLYG_FALKORDB_GRAPH_NAME": "polyg_memory",
+        "POLYG_LLM_PROVIDER": "openai",
+        "POLYG_LLM_MODEL": "gpt-4o-mini",
+        "POLYG_LLM_API_KEY": "your-openai-api-key-here",
+        "POLYG_EMBEDDINGS_PROVIDER": "openai",
+        "POLYG_EMBEDDINGS_MODEL": "text-embedding-3-small",
+        "POLYG_EMBEDDINGS_DIMENSIONS": "1536"
+      }
+    }
+  }
+}

@@ -1,0 +1,57 @@
+# Docker Compose configuration for polyg-mcp with FalkorDB
+# Usage: docker compose -f examples/docker-compose.yml up -d
+
+services:
+  # FalkorDB - Graph database for polyg-mcp
+  falkordb:
+    image: falkordb/falkordb:latest
+    container_name: polyg-falkordb
+    ports:
+      - "6379:6379"
+    volumes:
+      - falkordb_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # polyg-mcp server (HTTP mode for development/testing)
+  polyg-mcp:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: polyg-mcp-server
+    ports:
+      - "3000:3000"
+    environment:
+      # FalkorDB connection
+      POLYG_FALKORDB_HOST: falkordb
+      POLYG_FALKORDB_PORT: "6379"
+      POLYG_FALKORDB_GRAPH_NAME: polyg_memory
+      # LLM configuration (OpenAI)
+      POLYG_LLM_PROVIDER: openai
+      POLYG_LLM_MODEL: gpt-4o-mini
+      POLYG_LLM_API_KEY: ${OPENAI_API_KEY}
+      # Embedding configuration
+      POLYG_EMBEDDINGS_PROVIDER: openai
+      POLYG_EMBEDDINGS_MODEL: text-embedding-3-small
+      POLYG_EMBEDDINGS_DIMENSIONS: "1536"
+      # Server mode
+      POLYG_MODE: http
+      PORT: "3000"
+    depends_on:
+      falkordb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 10s
+      retries: 3
+    restart: unless-stopped
+
+volumes:
+  falkordb_data:
+    driver: local
