@@ -47,5 +47,3 @@ benchmarks/results/*.yaml
 
 # Documentation (local only, except key docs)
 docs/*.md
-!docs/testing.md
-!docs/project_spec.md
