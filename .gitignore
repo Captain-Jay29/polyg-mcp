@@ -45,5 +45,5 @@ Thumbs.db
 benchmarks/results/*.yaml
 !benchmarks/results/.gitkeep
 
-# Documentation (local only, except key docs)
+# Documentation (local only)
 docs/*.md
