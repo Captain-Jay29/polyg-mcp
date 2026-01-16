@@ -15,6 +15,7 @@ import {
   HealthCheckError,
   ServerStartError,
   ServerStopError,
+  SessionCreationError,
   SessionLimitError,
   SessionNotFoundError,
   SessionRequiredError,
@@ -22,7 +23,7 @@ import {
   wrapServerError,
 } from './errors.js';
 import type { PolygMCPServer } from './server.js';
-import { SessionManager, type SessionContext } from './session-manager.js';
+import { type SessionContext, SessionManager } from './session-manager.js';
 import type { SharedResources } from './shared-resources.js';
 
 // Re-export for backwards compatibility
@@ -183,9 +184,7 @@ export class HTTPTransport {
 
     // Create transport with session management
     const sessionIdGenerator =
-      this.validatedOptions.stateful !== false
-        ? () => randomUUID()
-        : undefined;
+      this.validatedOptions.stateful !== false ? () => randomUUID() : undefined;
 
     this.transport = new StreamableHTTPServerTransport({
       sessionIdGenerator,
@@ -327,7 +326,9 @@ export class HTTPTransport {
     res: ServerResponse,
   ): Promise<void> {
     if (!this.sessionManager) {
-      this.sendJsonResponse(res, 503, { error: 'Session manager not initialized' });
+      this.sendJsonResponse(res, 503, {
+        error: 'Session manager not initialized',
+      });
       return;
     }
 
@@ -339,7 +340,9 @@ export class HTTPTransport {
       }
 
       // Get session ID from header
-      const sessionId = req.headers[MCP_SESSION_ID_HEADER] as string | undefined;
+      const sessionId = req.headers[MCP_SESSION_ID_HEADER] as
+        | string
+        | undefined;
 
       // Check if this is an initialize request
       const isInitializeRequest = this.isInitializeRequest(body);
@@ -362,6 +365,10 @@ export class HTTPTransport {
         } catch (error) {
           if (error instanceof SessionLimitError) {
             this.sendSessionError(res, error);
+            return;
+          }
+          if (error instanceof SessionCreationError) {
+            this.sendSessionCreationError(res, error);
             return;
           }
           throw error;
@@ -424,14 +431,40 @@ export class HTTPTransport {
         message: error.message,
         data: {
           code: errorCode,
-          ...(error instanceof SessionNotFoundError && { sessionId: error.sessionId }),
-          ...(error instanceof SessionLimitError && { maxSessions: error.maxSessions }),
+          ...(error instanceof SessionNotFoundError && {
+            sessionId: error.sessionId,
+          }),
+          ...(error instanceof SessionLimitError && {
+            maxSessions: error.maxSessions,
+          }),
         },
       },
       id: null,
     };
 
     this.sendJsonResponse(res, statusCode, response);
+  }
+
+  /**
+   * Send a session creation error response
+   */
+  private sendSessionCreationError(
+    res: ServerResponse,
+    error: SessionCreationError,
+  ): void {
+    const response = {
+      jsonrpc: '2.0',
+      error: {
+        code: -32000,
+        message: error.message,
+        data: {
+          code: 'SESSION_CREATION_FAILED',
+        },
+      },
+      id: null,
+    };
+
+    this.sendJsonResponse(res, 500, response);
   }
 
   /**
@@ -454,14 +487,20 @@ export class HTTPTransport {
         // Add session metrics
         const healthWithSessions = {
           ...health,
-          sessions: this.sessionManager ? {
-            active: this.sessionManager.getActiveCount(),
-            max: this.sessionManager.getMaxSessions(),
-          } : undefined,
+          sessions: this.sessionManager
+            ? {
+                active: this.sessionManager.getActiveCount(),
+                max: this.sessionManager.getMaxSessions(),
+              }
+            : undefined,
         };
 
         const statusCode =
-          health.status === 'ok' ? 200 : health.status === 'degraded' ? 503 : 500;
+          health.status === 'ok'
+            ? 200
+            : health.status === 'degraded'
+              ? 503
+              : 500;
 
         this.sendJsonResponse(res, statusCode, healthWithSessions);
         return;

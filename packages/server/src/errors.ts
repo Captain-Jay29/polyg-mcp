@@ -145,7 +145,10 @@ export class SessionLimitError extends ServerError {
     public readonly maxSessions: number,
     cause?: Error,
   ) {
-    super(`Session limit reached: maximum ${maxSessions} sessions allowed`, cause);
+    super(
+      `Session limit reached: maximum ${maxSessions} sessions allowed`,
+      cause,
+    );
     this.name = 'SessionLimitError';
   }
 }
@@ -157,6 +160,16 @@ export class SessionRequiredError extends ServerError {
   constructor(cause?: Error) {
     super('Session ID required for this request', cause);
     this.name = 'SessionRequiredError';
+  }
+}
+
+/**
+ * Thrown when session creation fails
+ */
+export class SessionCreationError extends ServerError {
+  constructor(message: string, cause?: Error) {
+    super(message, cause);
+    this.name = 'SessionCreationError';
   }
 }
 

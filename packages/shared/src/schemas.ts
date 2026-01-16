@@ -317,13 +317,17 @@ export const HTTPServerOptionsSchema = z.object({
     .int()
     .positive()
     .optional()
-    .describe('Session inactivity timeout in milliseconds (default: 1800000 = 30 min)'),
+    .describe(
+      'Session inactivity timeout in milliseconds (default: 1800000 = 30 min)',
+    ),
   cleanupIntervalMs: z
     .number()
     .int()
     .positive()
     .optional()
-    .describe('Cleanup timer interval in milliseconds (default: 300000 = 5 min)'),
+    .describe(
+      'Cleanup timer interval in milliseconds (default: 300000 = 5 min)',
+    ),
   maxSessions: z
     .number()
     .int()

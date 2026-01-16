@@ -1,13 +1,7 @@
 // MCP Server setup
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import {
-  type FalkorDBAdapter,
-  type Orchestrator,
-} from '@polyg-mcp/core';
-import {
-  type HealthStatus,
-  type PolygConfig,
-} from '@polyg-mcp/shared';
+import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { FalkorDBAdapter, Orchestrator } from '@polyg-mcp/core';
+import type { HealthStatus, PolygConfig } from '@polyg-mcp/shared';
 import { ServerStopError } from './errors.js';
 import type { HealthChecker } from './health.js';
 import { createMcpServer } from './mcp-server-factory.js';

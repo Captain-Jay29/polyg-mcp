@@ -80,7 +80,9 @@ describe('SessionManager', () => {
       await manager.createSession();
 
       await expect(manager.createSession()).rejects.toThrow(SessionLimitError);
-      await expect(manager.createSession()).rejects.toThrow('maximum 2 sessions');
+      await expect(manager.createSession()).rejects.toThrow(
+        'maximum 2 sessions',
+      );
 
       await manager.shutdown();
     });

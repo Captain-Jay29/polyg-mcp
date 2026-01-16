@@ -1,8 +1,6 @@
 // MCP Server Factory - Creates configured McpServer instances with all tools registered
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import {
-  type CausalNode,
-} from '@polyg-mcp/core';
+import type { CausalNode } from '@polyg-mcp/core';
 import {
   AddCausalLinkSchema,
   AddConceptSchema,
@@ -68,7 +66,10 @@ export function createMcpServer(resources: SharedResources): McpServer {
 // Management Tools
 // ============================================================================
 
-function registerStatisticsTool(mcpServer: McpServer, resources: SharedResources): void {
+function registerStatisticsTool(
+  mcpServer: McpServer,
+  resources: SharedResources,
+): void {
   mcpServer.registerTool(
     'get_statistics',
     {
@@ -93,7 +94,10 @@ function registerStatisticsTool(mcpServer: McpServer, resources: SharedResources
   );
 }
 
-function registerClearGraphTool(mcpServer: McpServer, resources: SharedResources): void {
+function registerClearGraphTool(
+  mcpServer: McpServer,
+  resources: SharedResources,
+): void {
   mcpServer.registerTool(
     'clear_graph',
     {
@@ -150,7 +154,10 @@ function registerClearGraphTool(mcpServer: McpServer, resources: SharedResources
 // High-Level LLM Tools
 // ============================================================================
 
-function registerRecallTool(mcpServer: McpServer, resources: SharedResources): void {
+function registerRecallTool(
+  mcpServer: McpServer,
+  resources: SharedResources,
+): void {
   mcpServer.registerTool(
     'recall',
     {
@@ -179,7 +186,10 @@ function registerRecallTool(mcpServer: McpServer, resources: SharedResources): v
   );
 }
 
-function registerRememberTool(mcpServer: McpServer, resources: SharedResources): void {
+function registerRememberTool(
+  mcpServer: McpServer,
+  resources: SharedResources,
+): void {
   mcpServer.registerTool(
     'remember',
     {
@@ -213,7 +223,10 @@ function registerRememberTool(mcpServer: McpServer, resources: SharedResources):
 // Entity Tools
 // ============================================================================
 
-function registerGetEntityTool(mcpServer: McpServer, resources: SharedResources): void {
+function registerGetEntityTool(
+  mcpServer: McpServer,
+  resources: SharedResources,
+): void {
   mcpServer.registerTool(
     'get_entity',
     {
@@ -268,7 +281,10 @@ function registerGetEntityTool(mcpServer: McpServer, resources: SharedResources)
   );
 }
 
-function registerAddEntityTool(mcpServer: McpServer, resources: SharedResources): void {
+function registerAddEntityTool(
+  mcpServer: McpServer,
+  resources: SharedResources,
+): void {
   mcpServer.registerTool(
     'add_entity',
     {
@@ -299,7 +315,10 @@ function registerAddEntityTool(mcpServer: McpServer, resources: SharedResources)
   );
 }
 
-function registerLinkEntitiesTool(mcpServer: McpServer, resources: SharedResources): void {
+function registerLinkEntitiesTool(
+  mcpServer: McpServer,
+  resources: SharedResources,
+): void {
   mcpServer.registerTool(
     'link_entities',
     {
@@ -333,7 +352,10 @@ function registerLinkEntitiesTool(mcpServer: McpServer, resources: SharedResourc
 // Temporal Tools
 // ============================================================================
 
-function registerQueryTimelineTool(mcpServer: McpServer, resources: SharedResources): void {
+function registerQueryTimelineTool(
+  mcpServer: McpServer,
+  resources: SharedResources,
+): void {
   mcpServer.registerTool(
     'query_timeline',
     {
@@ -363,7 +385,10 @@ function registerQueryTimelineTool(mcpServer: McpServer, resources: SharedResour
   );
 }
 
-function registerAddEventTool(mcpServer: McpServer, resources: SharedResources): void {
+function registerAddEventTool(
+  mcpServer: McpServer,
+  resources: SharedResources,
+): void {
   mcpServer.registerTool(
     'add_event',
     {
@@ -395,7 +420,10 @@ function registerAddEventTool(mcpServer: McpServer, resources: SharedResources):
   );
 }
 
-function registerAddFactTool(mcpServer: McpServer, resources: SharedResources): void {
+function registerAddFactTool(
+  mcpServer: McpServer,
+  resources: SharedResources,
+): void {
   mcpServer.registerTool(
     'add_fact',
     {
@@ -437,7 +465,10 @@ function registerAddFactTool(mcpServer: McpServer, resources: SharedResources): 
 // Causal Tools
 // ============================================================================
 
-function registerGetCausalChainTool(mcpServer: McpServer, resources: SharedResources): void {
+function registerGetCausalChainTool(
+  mcpServer: McpServer,
+  resources: SharedResources,
+): void {
   mcpServer.registerTool(
     'get_causal_chain',
     {
@@ -472,7 +503,10 @@ function registerGetCausalChainTool(mcpServer: McpServer, resources: SharedResou
   );
 }
 
-function registerAddCausalLinkTool(mcpServer: McpServer, resources: SharedResources): void {
+function registerAddCausalLinkTool(
+  mcpServer: McpServer,
+  resources: SharedResources,
+): void {
   mcpServer.registerTool(
     'add_causal_link',
     {
@@ -537,7 +571,10 @@ function registerAddCausalLinkTool(mcpServer: McpServer, resources: SharedResour
   );
 }
 
-function registerExplainWhyTool(mcpServer: McpServer, resources: SharedResources): void {
+function registerExplainWhyTool(
+  mcpServer: McpServer,
+  resources: SharedResources,
+): void {
   mcpServer.registerTool(
     'explain_why',
     {
@@ -580,7 +617,10 @@ function registerExplainWhyTool(mcpServer: McpServer, resources: SharedResources
 // Semantic Tools
 // ============================================================================
 
-function registerSearchSemanticTool(mcpServer: McpServer, resources: SharedResources): void {
+function registerSearchSemanticTool(
+  mcpServer: McpServer,
+  resources: SharedResources,
+): void {
   mcpServer.registerTool(
     'search_semantic',
     {
@@ -607,7 +647,10 @@ function registerSearchSemanticTool(mcpServer: McpServer, resources: SharedResou
   );
 }
 
-function registerAddConceptTool(mcpServer: McpServer, resources: SharedResources): void {
+function registerAddConceptTool(
+  mcpServer: McpServer,
+  resources: SharedResources,
+): void {
   mcpServer.registerTool(
     'add_concept',
     {

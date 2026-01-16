@@ -546,7 +546,11 @@ describe('HTTPTransport', () => {
 
       const data = (await response.json()) as {
         jsonrpc: string;
-        error: { code: number; message: string; data: { code: string; sessionId: string } };
+        error: {
+          code: number;
+          message: string;
+          data: { code: string; sessionId: string };
+        };
       };
 
       expect(data.jsonrpc).toBe('2.0');
@@ -619,7 +623,11 @@ describe('HTTPTransport', () => {
 
       const data = (await response.json()) as {
         jsonrpc: string;
-        error: { code: number; message: string; data: { code: string; maxSessions: number } };
+        error: {
+          code: number;
+          message: string;
+          data: { code: string; maxSessions: number };
+        };
       };
 
       expect(data.error.data.code).toBe('SESSION_LIMIT');

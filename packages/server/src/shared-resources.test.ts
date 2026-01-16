@@ -53,7 +53,9 @@ describe('SharedResources', () => {
           host: '',
         },
       };
-      expect(() => new SharedResources(invalidConfig)).toThrow(ServerConfigError);
+      expect(() => new SharedResources(invalidConfig)).toThrow(
+        ServerConfigError,
+      );
     });
 
     it('should throw ServerConfigError for invalid falkordb port', () => {
@@ -64,7 +66,9 @@ describe('SharedResources', () => {
           port: -1,
         },
       };
-      expect(() => new SharedResources(invalidConfig)).toThrow(ServerConfigError);
+      expect(() => new SharedResources(invalidConfig)).toThrow(
+        ServerConfigError,
+      );
     });
 
     it('should throw ServerConfigError for missing LLM API key', () => {
@@ -75,7 +79,9 @@ describe('SharedResources', () => {
           apiKey: '',
         },
       };
-      expect(() => new SharedResources(invalidConfig)).toThrow(ServerConfigError);
+      expect(() => new SharedResources(invalidConfig)).toThrow(
+        ServerConfigError,
+      );
     });
   });
 

@@ -6,8 +6,8 @@ export { HTTPTransport } from './http.js';
 export { createMcpServer } from './mcp-server-factory.js';
 export { PolygMCPServer } from './server.js';
 export {
-  SessionManager,
   type SessionContext,
+  SessionManager,
   type SessionManagerOptions,
 } from './session-manager.js';
 export { SharedResources } from './shared-resources.js';

@@ -2,7 +2,10 @@
 import { randomUUID } from 'node:crypto';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { SessionLimitError, SessionNotFoundError } from './errors.js';
+import {
+  SessionCreationError,
+  SessionLimitError,
+} from './errors.js';
 import { createMcpServer } from './mcp-server-factory.js';
 import type { SharedResources } from './shared-resources.js';
 
@@ -46,10 +49,15 @@ export class SessionManager {
   private readonly maxSessions: number;
   private cleanupTimer: ReturnType<typeof setInterval> | null = null;
 
-  constructor(sharedResources: SharedResources, options: SessionManagerOptions = {}) {
+  constructor(
+    sharedResources: SharedResources,
+    options: SessionManagerOptions = {},
+  ) {
     this.sharedResources = sharedResources;
-    this.sessionTimeoutMs = options.sessionTimeoutMs ?? DEFAULT_SESSION_TIMEOUT_MS;
-    this.cleanupIntervalMs = options.cleanupIntervalMs ?? DEFAULT_CLEANUP_INTERVAL_MS;
+    this.sessionTimeoutMs =
+      options.sessionTimeoutMs ?? DEFAULT_SESSION_TIMEOUT_MS;
+    this.cleanupIntervalMs =
+      options.cleanupIntervalMs ?? DEFAULT_CLEANUP_INTERVAL_MS;
     this.maxSessions = options.maxSessions ?? DEFAULT_MAX_SESSIONS;
 
     // Start cleanup timer
@@ -59,6 +67,7 @@ export class SessionManager {
   /**
    * Create a new session
    * @throws {SessionLimitError} if maximum sessions reached
+   * @throws {Error} if session creation fails
    */
   async createSession(): Promise<SessionContext> {
     // Check session limit
@@ -70,7 +79,15 @@ export class SessionManager {
     const now = new Date();
 
     // Create McpServer for this session
-    const mcpServer = createMcpServer(this.sharedResources);
+    let mcpServer: McpServer;
+    try {
+      mcpServer = createMcpServer(this.sharedResources);
+    } catch (error) {
+      throw new SessionCreationError(
+        `Failed to create MCP server for session: ${error instanceof Error ? error.message : String(error)}`,
+        error instanceof Error ? error : undefined,
+      );
+    }
 
     // Create transport for this session
     const transport = new StreamableHTTPServerTransport({
@@ -78,7 +95,20 @@ export class SessionManager {
     });
 
     // Connect the McpServer to the transport
-    await mcpServer.connect(transport);
+    try {
+      await mcpServer.connect(transport);
+    } catch (error) {
+      // Clean up transport if connection fails
+      try {
+        await transport.close();
+      } catch {
+        // Ignore cleanup errors
+      }
+      throw new SessionCreationError(
+        `Failed to connect MCP server to transport: ${error instanceof Error ? error.message : String(error)}`,
+        error instanceof Error ? error : undefined,
+      );
+    }
 
     const context: SessionContext = {
       sessionId,
@@ -140,7 +170,10 @@ export class SessionManager {
 
     // Log errors but don't throw - we want to continue cleanup
     if (errors.length > 0) {
-      console.warn(`Errors removing session ${sessionId}:`, errors.map(e => e.message).join('; '));
+      console.warn(
+        `Errors removing session ${sessionId}:`,
+        errors.map((e) => e.message).join('; '),
+      );
     }
   }
 
@@ -167,7 +200,7 @@ export class SessionManager {
 
     // Remove all sessions
     const sessionIds = Array.from(this.sessions.keys());
-    await Promise.all(sessionIds.map(id => this.removeSession(id)));
+    await Promise.all(sessionIds.map((id) => this.removeSession(id)));
   }
 
   /**
@@ -212,7 +245,7 @@ export class SessionManager {
 
     // Remove expired sessions asynchronously
     for (const sessionId of expiredSessions) {
-      this.removeSession(sessionId).catch(error => {
+      this.removeSession(sessionId).catch((error) => {
         console.error(`Error cleaning up expired session ${sessionId}:`, error);
       });
     }

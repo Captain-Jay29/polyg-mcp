@@ -13,7 +13,11 @@ import {
   type PolygConfig,
   PolygConfigSchema,
 } from '@polyg-mcp/shared';
-import { ServerConfigError, ServerStartError, ServerStopError } from './errors.js';
+import {
+  ServerConfigError,
+  ServerStartError,
+  ServerStopError,
+} from './errors.js';
 import { HealthChecker } from './health.js';
 
 /**
