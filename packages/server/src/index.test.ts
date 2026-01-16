@@ -109,11 +109,9 @@ describe('HTTPTransport', () => {
     expect(transport).toBeDefined();
   });
 
-  it('should throw if started without server attached', async () => {
+  it('should throw if started without resources attached', async () => {
     const transport = new HTTPTransport({ port: 3000 });
-    await expect(transport.start()).rejects.toThrow(
-      'No resources or server attached',
-    );
+    await expect(transport.start()).rejects.toThrow('No resources attached');
   });
 
   it('should return null address before starting', () => {

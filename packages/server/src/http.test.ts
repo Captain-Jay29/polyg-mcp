@@ -2,7 +2,6 @@ import { DEFAULT_CONFIG, type PolygConfig } from '@polyg-mcp/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ServerStartError, TransportConfigError } from './errors.js';
 import { HTTPTransport } from './http.js';
-import { PolygMCPServer } from './server.js';
 import { SharedResources } from './shared-resources.js';
 
 // Test config with mock API key
@@ -66,32 +65,14 @@ describe('HTTPTransport', () => {
     });
   });
 
-  describe('server attachment', () => {
-    it('should return false for hasServer() before attachment', () => {
-      const transport = new HTTPTransport({ port: 3000 });
-      expect(transport.hasServer()).toBe(false);
-    });
-
-    it('should return true for hasServer() after attachment', () => {
-      const transport = new HTTPTransport({ port: 3000 });
-      const server = new PolygMCPServer(TEST_CONFIG);
-
-      transport.attachServer(server);
-
-      expect(transport.hasServer()).toBe(true);
-    });
-
-    it('should throw ServerStartError if started without server attached', async () => {
+  describe('resources attachment', () => {
+    it('should throw ServerStartError if started without resources attached', async () => {
       const transport = new HTTPTransport({ port: 3000 });
 
       await expect(transport.start()).rejects.toThrow(ServerStartError);
-      await expect(transport.start()).rejects.toThrow(
-        'No resources or server attached',
-      );
+      await expect(transport.start()).rejects.toThrow('No resources attached');
     });
-  });
 
-  describe('resources attachment (session architecture)', () => {
     it('should return false for hasResources() before attachment', () => {
       const transport = new HTTPTransport({ port: 3000 });
       expect(transport.hasResources()).toBe(false);
@@ -129,20 +110,20 @@ describe('HTTPTransport', () => {
   });
 
   describe('lifecycle', () => {
-    let server: PolygMCPServer;
+    let resources: SharedResources;
 
     beforeEach(async () => {
-      server = new PolygMCPServer(TEST_CONFIG);
-      await server.start();
+      resources = new SharedResources(TEST_CONFIG);
+      await resources.start();
     });
 
     afterEach(async () => {
-      await server.stop();
+      await resources.stop();
     });
 
     it('should start and stop successfully', async () => {
       const transport = new HTTPTransport({ port: 13579 });
-      transport.attachServer(server);
+      transport.attachResources(resources);
 
       expect(transport.isRunning()).toBe(false);
 
@@ -159,7 +140,7 @@ describe('HTTPTransport', () => {
 
     it('should be idempotent - multiple start() calls should not error', async () => {
       const transport = new HTTPTransport({ port: 13580 });
-      transport.attachServer(server);
+      transport.attachResources(resources);
 
       await transport.start();
       await transport.start(); // Should not throw
@@ -171,7 +152,7 @@ describe('HTTPTransport', () => {
 
     it('should handle stop() when not running', async () => {
       const transport = new HTTPTransport({ port: 13581 });
-      transport.attachServer(server);
+      transport.attachResources(resources);
 
       expect(transport.isRunning()).toBe(false);
       await transport.stop(); // Should not throw
@@ -180,7 +161,7 @@ describe('HTTPTransport', () => {
 
     it('should return correct address after start', async () => {
       const transport = new HTTPTransport({ port: 13582, host: '127.0.0.1' });
-      transport.attachServer(server);
+      transport.attachResources(resources);
 
       await transport.start();
 
@@ -195,21 +176,21 @@ describe('HTTPTransport', () => {
   });
 
   describe('health endpoint', () => {
-    let server: PolygMCPServer;
+    let resources: SharedResources;
     let transport: HTTPTransport;
     const TEST_PORT = 13590;
 
     beforeEach(async () => {
-      server = new PolygMCPServer(TEST_CONFIG);
-      await server.start();
+      resources = new SharedResources(TEST_CONFIG);
+      await resources.start();
       transport = new HTTPTransport({ port: TEST_PORT });
-      transport.attachServer(server);
+      transport.attachResources(resources);
       await transport.start();
     });
 
     afterEach(async () => {
       await transport.stop();
-      await server.stop();
+      await resources.stop();
     });
 
     it('should respond to GET /health', async () => {
@@ -248,21 +229,21 @@ describe('HTTPTransport', () => {
   });
 
   describe('MCP endpoint', () => {
-    let server: PolygMCPServer;
+    let resources: SharedResources;
     let transport: HTTPTransport;
     const TEST_PORT = 13591;
 
     beforeEach(async () => {
-      server = new PolygMCPServer(TEST_CONFIG);
-      await server.start();
+      resources = new SharedResources(TEST_CONFIG);
+      await resources.start();
       transport = new HTTPTransport({ port: TEST_PORT });
-      transport.attachServer(server);
+      transport.attachResources(resources);
       await transport.start();
     });
 
     afterEach(async () => {
       await transport.stop();
-      await server.stop();
+      await resources.stop();
     });
 
     it('should respond to requests at /mcp', async () => {
@@ -373,43 +354,43 @@ describe('HTTPTransport', () => {
 
   describe('error handling', () => {
     it('should handle port already in use', async () => {
-      const server = new PolygMCPServer(TEST_CONFIG);
-      await server.start();
+      const resources = new SharedResources(TEST_CONFIG);
+      await resources.start();
 
       const transport1 = new HTTPTransport({ port: 13593 });
-      transport1.attachServer(server);
+      transport1.attachResources(resources);
       await transport1.start();
 
       // Try to start another transport on the same port
-      const server2 = new PolygMCPServer(TEST_CONFIG);
-      await server2.start();
+      const resources2 = new SharedResources(TEST_CONFIG);
+      await resources2.start();
 
       const transport2 = new HTTPTransport({ port: 13593 });
-      transport2.attachServer(server2);
+      transport2.attachResources(resources2);
 
       await expect(transport2.start()).rejects.toThrow(ServerStartError);
 
       await transport1.stop();
-      await server.stop();
-      await server2.stop();
+      await resources.stop();
+      await resources2.stop();
     });
   });
 
   describe('stateful vs stateless mode', () => {
-    let server: PolygMCPServer;
+    let resources: SharedResources;
 
     beforeEach(async () => {
-      server = new PolygMCPServer(TEST_CONFIG);
-      await server.start();
+      resources = new SharedResources(TEST_CONFIG);
+      await resources.start();
     });
 
     afterEach(async () => {
-      await server.stop();
+      await resources.stop();
     });
 
     it('should start in stateful mode by default', async () => {
       const transport = new HTTPTransport({ port: 13594 });
-      transport.attachServer(server);
+      transport.attachResources(resources);
 
       await transport.start();
       expect(transport.isRunning()).toBe(true);
@@ -419,7 +400,7 @@ describe('HTTPTransport', () => {
 
     it('should start in stateless mode when configured', async () => {
       const transport = new HTTPTransport({ port: 13595, stateful: false });
-      transport.attachServer(server);
+      transport.attachResources(resources);
 
       await transport.start();
       expect(transport.isRunning()).toBe(true);

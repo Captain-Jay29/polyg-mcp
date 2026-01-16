@@ -2,7 +2,7 @@
 // polyg-mcp server entry point
 import { loadConfig } from '@polyg-mcp/shared';
 import { HTTPTransport } from './http.js';
-import { PolygMCPServer } from './server.js';
+import { SharedResources } from './shared-resources.js';
 
 const DEFAULT_PORT = 3000;
 
@@ -16,19 +16,19 @@ async function main(): Promise<void> {
     ? Number.parseInt(portArg.split('=')[1], 10)
     : Number.parseInt(process.env.PORT ?? String(DEFAULT_PORT), 10);
 
-  // Create server and transport
-  const server = new PolygMCPServer(config);
+  // Create shared resources and transport
+  const resources = new SharedResources(config);
   const transport = new HTTPTransport({ port });
 
-  // Attach server to transport
-  transport.attachServer(server);
+  // Attach resources to transport
+  transport.attachResources(resources);
 
   // Handle shutdown signals
   const shutdown = async (signal: string): Promise<void> => {
     console.log(`\nReceived ${signal}, shutting down...`);
     try {
       await transport.stop();
-      await server.stop();
+      await resources.stop();
       console.log('Server stopped gracefully');
       process.exit(0);
     } catch (error) {
@@ -43,7 +43,7 @@ async function main(): Promise<void> {
   try {
     // Start database connection
     console.log('Connecting to FalkorDB...');
-    await server.start();
+    await resources.start();
     console.log('Connected to FalkorDB');
 
     // Start HTTP server

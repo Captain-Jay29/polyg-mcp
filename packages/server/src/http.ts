@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 // HTTP transport handler for MCP over Streamable HTTP
 import {
   createServer,
@@ -6,13 +5,11 @@ import {
   type Server,
   type ServerResponse,
 } from 'node:http';
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import {
   type HTTPServerOptions,
   HTTPServerOptionsSchema,
 } from '@polyg-mcp/shared';
 import {
-  HealthCheckError,
   ServerStartError,
   ServerStopError,
   SessionCreationError,
@@ -22,7 +19,6 @@ import {
   TransportConfigError,
   wrapServerError,
 } from './errors.js';
-import type { PolygMCPServer } from './server.js';
 import { type SessionContext, SessionManager } from './session-manager.js';
 import type { SharedResources } from './shared-resources.js';
 
@@ -38,8 +34,6 @@ const MCP_SESSION_ID_HEADER = 'mcp-session-id';
  */
 export class HTTPTransport {
   private server: Server | null = null;
-  private transport: StreamableHTTPServerTransport | null = null;
-  private polygServer: PolygMCPServer | null = null;
   private sharedResources: SharedResources | null = null;
   private sessionManager: SessionManager | null = null;
   private readonly validatedOptions: HTTPServerOptions;
@@ -66,7 +60,7 @@ export class HTTPTransport {
   }
 
   /**
-   * Attach SharedResources for the new session-based architecture.
+   * Attach SharedResources for session-based architecture.
    * This automatically creates a SessionManager.
    */
   attachResources(resources: SharedResources): void {
@@ -79,25 +73,10 @@ export class HTTPTransport {
   }
 
   /**
-   * Attach the polyg MCP server to this transport (legacy mode).
-   * @deprecated Use attachResources() for new implementations
-   */
-  attachServer(polygServer: PolygMCPServer): void {
-    this.polygServer = polygServer;
-  }
-
-  /**
-   * Check if resources are attached (new architecture)
+   * Check if resources are attached
    */
   hasResources(): boolean {
     return this.sharedResources !== null && this.sessionManager !== null;
-  }
-
-  /**
-   * Check if server is attached (legacy architecture)
-   */
-  hasServer(): boolean {
-    return this.polygServer !== null;
   }
 
   /**
@@ -119,10 +98,9 @@ export class HTTPTransport {
    * @throws {ServerStartError} if server fails to start
    */
   async start(): Promise<void> {
-    // Check for either new or legacy architecture
-    if (!this.hasResources() && !this.hasServer()) {
+    if (!this.hasResources()) {
       throw new ServerStartError(
-        'No resources or server attached. Call attachResources() or attachServer() first.',
+        'No resources attached. Call attachResources() first.',
       );
     }
 
@@ -131,12 +109,6 @@ export class HTTPTransport {
     }
 
     try {
-      // Legacy mode: single shared transport
-      if (this.polygServer && !this.sharedResources) {
-        await this.startLegacyMode();
-      }
-      // New mode: session-based transport (handled per request)
-
       // Create HTTP server
       this.server = createServer(async (req, res) => {
         await this.handleRequest(req, res);
@@ -161,7 +133,6 @@ export class HTTPTransport {
       });
     } catch (error) {
       // Clean up on failure
-      this.transport = null;
       this.server = null;
 
       if (error instanceof ServerStartError) {
@@ -175,33 +146,13 @@ export class HTTPTransport {
   }
 
   /**
-   * Start in legacy mode (single shared McpServer)
-   */
-  private async startLegacyMode(): Promise<void> {
-    if (!this.polygServer) {
-      throw new ServerStartError('No server attached for legacy mode');
-    }
-
-    // Create transport with session management
-    const sessionIdGenerator =
-      this.validatedOptions.stateful !== false ? () => randomUUID() : undefined;
-
-    this.transport = new StreamableHTTPServerTransport({
-      sessionIdGenerator,
-    });
-
-    // Connect the MCP server to the transport
-    await this.polygServer.getMcpServer().connect(this.transport);
-  }
-
-  /**
    * Stop the HTTP server
    * @throws {ServerStopError} if shutdown fails
    */
   async stop(): Promise<void> {
     const errors: Error[] = [];
 
-    // Shutdown session manager (new architecture)
+    // Shutdown session manager
     if (this.sessionManager) {
       try {
         await this.sessionManager.shutdown();
@@ -209,16 +160,6 @@ export class HTTPTransport {
         errors.push(error instanceof Error ? error : new Error(String(error)));
       }
       this.sessionManager = null;
-    }
-
-    // Close legacy transport
-    if (this.transport) {
-      try {
-        await this.transport.close();
-      } catch (error) {
-        errors.push(error instanceof Error ? error : new Error(String(error)));
-      }
-      this.transport = null;
     }
 
     // Close HTTP server
@@ -281,47 +222,9 @@ export class HTTPTransport {
   }
 
   /**
-   * Handle MCP protocol requests
+   * Handle MCP protocol requests with session management
    */
   private async handleMCPRequest(
-    req: IncomingMessage,
-    res: ServerResponse,
-  ): Promise<void> {
-    // New architecture: session-based handling
-    if (this.sessionManager && this.sharedResources) {
-      await this.handleSessionMCPRequest(req, res);
-      return;
-    }
-
-    // Legacy architecture: single transport
-    if (!this.transport) {
-      this.sendJsonResponse(res, 503, { error: 'Transport not initialized' });
-      return;
-    }
-
-    try {
-      // Parse body for POST requests
-      let body: unknown;
-      if (req.method === 'POST') {
-        body = await this.parseBody(req);
-      }
-
-      await this.transport.handleRequest(req, res, body);
-    } catch (error) {
-      console.error('Error handling MCP request:', error);
-      if (!res.headersSent) {
-        this.sendJsonResponse(res, 500, {
-          error:
-            error instanceof Error ? error.message : 'Internal server error',
-        });
-      }
-    }
-  }
-
-  /**
-   * Handle MCP request with session management
-   */
-  private async handleSessionMCPRequest(
     req: IncomingMessage,
     res: ServerResponse,
   ): Promise<void> {
@@ -479,43 +382,32 @@ export class HTTPTransport {
       return;
     }
 
+    if (!this.sharedResources) {
+      this.sendJsonResponse(res, 503, {
+        status: 'error',
+        error: 'Resources not initialized',
+      });
+      return;
+    }
+
     try {
-      // New architecture
-      if (this.sharedResources) {
-        const health = await this.sharedResources.getHealth();
+      const health = await this.sharedResources.getHealth();
 
-        // Add session metrics
-        const healthWithSessions = {
-          ...health,
-          sessions: this.sessionManager
-            ? {
-                active: this.sessionManager.getActiveCount(),
-                max: this.sessionManager.getMaxSessions(),
-              }
-            : undefined,
-        };
+      // Add session metrics
+      const healthWithSessions = {
+        ...health,
+        sessions: this.sessionManager
+          ? {
+              active: this.sessionManager.getActiveCount(),
+              max: this.sessionManager.getMaxSessions(),
+            }
+          : undefined,
+      };
 
-        const statusCode =
-          health.status === 'ok'
-            ? 200
-            : health.status === 'degraded'
-              ? 503
-              : 500;
-
-        this.sendJsonResponse(res, statusCode, healthWithSessions);
-        return;
-      }
-
-      // Legacy architecture
-      if (!this.polygServer) {
-        throw new HealthCheckError('Server not attached');
-      }
-
-      const health = await this.polygServer.getHealth();
       const statusCode =
         health.status === 'ok' ? 200 : health.status === 'degraded' ? 503 : 500;
 
-      this.sendJsonResponse(res, statusCode, health);
+      this.sendJsonResponse(res, statusCode, healthWithSessions);
     } catch (error) {
       const wrappedError = wrapServerError(error, 'Health check failed');
       console.error('Health check error:', wrappedError);
