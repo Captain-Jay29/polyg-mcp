@@ -63,6 +63,46 @@ describe('HTTPTransport', () => {
       const transport = new HTTPTransport({ port: 65535 });
       expect(transport).toBeDefined();
     });
+
+    it('should accept valid session options', () => {
+      const transport = new HTTPTransport({
+        port: 3000,
+        sessionTimeoutMs: 1800000,
+        cleanupIntervalMs: 300000,
+        maxSessions: 100,
+      });
+      expect(transport).toBeDefined();
+    });
+
+    it('should throw TransportConfigError for negative sessionTimeoutMs', () => {
+      expect(
+        () =>
+          new HTTPTransport({
+            port: 3000,
+            sessionTimeoutMs: -1,
+          }),
+      ).toThrow(TransportConfigError);
+    });
+
+    it('should throw TransportConfigError for zero maxSessions', () => {
+      expect(
+        () =>
+          new HTTPTransport({
+            port: 3000,
+            maxSessions: 0,
+          }),
+      ).toThrow(TransportConfigError);
+    });
+
+    it('should throw TransportConfigError for non-integer sessionTimeoutMs', () => {
+      expect(
+        () =>
+          new HTTPTransport({
+            port: 3000,
+            sessionTimeoutMs: 1.5,
+          }),
+      ).toThrow(TransportConfigError);
+    });
   });
 
   describe('resources attachment', () => {
