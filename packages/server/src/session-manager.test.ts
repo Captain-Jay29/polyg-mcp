@@ -1,5 +1,5 @@
 import { DEFAULT_CONFIG, type PolygConfig } from '@polyg-mcp/shared';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { SessionLimitError } from './errors.js';
 import { SessionManager } from './session-manager.js';
 import { SharedResources } from './shared-resources.js';
