@@ -12,6 +12,7 @@ const TEST_CONFIG: PolygConfig = {
 };
 
 import {
+  createMcpServer,
   formatToolError,
   HealthChecker,
   HTTPTransport,
@@ -21,6 +22,11 @@ import {
   ServerError,
   ServerStartError,
   ServerStopError,
+  SessionLimitError,
+  SessionManager,
+  SessionNotFoundError,
+  SessionRequiredError,
+  SharedResources,
   ToolExecutionError,
   ToolInputValidationError,
   TransportConfigError,
@@ -43,6 +49,24 @@ describe('server exports', () => {
 
   it('exports HealthChecker', () => {
     expect(HealthChecker).toBeDefined();
+  });
+
+  it('exports SharedResources', () => {
+    expect(SharedResources).toBeDefined();
+  });
+
+  it('exports SessionManager', () => {
+    expect(SessionManager).toBeDefined();
+  });
+
+  it('exports createMcpServer', () => {
+    expect(createMcpServer).toBeDefined();
+  });
+
+  it('exports session error types', () => {
+    expect(SessionNotFoundError).toBeDefined();
+    expect(SessionLimitError).toBeDefined();
+    expect(SessionRequiredError).toBeDefined();
   });
 });
 
@@ -85,9 +109,9 @@ describe('HTTPTransport', () => {
     expect(transport).toBeDefined();
   });
 
-  it('should throw if started without server attached', async () => {
+  it('should throw if started without resources attached', async () => {
     const transport = new HTTPTransport({ port: 3000 });
-    await expect(transport.start()).rejects.toThrow('No server attached');
+    await expect(transport.start()).rejects.toThrow('No resources attached');
   });
 
   it('should return null address before starting', () => {

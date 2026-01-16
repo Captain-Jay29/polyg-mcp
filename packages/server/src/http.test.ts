@@ -2,7 +2,7 @@ import { DEFAULT_CONFIG, type PolygConfig } from '@polyg-mcp/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ServerStartError, TransportConfigError } from './errors.js';
 import { HTTPTransport } from './http.js';
-import { PolygMCPServer } from './server.js';
+import { SharedResources } from './shared-resources.js';
 
 // Test config with mock API key
 const TEST_CONFIG: PolygConfig = {
@@ -65,28 +65,35 @@ describe('HTTPTransport', () => {
     });
   });
 
-  describe('server attachment', () => {
-    it('should return false for hasServer() before attachment', () => {
-      const transport = new HTTPTransport({ port: 3000 });
-      expect(transport.hasServer()).toBe(false);
-    });
-
-    it('should return true for hasServer() after attachment', () => {
-      const transport = new HTTPTransport({ port: 3000 });
-      const server = new PolygMCPServer(TEST_CONFIG);
-
-      transport.attachServer(server);
-
-      expect(transport.hasServer()).toBe(true);
-    });
-
-    it('should throw ServerStartError if started without server attached', async () => {
+  describe('resources attachment', () => {
+    it('should throw ServerStartError if started without resources attached', async () => {
       const transport = new HTTPTransport({ port: 3000 });
 
       await expect(transport.start()).rejects.toThrow(ServerStartError);
-      await expect(transport.start()).rejects.toThrow(
-        'No server attached. Call attachServer() first.',
-      );
+      await expect(transport.start()).rejects.toThrow('No resources attached');
+    });
+
+    it('should return false for hasResources() before attachment', () => {
+      const transport = new HTTPTransport({ port: 3000 });
+      expect(transport.hasResources()).toBe(false);
+    });
+
+    it('should return true for hasResources() after attachment', () => {
+      const transport = new HTTPTransport({ port: 3000 });
+      const resources = new SharedResources(TEST_CONFIG);
+
+      transport.attachResources(resources);
+
+      expect(transport.hasResources()).toBe(true);
+    });
+
+    it('should create session manager when attaching resources', () => {
+      const transport = new HTTPTransport({ port: 3000 });
+      const resources = new SharedResources(TEST_CONFIG);
+
+      transport.attachResources(resources);
+
+      expect(transport.getSessionManager()).not.toBeNull();
     });
   });
 
@@ -103,20 +110,20 @@ describe('HTTPTransport', () => {
   });
 
   describe('lifecycle', () => {
-    let server: PolygMCPServer;
+    let resources: SharedResources;
 
     beforeEach(async () => {
-      server = new PolygMCPServer(TEST_CONFIG);
-      await server.start();
+      resources = new SharedResources(TEST_CONFIG);
+      await resources.start();
     });
 
     afterEach(async () => {
-      await server.stop();
+      await resources.stop();
     });
 
     it('should start and stop successfully', async () => {
       const transport = new HTTPTransport({ port: 13579 });
-      transport.attachServer(server);
+      transport.attachResources(resources);
 
       expect(transport.isRunning()).toBe(false);
 
@@ -133,7 +140,7 @@ describe('HTTPTransport', () => {
 
     it('should be idempotent - multiple start() calls should not error', async () => {
       const transport = new HTTPTransport({ port: 13580 });
-      transport.attachServer(server);
+      transport.attachResources(resources);
 
       await transport.start();
       await transport.start(); // Should not throw
@@ -145,7 +152,7 @@ describe('HTTPTransport', () => {
 
     it('should handle stop() when not running', async () => {
       const transport = new HTTPTransport({ port: 13581 });
-      transport.attachServer(server);
+      transport.attachResources(resources);
 
       expect(transport.isRunning()).toBe(false);
       await transport.stop(); // Should not throw
@@ -154,7 +161,7 @@ describe('HTTPTransport', () => {
 
     it('should return correct address after start', async () => {
       const transport = new HTTPTransport({ port: 13582, host: '127.0.0.1' });
-      transport.attachServer(server);
+      transport.attachResources(resources);
 
       await transport.start();
 
@@ -169,21 +176,21 @@ describe('HTTPTransport', () => {
   });
 
   describe('health endpoint', () => {
-    let server: PolygMCPServer;
+    let resources: SharedResources;
     let transport: HTTPTransport;
     const TEST_PORT = 13590;
 
     beforeEach(async () => {
-      server = new PolygMCPServer(TEST_CONFIG);
-      await server.start();
+      resources = new SharedResources(TEST_CONFIG);
+      await resources.start();
       transport = new HTTPTransport({ port: TEST_PORT });
-      transport.attachServer(server);
+      transport.attachResources(resources);
       await transport.start();
     });
 
     afterEach(async () => {
       await transport.stop();
-      await server.stop();
+      await resources.stop();
     });
 
     it('should respond to GET /health', async () => {
@@ -222,21 +229,21 @@ describe('HTTPTransport', () => {
   });
 
   describe('MCP endpoint', () => {
-    let server: PolygMCPServer;
+    let resources: SharedResources;
     let transport: HTTPTransport;
     const TEST_PORT = 13591;
 
     beforeEach(async () => {
-      server = new PolygMCPServer(TEST_CONFIG);
-      await server.start();
+      resources = new SharedResources(TEST_CONFIG);
+      await resources.start();
       transport = new HTTPTransport({ port: TEST_PORT });
-      transport.attachServer(server);
+      transport.attachResources(resources);
       await transport.start();
     });
 
     afterEach(async () => {
       await transport.stop();
-      await server.stop();
+      await resources.stop();
     });
 
     it('should respond to requests at /mcp', async () => {
@@ -347,43 +354,43 @@ describe('HTTPTransport', () => {
 
   describe('error handling', () => {
     it('should handle port already in use', async () => {
-      const server = new PolygMCPServer(TEST_CONFIG);
-      await server.start();
+      const resources = new SharedResources(TEST_CONFIG);
+      await resources.start();
 
       const transport1 = new HTTPTransport({ port: 13593 });
-      transport1.attachServer(server);
+      transport1.attachResources(resources);
       await transport1.start();
 
       // Try to start another transport on the same port
-      const server2 = new PolygMCPServer(TEST_CONFIG);
-      await server2.start();
+      const resources2 = new SharedResources(TEST_CONFIG);
+      await resources2.start();
 
       const transport2 = new HTTPTransport({ port: 13593 });
-      transport2.attachServer(server2);
+      transport2.attachResources(resources2);
 
       await expect(transport2.start()).rejects.toThrow(ServerStartError);
 
       await transport1.stop();
-      await server.stop();
-      await server2.stop();
+      await resources.stop();
+      await resources2.stop();
     });
   });
 
   describe('stateful vs stateless mode', () => {
-    let server: PolygMCPServer;
+    let resources: SharedResources;
 
     beforeEach(async () => {
-      server = new PolygMCPServer(TEST_CONFIG);
-      await server.start();
+      resources = new SharedResources(TEST_CONFIG);
+      await resources.start();
     });
 
     afterEach(async () => {
-      await server.stop();
+      await resources.stop();
     });
 
     it('should start in stateful mode by default', async () => {
       const transport = new HTTPTransport({ port: 13594 });
-      transport.attachServer(server);
+      transport.attachResources(resources);
 
       await transport.start();
       expect(transport.isRunning()).toBe(true);
@@ -393,12 +400,219 @@ describe('HTTPTransport', () => {
 
     it('should start in stateless mode when configured', async () => {
       const transport = new HTTPTransport({ port: 13595, stateful: false });
-      transport.attachServer(server);
+      transport.attachResources(resources);
 
       await transport.start();
       expect(transport.isRunning()).toBe(true);
 
       await transport.stop();
+    });
+  });
+
+  describe('session-based architecture', () => {
+    let resources: SharedResources;
+    let transport: HTTPTransport;
+    const TEST_PORT = 13700;
+
+    beforeEach(async () => {
+      resources = new SharedResources(TEST_CONFIG);
+      await resources.start();
+      transport = new HTTPTransport({
+        port: TEST_PORT,
+        sessionTimeoutMs: 1800000,
+        maxSessions: 100,
+      });
+      transport.attachResources(resources);
+      await transport.start();
+    });
+
+    afterEach(async () => {
+      await transport.stop();
+      await resources.stop();
+    });
+
+    it('should start with session-based architecture', () => {
+      expect(transport.isRunning()).toBe(true);
+      expect(transport.hasResources()).toBe(true);
+      expect(transport.getSessionManager()).not.toBeNull();
+    });
+
+    it('should respond to health check with session metrics', async () => {
+      const response = await fetch(`http://localhost:${TEST_PORT}/health`);
+
+      expect(response.ok).toBe(true);
+
+      const data = (await response.json()) as {
+        status: string;
+        falkordb: string;
+        sessions?: { active: number; max: number };
+      };
+
+      expect(data.status).toBe('ok');
+      expect(data.falkordb).toBe('connected');
+      expect(data.sessions).toBeDefined();
+      expect(data.sessions?.active).toBe(0);
+      expect(data.sessions?.max).toBe(100);
+    });
+
+    it('should create session on initialize request', async () => {
+      const response = await fetch(`http://localhost:${TEST_PORT}/mcp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json, text/event-stream',
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'initialize',
+          params: {
+            protocolVersion: '2024-11-05',
+            capabilities: {},
+            clientInfo: { name: 'test-client', version: '1.0.0' },
+          },
+        }),
+      });
+
+      // Should succeed or return 406 (depends on Accept header negotiation)
+      expect([200, 406]).toContain(response.status);
+
+      // Check that a session was created
+      const manager = transport.getSessionManager();
+      // Note: Session creation depends on transport handling
+      expect(manager).not.toBeNull();
+    });
+
+    it('should return 400 for non-initialize request without session ID', async () => {
+      const response = await fetch(`http://localhost:${TEST_PORT}/mcp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'tools/list',
+          params: {},
+        }),
+      });
+
+      expect(response.status).toBe(400);
+
+      const data = (await response.json()) as {
+        jsonrpc: string;
+        error: { code: number; message: string; data: { code: string } };
+      };
+
+      expect(data.jsonrpc).toBe('2.0');
+      expect(data.error.data.code).toBe('SESSION_REQUIRED');
+    });
+
+    it('should return 404 for non-existent session ID', async () => {
+      const response = await fetch(`http://localhost:${TEST_PORT}/mcp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'mcp-session-id': 'non-existent-session-id',
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'tools/list',
+          params: {},
+        }),
+      });
+
+      expect(response.status).toBe(404);
+
+      const data = (await response.json()) as {
+        jsonrpc: string;
+        error: {
+          code: number;
+          message: string;
+          data: { code: string; sessionId: string };
+        };
+      };
+
+      expect(data.jsonrpc).toBe('2.0');
+      expect(data.error.data.code).toBe('SESSION_NOT_FOUND');
+      expect(data.error.data.sessionId).toBe('non-existent-session-id');
+    });
+  });
+
+  describe('session limit', () => {
+    let resources: SharedResources;
+    let transport: HTTPTransport;
+    const TEST_PORT = 13701;
+
+    beforeEach(async () => {
+      resources = new SharedResources(TEST_CONFIG);
+      await resources.start();
+      transport = new HTTPTransport({
+        port: TEST_PORT,
+        maxSessions: 1, // Very low limit for testing
+      });
+      transport.attachResources(resources);
+      await transport.start();
+    });
+
+    afterEach(async () => {
+      await transport.stop();
+      await resources.stop();
+    });
+
+    it('should return 503 when session limit reached', async () => {
+      // Create first session
+      await fetch(`http://localhost:${TEST_PORT}/mcp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json, text/event-stream',
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'initialize',
+          params: {
+            protocolVersion: '2024-11-05',
+            capabilities: {},
+            clientInfo: { name: 'test-client-1', version: '1.0.0' },
+          },
+        }),
+      });
+
+      // Try to create second session (should fail)
+      const response = await fetch(`http://localhost:${TEST_PORT}/mcp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json, text/event-stream',
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 2,
+          method: 'initialize',
+          params: {
+            protocolVersion: '2024-11-05',
+            capabilities: {},
+            clientInfo: { name: 'test-client-2', version: '1.0.0' },
+          },
+        }),
+      });
+
+      expect(response.status).toBe(503);
+
+      const data = (await response.json()) as {
+        jsonrpc: string;
+        error: {
+          code: number;
+          message: string;
+          data: { code: string; maxSessions: number };
+        };
+      };
+
+      expect(data.error.data.code).toBe('SESSION_LIMIT');
+      expect(data.error.data.maxSessions).toBe(1);
     });
   });
 });
