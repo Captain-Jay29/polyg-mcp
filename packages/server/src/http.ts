@@ -158,6 +158,20 @@ export class HTTPTransport {
       this.transport = null;
     }
 
+    // Close MCP server connection so it can be reconnected on next start()
+    if (this.polygServer) {
+      const mcpServer = this.polygServer.getMcpServer();
+      if (mcpServer.isConnected()) {
+        try {
+          await mcpServer.close();
+        } catch (error) {
+          errors.push(
+            error instanceof Error ? error : new Error(String(error)),
+          );
+        }
+      }
+    }
+
     // Close HTTP server
     if (this.server) {
       try {
