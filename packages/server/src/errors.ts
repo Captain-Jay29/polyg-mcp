@@ -125,55 +125,6 @@ export class HealthCheckError extends ServerError {
 }
 
 /**
- * Thrown when a session is not found
- */
-export class SessionNotFoundError extends ServerError {
-  constructor(
-    public readonly sessionId: string,
-    cause?: Error,
-  ) {
-    super(`Session not found: ${sessionId}`, cause);
-    this.name = 'SessionNotFoundError';
-  }
-}
-
-/**
- * Thrown when session limit is reached
- */
-export class SessionLimitError extends ServerError {
-  constructor(
-    public readonly maxSessions: number,
-    cause?: Error,
-  ) {
-    super(
-      `Session limit reached: maximum ${maxSessions} sessions allowed`,
-      cause,
-    );
-    this.name = 'SessionLimitError';
-  }
-}
-
-/**
- * Thrown when session ID is required but not provided
- */
-export class SessionRequiredError extends ServerError {
-  constructor(cause?: Error) {
-    super('Session ID required for this request', cause);
-    this.name = 'SessionRequiredError';
-  }
-}
-
-/**
- * Thrown when session creation fails
- */
-export class SessionCreationError extends ServerError {
-  constructor(message: string, cause?: Error) {
-    super(message, cause);
-    this.name = 'SessionCreationError';
-  }
-}
-
-/**
  * Type guard to check if an error is a ServerError
  */
 export function isServerError(error: unknown): error is ServerError {

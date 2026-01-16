@@ -312,34 +312,6 @@ export const HTTPServerOptionsSchema = z.object({
     .boolean()
     .optional()
     .describe('Enable stateful sessions (default: true)'),
-  sessionTimeoutMs: z
-    .number()
-    .int()
-    .positive()
-    .optional()
-    .describe(
-      'Session inactivity timeout in milliseconds (default: 1800000 = 30 min)',
-    ),
-  cleanupIntervalMs: z
-    .number()
-    .int()
-    .positive()
-    .optional()
-    .describe(
-      'Cleanup timer interval in milliseconds (default: 300000 = 5 min)',
-    ),
-  maxSessions: z
-    .number()
-    .int()
-    .positive()
-    .optional()
-    .describe('Maximum concurrent sessions (default: 100)'),
-});
-
-// Session metrics for health response
-export const SessionMetricsSchema = z.object({
-  active: z.number().int().min(0),
-  max: z.number().int().min(0),
 });
 
 // Health status response
@@ -348,7 +320,6 @@ export const HealthStatusSchema = z.object({
   falkordb: z.enum(['connected', 'disconnected']),
   graphs: z.number().int().min(0),
   uptime: z.number().int().min(0),
-  sessions: SessionMetricsSchema.optional(),
 });
 
 // MCP tool result content
@@ -419,7 +390,6 @@ export type FalkorDBNode = z.infer<typeof FalkorDBNodeSchema>;
 
 // Server types
 export type HTTPServerOptions = z.infer<typeof HTTPServerOptionsSchema>;
-export type SessionMetrics = z.infer<typeof SessionMetricsSchema>;
 export type HealthStatus = z.infer<typeof HealthStatusSchema>;
 export type ToolContent = z.infer<typeof ToolContentSchema>;
 export type ToolResult = z.infer<typeof ToolResultSchema>;
