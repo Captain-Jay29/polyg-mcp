@@ -29,6 +29,26 @@ export class MCPClient {
     await this.refreshTools();
   }
 
+  /**
+   * Reconnect to the server with a fresh session.
+   * Useful when the session expires during a long interactive session.
+   */
+  async reconnect(): Promise<void> {
+    // Disconnect if currently connected
+    if (this.connected) {
+      await this.disconnect();
+    }
+
+    // Create a fresh client instance (MCP SDK client can't be reused after disconnect)
+    this.client = new Client(
+      { name: 'polyg-e2e-agent', version: '1.0.0' },
+      { capabilities: {} },
+    );
+
+    // Connect with fresh session
+    await this.connect();
+  }
+
   async disconnect(): Promise<void> {
     if (!this.connected) return;
 
@@ -65,22 +85,41 @@ export class MCPClient {
   async callTool(
     name: string,
     args: Record<string, unknown>,
+    autoReconnect = true,
   ): Promise<string> {
     if (!this.connected) {
       throw new Error('MCP client not connected');
     }
 
-    const result = await this.client.callTool({ name, arguments: args });
+    try {
+      const result = await this.client.callTool({ name, arguments: args });
 
-    // Extract text content from result
-    if (Array.isArray(result.content)) {
-      return result.content
-        .filter((c): c is { type: 'text'; text: string } => c.type === 'text')
-        .map((c) => c.text)
-        .join('\n');
+      // Extract text content from result
+      if (Array.isArray(result.content)) {
+        return result.content
+          .filter((c): c is { type: 'text'; text: string } => c.type === 'text')
+          .map((c) => c.text)
+          .join('\n');
+      }
+
+      return JSON.stringify(result.content);
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+
+      // Check for session-related errors
+      if (
+        autoReconnect &&
+        (errorMsg.includes('SESSION_NOT_FOUND') ||
+          errorMsg.includes('SESSION_REQUIRED'))
+      ) {
+        console.log('Session expired, reconnecting...');
+        await this.reconnect();
+        // Retry the call once after reconnection
+        return this.callTool(name, args, false);
+      }
+
+      throw error;
     }
-
-    return JSON.stringify(result.content);
   }
 
   isConnected(): boolean {

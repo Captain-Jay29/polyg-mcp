@@ -1,7 +1,7 @@
 // ReAct Agent implementation for e2e testing
 import OpenAI from 'openai';
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
-import { MCPClient, type OpenAITool } from './mcp-client.js';
+import type { MCPClient } from './mcp-client.js';
 import type {
   AgentConfig,
   AgentResult,
@@ -52,6 +52,20 @@ export class ReActAgent {
     this.config = config;
   }
 
+  /**
+   * Get the current verbose setting
+   */
+  getVerbose(): boolean {
+    return this.config.verbose;
+  }
+
+  /**
+   * Set the verbose setting
+   */
+  setVerbose(verbose: boolean): void {
+    this.config.verbose = verbose;
+  }
+
   async run(query: string): Promise<AgentResult> {
     const steps: AgentStep[] = [];
     const toolsUsed = new Set<string>();
@@ -66,7 +80,9 @@ export class ReActAgent {
     if (this.config.verbose) {
       console.log('\n🤖 Agent starting...');
       console.log(`📝 Query: ${query}`);
-      console.log(`🔧 Available tools: ${tools.map((t) => t.function.name).join(', ')}\n`);
+      console.log(
+        `🔧 Available tools: ${tools.map((t) => t.function.name).join(', ')}\n`,
+      );
     }
 
     for (let step = 0; step < this.config.maxSteps; step++) {

@@ -87,6 +87,12 @@ Environment Variables:
   POLYG_AGENT_MODEL       OpenAI model
   OPENAI_API_KEY          OpenAI API key
 
+Interactive Commands:
+  tools                   List available MCP tools
+  reconnect               Reconnect with a fresh session
+  verbose                 Toggle verbose reasoning output
+  exit                    Exit the agent
+
 Examples:
   # Interactive mode
   tsx tests/e2e/agent/cli.ts -i -v
@@ -111,7 +117,9 @@ function runInteractive(
     });
 
     console.log('\n🤖 polyg-mcp E2E Test Agent');
-    console.log('Type your query, or use commands: tools, verbose, help, exit\n');
+    console.log(
+      'Type your query, or use commands: tools, reconnect, verbose, help, exit\n',
+    );
 
     let isVerbose = verbose;
 
@@ -126,7 +134,11 @@ function runInteractive(
 
         // Handle commands (with or without leading slash)
         const command = trimmed.startsWith('/') ? trimmed.slice(1) : trimmed;
-        if (['tools', 'verbose', 'exit', 'quit', 'help'].includes(command)) {
+        if (
+          ['tools', 'reconnect', 'verbose', 'exit', 'quit', 'help'].includes(
+            command,
+          )
+        ) {
           switch (command) {
             case 'tools': {
               const tools = mcpClient.getTools();
@@ -141,6 +153,19 @@ function runInteractive(
               console.log('');
               break;
             }
+            case 'reconnect':
+              console.log('Reconnecting to server...');
+              try {
+                await mcpClient.reconnect();
+                console.log(
+                  `Reconnected! Found ${mcpClient.getTools().length} tools available.\n`,
+                );
+              } catch (error) {
+                console.error(
+                  `Failed to reconnect: ${error instanceof Error ? error.message : String(error)}\n`,
+                );
+              }
+              break;
             case 'verbose':
               isVerbose = !isVerbose;
               console.log(`Verbose mode: ${isVerbose ? 'ON' : 'OFF'}\n`);
@@ -153,9 +178,10 @@ function runInteractive(
               return;
             case 'help':
               console.log('\nCommands:');
-              console.log('  tools    - List available MCP tools');
-              console.log('  verbose  - Toggle verbose reasoning output');
-              console.log('  exit     - Exit the agent\n');
+              console.log('  tools     - List available MCP tools');
+              console.log('  reconnect - Reconnect with a fresh session');
+              console.log('  verbose   - Toggle verbose reasoning output');
+              console.log('  exit      - Exit the agent\n');
               break;
           }
           prompt();
@@ -165,12 +191,12 @@ function runInteractive(
         // Run query
         try {
           // Temporarily update agent config for verbose
-          const originalVerbose = agent['config'].verbose;
-          agent['config'].verbose = isVerbose;
+          const originalVerbose = agent.getVerbose();
+          agent.setVerbose(isVerbose);
 
           const result = await agent.run(trimmed);
 
-          agent['config'].verbose = originalVerbose;
+          agent.setVerbose(originalVerbose);
 
           if (!isVerbose) {
             console.log(`\n${result.answer}\n`);
@@ -216,12 +242,25 @@ async function main(): Promise<void> {
     const errorMsg = error instanceof Error ? error.message : String(error);
     console.error(`Failed to connect to MCP server: ${errorMsg}`);
 
-    if (errorMsg.includes('already initialized')) {
-      console.error('\nThe server has a stale session. Restart the server:');
-      console.error('  pkill -f "polyg-mcp" && cd packages/server && PORT=4000 POLYG_MODE=http pnpm dev');
-    } else {
+    // Provide helpful error messages based on the error type
+    if (errorMsg.includes('SESSION_NOT_FOUND')) {
+      console.error(
+        '\nSession expired or invalid. A new session will be created on reconnect.',
+      );
+    } else if (errorMsg.includes('SESSION_LIMIT')) {
+      console.error(
+        '\nServer has reached maximum session limit. Try again later or restart the server.',
+      );
+    } else if (
+      errorMsg.includes('ECONNREFUSED') ||
+      errorMsg.includes('fetch failed')
+    ) {
       console.error('\nMake sure the polyg-mcp server is running:');
-      console.error('  cd packages/server && PORT=4000 POLYG_MODE=http pnpm dev');
+      console.error(
+        '  cd packages/server && PORT=4000 POLYG_MODE=http pnpm dev',
+      );
+    } else {
+      console.error('\nUnexpected error. Check server logs for details.');
     }
     process.exit(1);
   }
@@ -253,7 +292,9 @@ async function main(): Promise<void> {
       await runInteractive(agent, mcpClient, options.verbose);
     } else {
       // No query provided, show help
-      console.log('\nNo query provided. Use -q for single query or -i for interactive mode.');
+      console.log(
+        '\nNo query provided. Use -q for single query or -i for interactive mode.',
+      );
       printHelp();
     }
   } finally {

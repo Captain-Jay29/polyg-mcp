@@ -216,7 +216,7 @@ describe('HTTPTransport', () => {
 
     it('should allow restart after stop - fixes session stale issue', async () => {
       const transport = new HTTPTransport({ port: 13583 });
-      transport.attachServer(server);
+      transport.attachResources(resources);
 
       // First start/stop cycle
       await transport.start();

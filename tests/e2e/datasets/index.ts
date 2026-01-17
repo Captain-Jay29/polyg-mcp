@@ -1,7 +1,7 @@
 // Dataset exports
 export {
   DEPLOYMENT_INCIDENT,
+  type DeploymentIncidentData,
   seedDeploymentIncident,
   TEST_QUERIES,
-  type DeploymentIncidentData,
 } from './deployment-incident.js';

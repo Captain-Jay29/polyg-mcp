@@ -27,10 +27,13 @@ describe.skipIf(!OPENAI_API_KEY)(
       // Seed test data
       await seedDeploymentIncident(mcpClient);
 
-      // Initialize agent
+      // Initialize agent (OPENAI_API_KEY is guaranteed by describe.skipIf)
+      if (!OPENAI_API_KEY) {
+        throw new Error('OPENAI_API_KEY is required');
+      }
       const config: AgentConfig = {
         model: process.env.POLYG_AGENT_MODEL ?? 'gpt-4o-mini',
-        apiKey: OPENAI_API_KEY!,
+        apiKey: OPENAI_API_KEY,
         maxSteps: 10,
         verbose: process.env.VERBOSE === 'true',
       };
@@ -79,9 +82,7 @@ describe.skipIf(!OPENAI_API_KEY)(
         // Should use causal graph tools
         const usedCausalTools = result.toolsUsed.some(
           (t) =>
-            t.includes('causal') ||
-            t.includes('explain') ||
-            t === 'recall',
+            t.includes('causal') || t.includes('explain') || t === 'recall',
         );
         expect(usedCausalTools).toBe(true);
       });
@@ -130,9 +131,7 @@ describe.skipIf(!OPENAI_API_KEY)(
 
     describe('Entity Relationships', () => {
       it('should find service dependencies', async () => {
-        const result = await agent.run(
-          'What services depend on auth-service?',
-        );
+        const result = await agent.run('What services depend on auth-service?');
 
         expect(result.success).toBe(true);
 

@@ -141,8 +141,7 @@ export const DEPLOYMENT_INCIDENT: DeploymentIncidentData = {
       entities: ['alice', 'auth-service'],
     },
     {
-      description:
-        'Alice began investigating auth-service CrashLoopBackOff',
+      description: 'Alice began investigating auth-service CrashLoopBackOff',
       timestamp: '2026-01-15T14:08:00Z',
       entities: ['alice', 'auth-service'],
     },
@@ -281,16 +280,15 @@ export const TEST_QUERIES = [
     expectedInAnswer: ['api-gateway'],
   },
   {
-    query: 'What was the root cause of the user dashboard becoming unresponsive?',
+    query:
+      'What was the root cause of the user dashboard becoming unresponsive?',
     expectedTools: ['get_causal_chain', 'explain_why'],
     expectedInAnswer: ['JWT_SECRET', 'auth-service', 'api-gateway'],
   },
 ];
 
 // Seed the dataset into the MCP server
-export async function seedDeploymentIncident(
-  client: MCPClient,
-): Promise<void> {
+export async function seedDeploymentIncident(client: MCPClient): Promise<void> {
   console.log('Seeding deployment incident data...');
 
   let errors = 0;
@@ -321,7 +319,9 @@ export async function seedDeploymentIncident(
             target: rel.target,
             relationship: rel.type,
           });
-          console.log(`  ✓ Added relationship: ${entity.name} -[${rel.type}]-> ${rel.target}`);
+          console.log(
+            `  ✓ Added relationship: ${entity.name} -[${rel.type}]-> ${rel.target}`,
+          );
         } catch (error) {
           errors++;
           const msg = error instanceof Error ? error.message : String(error);
@@ -354,7 +354,9 @@ export async function seedDeploymentIncident(
         effect: link.effect,
         confidence: link.confidence,
       });
-      console.log(`  ✓ Added causal link: ${link.cause.slice(0, 30)}... -> ${link.effect.slice(0, 30)}...`);
+      console.log(
+        `  ✓ Added causal link: ${link.cause.slice(0, 30)}... -> ${link.effect.slice(0, 30)}...`,
+      );
     } catch (error) {
       errors++;
       const msg = error instanceof Error ? error.message : String(error);
@@ -372,7 +374,9 @@ export async function seedDeploymentIncident(
         valid_from: fact.validFrom,
         valid_to: fact.validTo,
       });
-      console.log(`  ✓ Added fact: ${fact.subject} ${fact.predicate} ${fact.object}`);
+      console.log(
+        `  ✓ Added fact: ${fact.subject} ${fact.predicate} ${fact.object}`,
+      );
     } catch (error) {
       errors++;
       const msg = error instanceof Error ? error.message : String(error);
