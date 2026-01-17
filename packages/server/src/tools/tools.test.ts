@@ -13,8 +13,26 @@ import { PolygMCPServer } from '../server.js';
 
 // Helper to wait for FalkorDB eventual consistency
 // FalkorDB writes may not be immediately visible to subsequent queries
-const waitForConsistency = (ms = 500) =>
+const waitForConsistency = (ms = 100) =>
   new Promise((resolve) => setTimeout(resolve, ms));
+
+// Helper to retry an async operation with backoff
+async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  isSuccess: (result: T) => boolean,
+  maxAttempts = 5,
+  initialDelayMs = 100,
+): Promise<T> {
+  let lastResult: T = await fn();
+  if (isSuccess(lastResult)) return lastResult;
+
+  for (let i = 1; i < maxAttempts; i++) {
+    await waitForConsistency(initialDelayMs * i);
+    lastResult = await fn();
+    if (isSuccess(lastResult)) return lastResult;
+  }
+  return lastResult;
+}
 
 // Test config with mock API key
 const TEST_CONFIG: PolygConfig = {
@@ -158,19 +176,32 @@ describe('Tool Handlers', () => {
   });
 
   describe('link_entities', () => {
-    it('should link two entities', async () => {
-      const graphs = server.getOrchestrator().getGraphs();
-      const entity1 = await graphs.entity.addEntity('Alice', 'Person');
-      const entity2 = await graphs.entity.addEntity('Bob', 'Person');
+    it('should link two entities', { retry: 3 }, async () => {
+      // Use unique names to avoid conflicts between test runs
+      const uniqueId = Date.now().toString();
+      const name1 = `Alice_${uniqueId}`;
+      const name2 = `Bob_${uniqueId}`;
 
-      // Wait for FalkorDB to persist the entities
-      await waitForConsistency();
-
-      const result = await callTool(server, 'link_entities', {
-        source: entity1.uuid,
-        target: entity2.uuid,
-        relationship: 'FRIENDS_WITH',
+      // Create entities using the tool
+      await callTool(server, 'add_entity', {
+        name: name1,
+        entity_type: 'Person',
       });
+      await callTool(server, 'add_entity', {
+        name: name2,
+        entity_type: 'Person',
+      });
+
+      // Link entities with retry (handles FalkorDB eventual consistency)
+      const result = await retryWithBackoff(
+        () =>
+          callTool(server, 'link_entities', {
+            source: name1,
+            target: name2,
+            relationship: 'FRIENDS_WITH',
+          }),
+        (r) => r.content[0].text.includes('Linked'),
+      );
 
       expect(result.content[0].text).toContain('Linked');
       expect(result.content[0].text).toContain('FRIENDS_WITH');

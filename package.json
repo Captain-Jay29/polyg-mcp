@@ -6,9 +6,9 @@
   "license": "MIT",
   "scripts": {
     "build": "turbo run build",
-    "dev": "turbo run dev",
-    "mcp": "PORT=4000 POLYG_MODE=http pnpm --filter @polyg-mcp/server dev",
-    "agent": "POLYG_SERVER_URL=http://localhost:4000 pnpm --filter @polyg-mcp/e2e agent:interactive",
+    "dev": "dotenv -e .env -- turbo run dev",
+    "mcp": "dotenv -e .env -- pnpm --filter @polyg-mcp/server dev",
+    "agent": "dotenv -e .env -- pnpm --filter @polyg-mcp/e2e agent:interactive",
     "test": "turbo run test",
     "test:unit": "turbo run test:unit",
     "test:integration": "turbo run test:integration",
@@ -22,6 +22,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.3.11",
+    "dotenv-cli": "^8.0.0",
     "@types/node": "^25.0.8",
     "@vitest/coverage-v8": "^2.0.0",
     "turbo": "^2.0.0",

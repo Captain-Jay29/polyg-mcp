@@ -64,6 +64,18 @@ function parseEnvPort(envVar: string | undefined, defaultPort: number): number {
 }
 
 /**
+ * Parse environment variable as a positive integer
+ */
+function parseEnvInt(envVar: string | undefined, defaultValue: number): number {
+  if (!envVar) return defaultValue;
+  const value = Number.parseInt(envVar, 10);
+  if (Number.isNaN(value) || value < 0) {
+    return defaultValue;
+  }
+  return value;
+}
+
+/**
  * Build raw configuration from environment variables
  * This creates an unvalidated config object
  */
@@ -79,8 +91,11 @@ function buildRawConfig(): unknown {
       provider: 'openai',
       model: process.env.LLM_MODEL || 'gpt-4o-mini',
       apiKey: process.env.OPENAI_API_KEY,
-      classifierMaxTokens: 500,
-      synthesizerMaxTokens: 1000,
+      classifierMaxTokens: parseEnvInt(process.env.CLASSIFIER_MAX_TOKENS, 2000),
+      synthesizerMaxTokens: parseEnvInt(
+        process.env.SYNTHESIZER_MAX_TOKENS,
+        2000,
+      ),
     },
     embeddings: {
       provider: 'openai',

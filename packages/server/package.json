@@ -10,8 +10,8 @@
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "dev": "tsx watch src/main.ts",
-    "start": "node dist/main.js",
+    "dev": "dotenv -e ../../.env -- tsx watch src/main.ts",
+    "start": "dotenv -e ../../.env -- node dist/main.js",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"
   },
@@ -22,6 +22,7 @@
     "zod": "^4.3.5"
   },
   "devDependencies": {
+    "dotenv-cli": "^8.0.0",
     "tsx": "^4.16.0",
     "typescript": "^5.5.0"
   }
