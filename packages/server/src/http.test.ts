@@ -213,6 +213,30 @@ describe('HTTPTransport', () => {
 
       await transport.stop();
     });
+
+    it('should allow restart after stop - fixes session stale issue', async () => {
+      const transport = new HTTPTransport({ port: 13583 });
+      transport.attachResources(resources);
+
+      // First start/stop cycle
+      await transport.start();
+      expect(transport.isRunning()).toBe(true);
+      await transport.stop();
+      expect(transport.isRunning()).toBe(false);
+
+      // Reattach resources after stop (stop() clears sessionManager)
+      transport.attachResources(resources);
+
+      // Second start should succeed (previously failed with "Server already initialized")
+      await transport.start();
+      expect(transport.isRunning()).toBe(true);
+
+      // Verify server is functional after restart
+      const response = await fetch('http://localhost:13583/health');
+      expect(response.ok).toBe(true);
+
+      await transport.stop();
+    });
   });
 
   describe('health endpoint', () => {

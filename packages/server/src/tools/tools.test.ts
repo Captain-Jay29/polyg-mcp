@@ -163,6 +163,9 @@ describe('Tool Handlers', () => {
       const entity1 = await graphs.entity.addEntity('Alice', 'Person');
       const entity2 = await graphs.entity.addEntity('Bob', 'Person');
 
+      // Wait for FalkorDB to persist the entities
+      await waitForConsistency();
+
       const result = await callTool(server, 'link_entities', {
         source: entity1.uuid,
         target: entity2.uuid,
