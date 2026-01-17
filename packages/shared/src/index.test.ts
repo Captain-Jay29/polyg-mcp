@@ -32,6 +32,67 @@ describe('config validation', () => {
       expect(config.llm.provider).toBe('openai');
     });
 
+    it('should use default token limits when env vars not set', () => {
+      const originalClassifier = process.env.CLASSIFIER_MAX_TOKENS;
+      const originalSynthesizer = process.env.SYNTHESIZER_MAX_TOKENS;
+      delete process.env.CLASSIFIER_MAX_TOKENS;
+      delete process.env.SYNTHESIZER_MAX_TOKENS;
+
+      const config = loadConfig();
+      expect(config.llm.classifierMaxTokens).toBe(2000);
+      expect(config.llm.synthesizerMaxTokens).toBe(2000);
+
+      // Restore
+      if (originalClassifier) process.env.CLASSIFIER_MAX_TOKENS = originalClassifier;
+      if (originalSynthesizer) process.env.SYNTHESIZER_MAX_TOKENS = originalSynthesizer;
+    });
+
+    it('should parse token limits from env vars', () => {
+      const originalClassifier = process.env.CLASSIFIER_MAX_TOKENS;
+      const originalSynthesizer = process.env.SYNTHESIZER_MAX_TOKENS;
+      process.env.CLASSIFIER_MAX_TOKENS = '500';
+      process.env.SYNTHESIZER_MAX_TOKENS = '1000';
+
+      const config = loadConfig();
+      expect(config.llm.classifierMaxTokens).toBe(500);
+      expect(config.llm.synthesizerMaxTokens).toBe(1000);
+
+      // Restore
+      if (originalClassifier) {
+        process.env.CLASSIFIER_MAX_TOKENS = originalClassifier;
+      } else {
+        delete process.env.CLASSIFIER_MAX_TOKENS;
+      }
+      if (originalSynthesizer) {
+        process.env.SYNTHESIZER_MAX_TOKENS = originalSynthesizer;
+      } else {
+        delete process.env.SYNTHESIZER_MAX_TOKENS;
+      }
+    });
+
+    it('should use default for invalid token limit values', () => {
+      const originalClassifier = process.env.CLASSIFIER_MAX_TOKENS;
+      const originalSynthesizer = process.env.SYNTHESIZER_MAX_TOKENS;
+      process.env.CLASSIFIER_MAX_TOKENS = 'not-a-number';
+      process.env.SYNTHESIZER_MAX_TOKENS = '-100';
+
+      const config = loadConfig();
+      expect(config.llm.classifierMaxTokens).toBe(2000);
+      expect(config.llm.synthesizerMaxTokens).toBe(2000);
+
+      // Restore
+      if (originalClassifier) {
+        process.env.CLASSIFIER_MAX_TOKENS = originalClassifier;
+      } else {
+        delete process.env.CLASSIFIER_MAX_TOKENS;
+      }
+      if (originalSynthesizer) {
+        process.env.SYNTHESIZER_MAX_TOKENS = originalSynthesizer;
+      } else {
+        delete process.env.SYNTHESIZER_MAX_TOKENS;
+      }
+    });
+
     it('should merge overrides with defaults', () => {
       const config = loadConfig({
         falkordb: {
