@@ -224,6 +224,9 @@ describe('HTTPTransport', () => {
       await transport.stop();
       expect(transport.isRunning()).toBe(false);
 
+      // Reattach resources after stop (stop() clears sessionManager)
+      transport.attachResources(resources);
+
       // Second start should succeed (previously failed with "Server already initialized")
       await transport.start();
       expect(transport.isRunning()).toBe(true);
