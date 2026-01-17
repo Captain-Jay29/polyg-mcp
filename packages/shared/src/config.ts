@@ -66,10 +66,7 @@ function parseEnvPort(envVar: string | undefined, defaultPort: number): number {
 /**
  * Parse environment variable as a positive integer
  */
-function parseEnvInt(
-  envVar: string | undefined,
-  defaultValue: number,
-): number {
+function parseEnvInt(envVar: string | undefined, defaultValue: number): number {
   if (!envVar) return defaultValue;
   const value = Number.parseInt(envVar, 10);
   if (Number.isNaN(value) || value < 0) {
