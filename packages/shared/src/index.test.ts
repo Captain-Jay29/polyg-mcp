@@ -43,8 +43,10 @@ describe('config validation', () => {
       expect(config.llm.synthesizerMaxTokens).toBe(2000);
 
       // Restore
-      if (originalClassifier) process.env.CLASSIFIER_MAX_TOKENS = originalClassifier;
-      if (originalSynthesizer) process.env.SYNTHESIZER_MAX_TOKENS = originalSynthesizer;
+      if (originalClassifier)
+        process.env.CLASSIFIER_MAX_TOKENS = originalClassifier;
+      if (originalSynthesizer)
+        process.env.SYNTHESIZER_MAX_TOKENS = originalSynthesizer;
     });
 
     it('should parse token limits from env vars', () => {
