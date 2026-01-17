@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 // HTTP transport handler for MCP over Streamable HTTP
 import {
   createServer,
@@ -6,31 +5,37 @@ import {
   type Server,
   type ServerResponse,
 } from 'node:http';
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import {
   type HTTPServerOptions,
   HTTPServerOptionsSchema,
 } from '@polyg-mcp/shared';
 import {
-  HealthCheckError,
   ServerStartError,
   ServerStopError,
+  SessionCreationError,
+  SessionLimitError,
+  SessionNotFoundError,
+  SessionRequiredError,
   TransportConfigError,
   wrapServerError,
 } from './errors.js';
-import type { PolygMCPServer } from './server.js';
+import { type SessionContext, SessionManager } from './session-manager.js';
+import type { SharedResources } from './shared-resources.js';
 
 // Re-export for backwards compatibility
 export type { HTTPServerOptions };
 
+// MCP session ID header
+const MCP_SESSION_ID_HEADER = 'mcp-session-id';
+
 /**
  * HTTP Transport for MCP Server
- * Implements MCP Streamable HTTP transport specification
+ * Implements MCP Streamable HTTP transport specification with session management
  */
 export class HTTPTransport {
   private server: Server | null = null;
-  private transport: StreamableHTTPServerTransport | null = null;
-  private polygServer: PolygMCPServer | null = null;
+  private sharedResources: SharedResources | null = null;
+  private sessionManager: SessionManager | null = null;
   private readonly validatedOptions: HTTPServerOptions;
 
   /**
@@ -55,17 +60,23 @@ export class HTTPTransport {
   }
 
   /**
-   * Attach the polyg MCP server to this transport
+   * Attach SharedResources for session-based architecture.
+   * This automatically creates a SessionManager.
    */
-  attachServer(polygServer: PolygMCPServer): void {
-    this.polygServer = polygServer;
+  attachResources(resources: SharedResources): void {
+    this.sharedResources = resources;
+    this.sessionManager = new SessionManager(resources, {
+      sessionTimeoutMs: this.validatedOptions.sessionTimeoutMs,
+      cleanupIntervalMs: this.validatedOptions.cleanupIntervalMs,
+      maxSessions: this.validatedOptions.maxSessions,
+    });
   }
 
   /**
-   * Check if server is attached
+   * Check if resources are attached
    */
-  hasServer(): boolean {
-    return this.polygServer !== null;
+  hasResources(): boolean {
+    return this.sharedResources !== null && this.sessionManager !== null;
   }
 
   /**
@@ -76,13 +87,20 @@ export class HTTPTransport {
   }
 
   /**
+   * Get the session manager (for monitoring/metrics)
+   */
+  getSessionManager(): SessionManager | null {
+    return this.sessionManager;
+  }
+
+  /**
    * Start the HTTP server
    * @throws {ServerStartError} if server fails to start
    */
   async start(): Promise<void> {
-    if (!this.polygServer) {
+    if (!this.hasResources()) {
       throw new ServerStartError(
-        'No server attached. Call attachServer() first.',
+        'No resources attached. Call attachResources() first.',
       );
     }
 
@@ -91,19 +109,6 @@ export class HTTPTransport {
     }
 
     try {
-      // Create transport with session management
-      const sessionIdGenerator =
-        this.validatedOptions.stateful !== false
-          ? () => randomUUID()
-          : undefined;
-
-      this.transport = new StreamableHTTPServerTransport({
-        sessionIdGenerator,
-      });
-
-      // Connect the MCP server to the transport
-      await this.polygServer.getMcpServer().connect(this.transport);
-
       // Create HTTP server
       this.server = createServer(async (req, res) => {
         await this.handleRequest(req, res);
@@ -128,7 +133,6 @@ export class HTTPTransport {
       });
     } catch (error) {
       // Clean up on failure
-      this.transport = null;
       this.server = null;
 
       if (error instanceof ServerStartError) {
@@ -148,14 +152,14 @@ export class HTTPTransport {
   async stop(): Promise<void> {
     const errors: Error[] = [];
 
-    // Close transport
-    if (this.transport) {
+    // Shutdown session manager
+    if (this.sessionManager) {
       try {
-        await this.transport.close();
+        await this.sessionManager.shutdown();
       } catch (error) {
         errors.push(error instanceof Error ? error : new Error(String(error)));
       }
-      this.transport = null;
+      this.sessionManager = null;
     }
 
     // Close MCP server connection so it can be reconnected on next start()
@@ -232,14 +236,16 @@ export class HTTPTransport {
   }
 
   /**
-   * Handle MCP protocol requests
+   * Handle MCP protocol requests with session management
    */
   private async handleMCPRequest(
     req: IncomingMessage,
     res: ServerResponse,
   ): Promise<void> {
-    if (!this.transport) {
-      this.sendJsonResponse(res, 503, { error: 'Transport not initialized' });
+    if (!this.sessionManager) {
+      this.sendJsonResponse(res, 503, {
+        error: 'Session manager not initialized',
+      });
       return;
     }
 
@@ -250,9 +256,50 @@ export class HTTPTransport {
         body = await this.parseBody(req);
       }
 
-      await this.transport.handleRequest(req, res, body);
+      // Get session ID from header
+      const sessionId = req.headers[MCP_SESSION_ID_HEADER] as
+        | string
+        | undefined;
+
+      // Check if this is an initialize request
+      const isInitializeRequest = this.isInitializeRequest(body);
+
+      let session: SessionContext;
+
+      if (sessionId) {
+        // Existing session
+        const existingSession = this.sessionManager.getSession(sessionId);
+        if (!existingSession) {
+          this.sendSessionError(res, new SessionNotFoundError(sessionId));
+          return;
+        }
+        session = existingSession;
+        this.sessionManager.touchSession(sessionId);
+      } else if (isInitializeRequest) {
+        // New session for initialize request
+        try {
+          session = await this.sessionManager.createSession();
+        } catch (error) {
+          if (error instanceof SessionLimitError) {
+            this.sendSessionError(res, error);
+            return;
+          }
+          if (error instanceof SessionCreationError) {
+            this.sendSessionCreationError(res, error);
+            return;
+          }
+          throw error;
+        }
+      } else {
+        // No session ID and not an initialize request
+        this.sendSessionError(res, new SessionRequiredError());
+        return;
+      }
+
+      // Handle the request with the session's transport
+      await session.transport.handleRequest(req, res, body);
     } catch (error) {
-      console.error('Error handling MCP request:', error);
+      console.error('Error handling session MCP request:', error);
       if (!res.headersSent) {
         this.sendJsonResponse(res, 500, {
           error:
@@ -260,6 +307,81 @@ export class HTTPTransport {
         });
       }
     }
+  }
+
+  /**
+   * Check if a request body is an MCP initialize request
+   */
+  private isInitializeRequest(body: unknown): boolean {
+    if (!body || typeof body !== 'object') {
+      return false;
+    }
+    const jsonrpc = body as { method?: string };
+    return jsonrpc.method === 'initialize';
+  }
+
+  /**
+   * Send a session-related error response
+   */
+  private sendSessionError(
+    res: ServerResponse,
+    error: SessionNotFoundError | SessionLimitError | SessionRequiredError,
+  ): void {
+    let statusCode: number;
+    let errorCode: string;
+
+    if (error instanceof SessionNotFoundError) {
+      statusCode = 404;
+      errorCode = 'SESSION_NOT_FOUND';
+    } else if (error instanceof SessionLimitError) {
+      statusCode = 503;
+      errorCode = 'SESSION_LIMIT';
+    } else {
+      statusCode = 400;
+      errorCode = 'SESSION_REQUIRED';
+    }
+
+    const response = {
+      jsonrpc: '2.0',
+      error: {
+        code: -32000,
+        message: error.message,
+        data: {
+          code: errorCode,
+          ...(error instanceof SessionNotFoundError && {
+            sessionId: error.sessionId,
+          }),
+          ...(error instanceof SessionLimitError && {
+            maxSessions: error.maxSessions,
+          }),
+        },
+      },
+      id: null,
+    };
+
+    this.sendJsonResponse(res, statusCode, response);
+  }
+
+  /**
+   * Send a session creation error response
+   */
+  private sendSessionCreationError(
+    res: ServerResponse,
+    error: SessionCreationError,
+  ): void {
+    const response = {
+      jsonrpc: '2.0',
+      error: {
+        code: -32000,
+        message: error.message,
+        data: {
+          code: 'SESSION_CREATION_FAILED',
+        },
+      },
+      id: null,
+    };
+
+    this.sendJsonResponse(res, 500, response);
   }
 
   /**
@@ -274,16 +396,32 @@ export class HTTPTransport {
       return;
     }
 
-    try {
-      if (!this.polygServer) {
-        throw new HealthCheckError('Server not attached');
-      }
+    if (!this.sharedResources) {
+      this.sendJsonResponse(res, 503, {
+        status: 'error',
+        error: 'Resources not initialized',
+      });
+      return;
+    }
 
-      const health = await this.polygServer.getHealth();
+    try {
+      const health = await this.sharedResources.getHealth();
+
+      // Add session metrics
+      const healthWithSessions = {
+        ...health,
+        sessions: this.sessionManager
+          ? {
+              active: this.sessionManager.getActiveCount(),
+              max: this.sessionManager.getMaxSessions(),
+            }
+          : undefined,
+      };
+
       const statusCode =
         health.status === 'ok' ? 200 : health.status === 'degraded' ? 503 : 500;
 
-      this.sendJsonResponse(res, statusCode, health);
+      this.sendJsonResponse(res, statusCode, healthWithSessions);
     } catch (error) {
       const wrappedError = wrapServerError(error, 'Health check failed');
       console.error('Health check error:', wrappedError);
