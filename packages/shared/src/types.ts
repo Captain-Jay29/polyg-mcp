@@ -3,13 +3,24 @@
 
 // Re-export types from schemas (these are now Zod-inferred)
 export type {
+  // Core types
   CausalLink,
   ClassifierOutput,
   Concept,
+  // MAGMA types
+  DepthHints,
   Entity,
   EntityMention,
+  GraphView,
+  GraphViewNode,
+  GraphViewSource,
   IntentType,
   LLMCompletionOptions,
+  MAGMAConfig,
+  MAGMAIntent,
+  MAGMAIntentType,
+  MergedSubgraph,
+  ScoredNode,
   SemanticMatch,
   SynthesizerOutput,
   TemporalContext,

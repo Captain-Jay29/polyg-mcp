@@ -104,13 +104,99 @@ export const GetStatisticsSchema = z.object({});
 // LLM Output Schemas - for validating LLM responses
 // ============================================================================
 
-// Intent types
+// Legacy intent types (kept for backwards compatibility)
 export const IntentTypeSchema = z.enum([
   'semantic',
   'temporal',
   'causal',
   'entity',
 ]);
+
+// ============================================================================
+// MAGMA Schemas - for MAGMA-style retrieval
+// ============================================================================
+
+// MAGMA intent types (question-centric)
+export const MAGMAIntentTypeSchema = z.enum([
+  'WHY', // Causal reasoning - deep causal traversal
+  'WHEN', // Temporal queries - deep temporal traversal
+  'WHO', // Entity identification - deep entity traversal
+  'WHAT', // Entity description - deep entity traversal
+  'EXPLORE', // General exploration - balanced traversal
+]);
+
+// Depth hints for graph traversal
+export const DepthHintsSchema = z.object({
+  entity: z.number().int().min(1).max(5).default(2),
+  temporal: z.number().int().min(1).max(5).default(2),
+  causal: z.number().int().min(1).max(5).default(3),
+});
+
+// MAGMA classifier output
+export const MAGMAIntentSchema = z.object({
+  type: MAGMAIntentTypeSchema,
+  entities: z.array(z.string()).default([]),
+  temporalHints: z.array(z.string()).optional(),
+  depthHints: DepthHintsSchema,
+  confidence: z.number().min(0).max(1).default(0.5),
+});
+
+// Graph view source types
+export const GraphViewSourceSchema = z.enum([
+  'semantic',
+  'entity',
+  'temporal',
+  'causal',
+]);
+
+// Node in a graph view (generic)
+export const GraphViewNodeSchema = z.object({
+  uuid: z.string(),
+  data: z.unknown(),
+  score: z.number().optional(),
+});
+
+// A single graph view result
+export const GraphViewSchema = z.object({
+  source: GraphViewSourceSchema,
+  nodes: z.array(GraphViewNodeSchema),
+});
+
+// Scored node after multi-view merge
+export const ScoredNodeSchema = z.object({
+  uuid: z.string(),
+  data: z.unknown(),
+  viewCount: z.number().int().min(1), // How many views found this node
+  views: z.array(GraphViewSourceSchema), // Which views found it
+  finalScore: z.number(), // Score with multi-view boost applied
+});
+
+// Merged subgraph from all views
+export const MergedSubgraphSchema = z.object({
+  nodes: z.array(ScoredNodeSchema),
+  viewContributions: z.record(GraphViewSourceSchema, z.number()),
+});
+
+// MAGMA configuration
+export const MAGMAConfigSchema = z.object({
+  // Seeding
+  semanticTopK: z.number().int().min(1).max(100).default(10),
+  minSemanticScore: z.number().min(0).max(1).default(0.5),
+
+  // Default traversal depths (overridden by intent)
+  defaultDepths: DepthHintsSchema.default({
+    entity: 2,
+    temporal: 2,
+    causal: 3,
+  }),
+
+  // Fallback thresholds
+  minNodesPerView: z.number().int().min(0).default(3),
+  maxNodesPerView: z.number().int().min(1).default(50),
+
+  // Multi-view scoring
+  multiViewBoost: z.number().min(1).default(1.5),
+});
 
 // Entity mention from classifier
 export const EntityMentionSchema = z.object({
@@ -385,11 +471,22 @@ export type AddConceptInput = z.infer<typeof AddConceptSchema>;
 export type ClearGraphInput = z.infer<typeof ClearGraphSchema>;
 export type ExportGraphInput = z.infer<typeof ExportGraphSchema>;
 
-// LLM output types
+// LLM output types (legacy)
 export type IntentType = z.infer<typeof IntentTypeSchema>;
 export type EntityMention = z.infer<typeof EntityMentionSchema>;
 export type Timeframe = z.infer<typeof TimeframeSchema>;
 export type ClassifierOutput = z.infer<typeof ClassifierOutputSchema>;
+
+// MAGMA types
+export type MAGMAIntentType = z.infer<typeof MAGMAIntentTypeSchema>;
+export type DepthHints = z.infer<typeof DepthHintsSchema>;
+export type MAGMAIntent = z.infer<typeof MAGMAIntentSchema>;
+export type GraphViewSource = z.infer<typeof GraphViewSourceSchema>;
+export type GraphViewNode = z.infer<typeof GraphViewNodeSchema>;
+export type GraphView = z.infer<typeof GraphViewSchema>;
+export type ScoredNode = z.infer<typeof ScoredNodeSchema>;
+export type MergedSubgraph = z.infer<typeof MergedSubgraphSchema>;
+export type MAGMAConfig = z.infer<typeof MAGMAConfigSchema>;
 export type CausalLink = z.infer<typeof CausalLinkSchema>;
 export type TemporalEvent = z.infer<typeof TemporalEventSchema>;
 export type TemporalFact = z.infer<typeof TemporalFactSchema>;

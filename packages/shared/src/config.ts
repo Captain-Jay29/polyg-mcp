@@ -11,6 +11,8 @@ import {
   HTTPServerOptionsSchema,
   type LLMConfig,
   LLMConfigSchema,
+  type MAGMAConfig,
+  MAGMAConfigSchema,
   type PolygConfig,
   PolygConfigSchema,
 } from './schemas.js';
@@ -23,6 +25,7 @@ export type {
   ExecutionConfig,
   PolygConfig,
   HTTPServerOptions,
+  MAGMAConfig,
 };
 
 /**
@@ -229,6 +232,81 @@ export function validateHTTPServerOptions(config: unknown): HTTPServerOptions {
   if (!result.success) {
     throw new ConfigValidationError(
       `Invalid HTTP server options: ${result.error.message}`,
+      result.error.issues,
+    );
+  }
+  return result.data;
+}
+
+// ============================================================================
+// MAGMA Configuration
+// ============================================================================
+
+/**
+ * Parse environment variable as float with default
+ */
+function parseEnvFloat(
+  envVar: string | undefined,
+  defaultValue: number,
+): number {
+  if (!envVar) return defaultValue;
+  const parsed = Number.parseFloat(envVar);
+  return Number.isNaN(parsed) ? defaultValue : parsed;
+}
+
+/**
+ * Build MAGMA configuration from environment variables
+ */
+function buildMAGMAConfigFromEnv(): unknown {
+  return {
+    semanticTopK: parseEnvInt(process.env.MAGMA_SEMANTIC_TOP_K, 10),
+    minSemanticScore: parseEnvFloat(process.env.MAGMA_MIN_SEMANTIC_SCORE, 0.5),
+    defaultDepths: {
+      entity: parseEnvInt(process.env.MAGMA_ENTITY_DEPTH, 2),
+      temporal: parseEnvInt(process.env.MAGMA_TEMPORAL_DEPTH, 2),
+      causal: parseEnvInt(process.env.MAGMA_CAUSAL_DEPTH, 3),
+    },
+    minNodesPerView: parseEnvInt(process.env.MAGMA_MIN_NODES_PER_VIEW, 3),
+    maxNodesPerView: parseEnvInt(process.env.MAGMA_MAX_NODES_PER_VIEW, 50),
+    multiViewBoost: parseEnvFloat(process.env.MAGMA_MULTI_VIEW_BOOST, 1.5),
+  };
+}
+
+/**
+ * Default MAGMA configuration (validated)
+ */
+export const DEFAULT_MAGMA_CONFIG: MAGMAConfig = MAGMAConfigSchema.parse(
+  buildMAGMAConfigFromEnv(),
+);
+
+/**
+ * Load and validate MAGMA configuration
+ * @throws {ConfigValidationError} When configuration is invalid
+ */
+export function loadMAGMAConfig(overrides?: Partial<MAGMAConfig>): MAGMAConfig {
+  const rawConfig = buildMAGMAConfigFromEnv();
+  const merged = deepMerge(rawConfig as MAGMAConfig, overrides);
+
+  const result = MAGMAConfigSchema.safeParse(merged);
+
+  if (!result.success) {
+    throw new ConfigValidationError(
+      `Invalid MAGMA configuration:\n${result.error.issues.map((e) => `  - ${e.path.join('.')}: ${e.message}`).join('\n')}`,
+      result.error.issues,
+    );
+  }
+
+  return result.data;
+}
+
+/**
+ * Validate MAGMA config
+ */
+export function validateMAGMAConfig(config: unknown): MAGMAConfig {
+  const result = MAGMAConfigSchema.safeParse(config);
+  if (!result.success) {
+    throw new ConfigValidationError(
+      `Invalid MAGMA configuration: ${result.error.message}`,
       result.error.issues,
     );
   }
