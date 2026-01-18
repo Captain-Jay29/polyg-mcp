@@ -243,15 +243,6 @@ export function validateHTTPServerOptions(config: unknown): HTTPServerOptions {
 // ============================================================================
 
 /**
- * Parse environment variable as integer with default
- */
-function parseEnvInt(envVar: string | undefined, defaultValue: number): number {
-  if (!envVar) return defaultValue;
-  const parsed = Number.parseInt(envVar, 10);
-  return Number.isNaN(parsed) ? defaultValue : parsed;
-}
-
-/**
  * Parse environment variable as float with default
  */
 function parseEnvFloat(
