@@ -245,10 +245,7 @@ export function validateHTTPServerOptions(config: unknown): HTTPServerOptions {
 /**
  * Parse environment variable as integer with default
  */
-function parseEnvInt(
-  envVar: string | undefined,
-  defaultValue: number,
-): number {
+function parseEnvInt(envVar: string | undefined, defaultValue: number): number {
   if (!envVar) return defaultValue;
   const parsed = Number.parseInt(envVar, 10);
   return Number.isNaN(parsed) ? defaultValue : parsed;
@@ -295,9 +292,7 @@ export const DEFAULT_MAGMA_CONFIG: MAGMAConfig = MAGMAConfigSchema.parse(
  * Load and validate MAGMA configuration
  * @throws {ConfigValidationError} When configuration is invalid
  */
-export function loadMAGMAConfig(
-  overrides?: Partial<MAGMAConfig>,
-): MAGMAConfig {
+export function loadMAGMAConfig(overrides?: Partial<MAGMAConfig>): MAGMAConfig {
   const rawConfig = buildMAGMAConfigFromEnv();
   const merged = deepMerge(rawConfig as MAGMAConfig, overrides);
 
