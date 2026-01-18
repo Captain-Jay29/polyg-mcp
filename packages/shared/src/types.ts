@@ -16,6 +16,16 @@ export type {
   TemporalEvent,
   TemporalFact,
   Timeframe,
+  // MAGMA types
+  MAGMAIntentType,
+  DepthHints,
+  MAGMAIntent,
+  GraphViewSource,
+  GraphViewNode,
+  GraphView,
+  ScoredNode,
+  MergedSubgraph,
+  MAGMAConfig,
 } from './schemas.js';
 
 // Additional types not needing runtime validation
