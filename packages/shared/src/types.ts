@@ -3,9 +3,11 @@
 
 // Re-export types from schemas (these are now Zod-inferred)
 export type {
+  // Core types
   CausalLink,
   ClassifierOutput,
   Concept,
+  // MAGMA types
   DepthHints,
   Entity,
   EntityMention,
@@ -16,7 +18,6 @@ export type {
   LLMCompletionOptions,
   MAGMAConfig,
   MAGMAIntent,
-  // MAGMA types
   MAGMAIntentType,
   MergedSubgraph,
   ScoredNode,
