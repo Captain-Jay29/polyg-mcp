@@ -9,8 +9,8 @@ import type {
 import { IntentClassifier } from './agents/intent-classifier.js';
 import { Synthesizer } from './agents/synthesizer.js';
 import {
-  MAGMAExecutor,
   type MAGMAExecutionResult,
+  MAGMAExecutor,
   type MAGMAGraphRegistry,
 } from './executor/magma-executor.js';
 import { CausalGraph } from './graphs/causal.js';
@@ -108,13 +108,13 @@ export class Orchestrator {
   async recall(query: string, context?: string): Promise<SynthesizerOutput> {
     // Step 1: Classify intent using MAGMA classification (WHY/WHEN/WHO/WHAT)
     const classifierInput: ClassifierInput = { query, context };
-    const intent = await this.classifier.classifyMAGMA(classifierInput).catch(
-      (error) => {
+    const intent = await this.classifier
+      .classifyMAGMA(classifierInput)
+      .catch((error) => {
         throw new Error(
           `Intent classification failed: ${error instanceof Error ? error.message : String(error)}`,
         );
-      },
-    );
+      });
 
     // Step 2: Execute MAGMA retrieval pipeline
     // (semantic search → seed extraction → parallel expansion → merge)
@@ -134,7 +134,10 @@ export class Orchestrator {
 
     // Step 4: Synthesize the results into a coherent response
     // Map MAGMA intent type to legacy intent for synthesizer compatibility
-    const intentToLegacyMap: Record<string, 'entity' | 'semantic' | 'temporal' | 'causal'> = {
+    const intentToLegacyMap: Record<
+      string,
+      'entity' | 'semantic' | 'temporal' | 'causal'
+    > = {
       WHY: 'causal',
       WHEN: 'temporal',
       WHO: 'entity',
@@ -168,7 +171,12 @@ export class Orchestrator {
     const synthesizerInput = {
       original_query: query,
       classification: {
-        intents: [legacyIntent] as ('entity' | 'semantic' | 'temporal' | 'causal')[],
+        intents: [legacyIntent] as (
+          | 'entity'
+          | 'semantic'
+          | 'temporal'
+          | 'causal'
+        )[],
         entities: intent.entities.map((e) => ({ mention: e })),
         confidence: intent.confidence,
         reasoning: `MAGMA retrieval with ${intent.type} intent`,
@@ -176,11 +184,13 @@ export class Orchestrator {
       graph_results: graphResults,
     };
 
-    return await this.synthesizer.synthesize(synthesizerInput).catch((error) => {
-      throw new Error(
-        `Response synthesis failed: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    });
+    return await this.synthesizer
+      .synthesize(synthesizerInput)
+      .catch((error) => {
+        throw new Error(
+          `Response synthesis failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
   }
 
   /**
