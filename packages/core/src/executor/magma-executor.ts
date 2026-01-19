@@ -28,9 +28,9 @@ import {
   filterSeedsByScore,
   getEntityIds,
   RetrievalValidationError,
-  seedFromSemantic,
   type SeedExtractionResult,
   SubgraphMerger,
+  seedFromSemantic,
 } from '../retrieval/index.js';
 
 export interface MAGMAGraphRegistry {
