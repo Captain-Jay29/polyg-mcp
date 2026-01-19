@@ -57,38 +57,6 @@ Context: {context}
 
 User query: {query}`;
 
-/**
- * Legacy classifier prompt (graph-centric)
- * @deprecated Use MAGMA_CLASSIFIER_PROMPT for new implementations
- */
-export const CLASSIFIER_PROMPT = `You are a query intent classifier for a multi-graph memory system.
-
-Given a user query, extract:
-1. INTENTS: Which graphs to query (semantic, temporal, causal, entity)
-2. ENTITIES: Named entities mentioned (people, systems, projects, etc.)
-3. TIMEFRAME: Any time references (dates, durations, "last week", etc.)
-4. CAUSAL_DIRECTION: If asking "why" → upstream, if asking "what happens if" → downstream
-
-Respond in JSON format matching this schema:
-{
-  "intents": ["semantic" | "temporal" | "causal" | "entity"],
-  "entities": [{ "mention": string, "type": string? }],
-  "timeframe": { "type": "specific" | "range" | "relative", "value": string, "end": string? }?,
-  "causal_direction": "upstream" | "downstream" | "both"?,
-  "semantic_query": string?,
-  "confidence": number
-}
-
-Examples:
-- "What do we know about the auth system?" → intents: [semantic, entity]
-- "What happened last Tuesday?" → intents: [temporal], timeframe: { type: "relative", value: "last Tuesday" }
-- "Why did the build fail?" → intents: [causal], causal_direction: upstream
-- "Who owns the payment service?" → intents: [entity]
-
-Context: {context}
-
-User query: {query}`;
-
 export const SYNTHESIZER_PROMPT = `You are a response synthesizer for a multi-graph memory system.
 
 Given raw results from multiple knowledge graphs, synthesize a coherent answer.

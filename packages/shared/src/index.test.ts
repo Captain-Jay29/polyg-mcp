@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  ClassifierOutputSchema,
   ConfigValidationError,
   DEFAULT_CONFIG,
   loadConfig,
@@ -220,51 +219,6 @@ describe('config validation', () => {
 });
 
 describe('schema validation', () => {
-  describe('ClassifierOutputSchema', () => {
-    it('should validate valid classifier output', () => {
-      const valid = {
-        intents: ['semantic', 'entity'],
-        entities: [{ mention: 'test' }],
-        confidence: 0.9,
-      };
-      const result = ClassifierOutputSchema.safeParse(valid);
-      expect(result.success).toBe(true);
-    });
-
-    it('should reject invalid intent type', () => {
-      const invalid = {
-        intents: ['invalid'],
-        entities: [],
-        confidence: 0.9,
-      };
-      const result = ClassifierOutputSchema.safeParse(invalid);
-      expect(result.success).toBe(false);
-    });
-
-    it('should reject confidence out of range', () => {
-      const invalid = {
-        intents: ['semantic'],
-        entities: [],
-        confidence: 1.5,
-      };
-      const result = ClassifierOutputSchema.safeParse(invalid);
-      expect(result.success).toBe(false);
-    });
-
-    it('should validate optional fields', () => {
-      const valid = {
-        intents: ['causal'],
-        entities: [],
-        timeframe: { type: 'specific', value: '2024-01-01' },
-        causal_direction: 'upstream',
-        semantic_query: 'test query',
-        confidence: 0.8,
-      };
-      const result = ClassifierOutputSchema.safeParse(valid);
-      expect(result.success).toBe(true);
-    });
-  });
-
   describe('SynthesizerOutputSchema', () => {
     it('should validate valid synthesizer output', () => {
       const valid = {

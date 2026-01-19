@@ -101,18 +101,6 @@ export const ExportGraphSchema = z.object({
 export const GetStatisticsSchema = z.object({});
 
 // ============================================================================
-// LLM Output Schemas - for validating LLM responses
-// ============================================================================
-
-// Legacy intent types (kept for backwards compatibility)
-export const IntentTypeSchema = z.enum([
-  'semantic',
-  'temporal',
-  'causal',
-  'entity',
-]);
-
-// ============================================================================
 // MAGMA Schemas - for MAGMA-style retrieval
 // ============================================================================
 
@@ -306,33 +294,11 @@ export const MAGMAConfigSchema = z.object({
   multiViewBoost: z.number().min(1).default(1.5),
 });
 
-// Entity mention from classifier
-export const EntityMentionSchema = z.object({
-  mention: z.string(),
-  type: z.string().optional(),
-  resolved: z.string().optional(),
-});
-
-// Timeframe from classifier
+// Timeframe for temporal queries
 export const TimeframeSchema = z.object({
   type: z.enum(['specific', 'range', 'relative']),
   value: z.string(),
   end: z.string().optional(),
-});
-
-/**
- * Classifier output schema (legacy graph-centric)
- * @deprecated Use MAGMAIntentSchema for new implementations.
- * This schema uses graph-centric intents (semantic/temporal/causal/entity)
- * which will be replaced by question-centric intents (WHY/WHEN/WHO/WHAT).
- */
-export const ClassifierOutputSchema = z.object({
-  intents: z.array(IntentTypeSchema),
-  entities: z.array(EntityMentionSchema),
-  timeframe: TimeframeSchema.optional(),
-  causal_direction: z.enum(['upstream', 'downstream', 'both']).optional(),
-  semantic_query: z.string().optional(),
-  confidence: z.number().min(0).max(1),
 });
 
 // Causal link for synthesizer reasoning
@@ -592,11 +558,8 @@ export type CausalExpandInput = z.infer<typeof CausalExpandSchema>;
 export type SubgraphMergeInput = z.infer<typeof SubgraphMergeSchema>;
 export type LinearizeContextInput = z.infer<typeof LinearizeContextSchema>;
 
-// LLM output types (legacy)
-export type IntentType = z.infer<typeof IntentTypeSchema>;
-export type EntityMention = z.infer<typeof EntityMentionSchema>;
+// Temporal types
 export type Timeframe = z.infer<typeof TimeframeSchema>;
-export type ClassifierOutput = z.infer<typeof ClassifierOutputSchema>;
 
 // MAGMA types
 export type MAGMAIntentType = z.infer<typeof MAGMAIntentTypeSchema>;

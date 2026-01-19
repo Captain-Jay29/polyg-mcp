@@ -21,26 +21,32 @@ describe('IntentClassifier', () => {
     classifier = new IntentClassifier(mockLLM);
   });
 
-  describe('classify', () => {
-    it('should classify valid LLM response', async () => {
+  describe('classifyMAGMA', () => {
+    it('should classify valid MAGMA LLM response', async () => {
       const validResponse = JSON.stringify({
-        intents: ['semantic', 'entity'],
-        entities: [{ mention: 'test entity' }],
+        type: 'WHY',
+        entities: ['server', 'deployment'],
+        temporalHints: [],
+        depthHints: { entity: 1, temporal: 1, causal: 3 },
         confidence: 0.9,
       });
       vi.mocked(mockLLM.complete).mockResolvedValue(validResponse);
 
-      const result = await classifier.classify({ query: 'test query' });
+      const result = await classifier.classifyMAGMA({
+        query: 'Why did the server crash?',
+      });
 
-      expect(result.intents).toEqual(['semantic', 'entity']);
+      expect(result.type).toBe('WHY');
+      expect(result.entities).toEqual(['server', 'deployment']);
+      expect(result.depthHints.causal).toBe(3);
       expect(result.confidence).toBe(0.9);
     });
 
     it('should throw ClassifierError for empty query', async () => {
-      await expect(classifier.classify({ query: '' })).rejects.toThrow(
+      await expect(classifier.classifyMAGMA({ query: '' })).rejects.toThrow(
         ClassifierError,
       );
-      await expect(classifier.classify({ query: '   ' })).rejects.toThrow(
+      await expect(classifier.classifyMAGMA({ query: '   ' })).rejects.toThrow(
         'Query cannot be empty',
       );
     });
@@ -48,10 +54,10 @@ describe('IntentClassifier', () => {
     it('should throw ClassifierError when LLM fails', async () => {
       vi.mocked(mockLLM.complete).mockRejectedValue(new Error('LLM error'));
 
-      await expect(classifier.classify({ query: 'test' })).rejects.toThrow(
+      await expect(classifier.classifyMAGMA({ query: 'test' })).rejects.toThrow(
         ClassifierError,
       );
-      await expect(classifier.classify({ query: 'test' })).rejects.toThrow(
+      await expect(classifier.classifyMAGMA({ query: 'test' })).rejects.toThrow(
         'Failed to get LLM response',
       );
     });
@@ -59,51 +65,55 @@ describe('IntentClassifier', () => {
     it('should throw LLMResponseParseError for invalid JSON', async () => {
       vi.mocked(mockLLM.complete).mockResolvedValue('not valid json');
 
-      await expect(classifier.classify({ query: 'test' })).rejects.toThrow(
+      await expect(classifier.classifyMAGMA({ query: 'test' })).rejects.toThrow(
         LLMResponseParseError,
       );
     });
 
     it('should throw LLMResponseValidationError for invalid schema', async () => {
       const invalidResponse = JSON.stringify({
-        intents: ['invalid_intent'],
+        type: 'INVALID_TYPE',
         entities: [],
+        depthHints: { entity: 1, temporal: 1, causal: 1 },
         confidence: 0.9,
       });
       vi.mocked(mockLLM.complete).mockResolvedValue(invalidResponse);
 
-      await expect(classifier.classify({ query: 'test' })).rejects.toThrow(
+      await expect(classifier.classifyMAGMA({ query: 'test' })).rejects.toThrow(
         LLMResponseValidationError,
       );
     });
 
     it('should throw LLMResponseValidationError for confidence out of range', async () => {
       const invalidResponse = JSON.stringify({
-        intents: ['semantic'],
+        type: 'WHY',
         entities: [],
+        depthHints: { entity: 1, temporal: 1, causal: 1 },
         confidence: 1.5, // Invalid - must be 0-1
       });
       vi.mocked(mockLLM.complete).mockResolvedValue(invalidResponse);
 
-      await expect(classifier.classify({ query: 'test' })).rejects.toThrow(
+      await expect(classifier.classifyMAGMA({ query: 'test' })).rejects.toThrow(
         LLMResponseValidationError,
       );
     });
 
-    it('should validate optional fields correctly', async () => {
-      const validResponse = JSON.stringify({
-        intents: ['causal'],
-        entities: [],
-        timeframe: { type: 'specific', value: '2024-01-01' },
-        causal_direction: 'upstream',
-        confidence: 0.8,
-      });
-      vi.mocked(mockLLM.complete).mockResolvedValue(validResponse);
+    it('should validate all MAGMA intent types', async () => {
+      const intentTypes = ['WHY', 'WHEN', 'WHO', 'WHAT', 'EXPLORE'];
 
-      const result = await classifier.classify({ query: 'test' });
+      for (const type of intentTypes) {
+        const validResponse = JSON.stringify({
+          type,
+          entities: ['test'],
+          temporalHints: [],
+          depthHints: { entity: 2, temporal: 2, causal: 2 },
+          confidence: 0.8,
+        });
+        vi.mocked(mockLLM.complete).mockResolvedValue(validResponse);
 
-      expect(result.causal_direction).toBe('upstream');
-      expect(result.timeframe?.type).toBe('specific');
+        const result = await classifier.classifyMAGMA({ query: 'test' });
+        expect(result.type).toBe(type);
+      }
     });
   });
 });
@@ -122,11 +132,6 @@ describe('Synthesizer', () => {
   describe('synthesize', () => {
     const validInput = {
       original_query: 'test query',
-      classification: {
-        intents: ['semantic' as const],
-        entities: [],
-        confidence: 0.9,
-      },
       graph_results: {
         successful: [],
         failed: [],
@@ -237,11 +242,11 @@ describe('Error types', () => {
       // Use a minimal mock - cast to any to avoid complex ZodIssue typing
       const validationErrors = [
         {
-          path: ['intents', 0],
+          path: ['type'],
           message: 'Invalid enum value',
           code: 'invalid_enum_value',
-          received: 'invalid',
-          options: ['semantic', 'temporal', 'causal', 'entity'],
+          received: 'INVALID',
+          options: ['WHY', 'WHEN', 'WHO', 'WHAT', 'EXPLORE'],
         },
       ] as unknown as LLMResponseValidationError['validationErrors'];
 
@@ -252,7 +257,7 @@ describe('Error types', () => {
       );
 
       expect(error.validationErrors).toEqual(validationErrors);
-      expect(error.getFormattedErrors()).toContain('intents.0');
+      expect(error.getFormattedErrors()).toContain('type');
       expect(error.name).toBe('LLMResponseValidationError');
     });
   });

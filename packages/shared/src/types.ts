@@ -5,16 +5,13 @@
 export type {
   // Core types
   CausalLink,
-  ClassifierOutput,
   Concept,
   // MAGMA types
   DepthHints,
   Entity,
-  EntityMention,
   GraphView,
   GraphViewNode,
   GraphViewSource,
-  IntentType,
   LLMCompletionOptions,
   MAGMAConfig,
   MAGMAIntent,
@@ -48,7 +45,7 @@ export interface GraphResults {
 
 export interface SynthesizerInput {
   original_query: string;
-  classification: import('./schemas.js').ClassifierOutput;
+  classification?: import('./schemas.js').MAGMAIntent;
   graph_results: GraphResults;
 }
 
