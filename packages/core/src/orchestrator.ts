@@ -198,21 +198,7 @@ export class Orchestrator {
     }
 
     // Step 4: Synthesize the results into a coherent response
-    // Map MAGMA intent type to legacy intent for synthesizer compatibility
-    const intentToLegacyMap: Record<
-      string,
-      'entity' | 'semantic' | 'temporal' | 'causal'
-    > = {
-      WHY: 'causal',
-      WHEN: 'temporal',
-      WHO: 'entity',
-      WHAT: 'entity',
-      EXPLORE: 'semantic',
-    };
-    const legacyIntent = intentToLegacyMap[intent.type] ?? 'semantic';
-
-    // Build graph results in the expected format
-    // Package MAGMA results as a single "semantic" graph result with rich context
+    // Package MAGMA results as graph results for the synthesizer
     const graphResults = {
       successful: [
         {
@@ -235,17 +221,7 @@ export class Orchestrator {
 
     const synthesizerInput = {
       original_query: query,
-      classification: {
-        intents: [legacyIntent] as (
-          | 'entity'
-          | 'semantic'
-          | 'temporal'
-          | 'causal'
-        )[],
-        entities: intent.entities.map((e) => ({ mention: e })),
-        confidence: intent.confidence,
-        reasoning: `MAGMA retrieval with ${intent.type} intent`,
-      },
+      classification: intent,
       graph_results: graphResults,
     };
 
