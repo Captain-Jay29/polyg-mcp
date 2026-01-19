@@ -6,10 +6,6 @@ import type {
 } from '@polyg-mcp/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Orchestrator } from './orchestrator.js';
-import {
-  OrchestratorError,
-  RetrievalValidationError,
-} from './retrieval/index.js';
 import type { FalkorDBAdapter } from './storage/falkordb.js';
 
 // Mock FalkorDBAdapter

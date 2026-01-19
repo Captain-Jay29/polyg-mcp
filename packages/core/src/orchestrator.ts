@@ -21,6 +21,7 @@ import { SemanticGraph } from './graphs/semantic.js';
 import { TemporalGraph } from './graphs/temporal.js';
 import {
   ContextLinearizer,
+  type LinearizedContext,
   OrchestratorError,
   RetrievalValidationError,
 } from './retrieval/index.js';
@@ -182,7 +183,7 @@ export class Orchestrator {
     }
 
     // Step 3: Linearize merged subgraph for LLM context
-    let linearizedContext;
+    let linearizedContext: LinearizedContext;
     try {
       linearizedContext = this.linearizer.linearize(
         executionResult.merged,
