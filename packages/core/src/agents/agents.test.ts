@@ -32,7 +32,9 @@ describe('IntentClassifier', () => {
       });
       vi.mocked(mockLLM.complete).mockResolvedValue(validResponse);
 
-      const result = await classifier.classifyMAGMA({ query: 'Why did the server crash?' });
+      const result = await classifier.classifyMAGMA({
+        query: 'Why did the server crash?',
+      });
 
       expect(result.type).toBe('WHY');
       expect(result.entities).toEqual(['server', 'deployment']);
