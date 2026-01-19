@@ -101,56 +101,8 @@ describe('Tool Handlers', () => {
   });
 
   // ==========================================================================
-  // Entity Tools
+  // Entity Write Tools
   // ==========================================================================
-
-  describe('get_entity', () => {
-    it('should return entity not found for non-existent entity', async () => {
-      const result = await callTool(server, 'get_entity', {
-        name: 'NonExistent',
-      });
-
-      expect(result.content[0].text).toContain('Entity not found');
-    });
-
-    it('should return entity when found', async () => {
-      // First add an entity
-      const graphs = server.getOrchestrator().getGraphs();
-      await graphs.entity.addEntity('TestEntity', 'TestType', { foo: 'bar' });
-
-      const result = await callTool(server, 'get_entity', {
-        name: 'TestEntity',
-      });
-
-      expect(result.content[0].text).toContain('TestEntity');
-      expect(result.structuredContent).toBeDefined();
-    });
-
-    // TODO: Flaky due to FalkorDB eventual consistency issues when running in parallel
-    it.skip('should include relationships when requested', async () => {
-      const graphs = server.getOrchestrator().getGraphs();
-      const uniqueId = Date.now().toString();
-      const entity1 = await graphs.entity.addEntity(
-        `Entity1_rel_${uniqueId}`,
-        'Type',
-      );
-      const entity2 = await graphs.entity.addEntity(
-        `Entity2_rel_${uniqueId}`,
-        'Type',
-      );
-      await waitForConsistency();
-      await graphs.entity.linkEntities(entity1.uuid, entity2.uuid, 'KNOWS');
-      await waitForConsistency();
-
-      const result = await callTool(server, 'get_entity', {
-        name: `Entity1_rel_${uniqueId}`,
-        include_relationships: true,
-      });
-
-      expect(result.structuredContent).toHaveProperty('entity');
-      expect(result.structuredContent).toHaveProperty('relationships');
-    });
-  });
 
   describe('add_entity', () => {
     it('should create a new entity', async () => {
@@ -260,42 +212,8 @@ describe('Tool Handlers', () => {
     });
   });
 
-  describe('query_timeline', () => {
-    it('should query timeline within date range', async () => {
-      const graphs = server.getOrchestrator().getGraphs();
-      await graphs.temporal.addEvent(
-        'Event 1',
-        new Date('2024-01-10T10:00:00Z'),
-      );
-      await graphs.temporal.addEvent(
-        'Event 2',
-        new Date('2024-01-15T10:00:00Z'),
-      );
-      await graphs.temporal.addEvent(
-        'Event 3',
-        new Date('2024-01-20T10:00:00Z'),
-      );
-
-      const result = await callTool(server, 'query_timeline', {
-        from: '2024-01-12T00:00:00Z',
-        to: '2024-01-18T00:00:00Z',
-      });
-
-      expect(result.structuredContent).toHaveProperty('events');
-    });
-
-    it('should handle invalid from date', async () => {
-      const result = await callTool(server, 'query_timeline', {
-        from: 'invalid-date',
-        to: '2024-01-18T00:00:00Z',
-      });
-
-      expect(result.content[0].text.toLowerCase()).toContain('error');
-    });
-  });
-
   // ==========================================================================
-  // Causal Tools
+  // Causal Write Tools
   // ==========================================================================
 
   describe('add_causal_link', () => {
@@ -330,64 +248,8 @@ describe('Tool Handlers', () => {
     });
   });
 
-  describe('get_causal_chain', () => {
-    it('should get upstream causes', async () => {
-      const graphs = server.getOrchestrator().getGraphs();
-      const root = await graphs.causal.addNode('Root', 'cause');
-      const middle = await graphs.causal.addNode('Middle', 'event');
-      const final = await graphs.causal.addNode('Final', 'effect');
-
-      await graphs.causal.addLink(root.uuid, middle.uuid, 0.9);
-      await graphs.causal.addLink(middle.uuid, final.uuid, 0.85);
-
-      const result = await callTool(server, 'get_causal_chain', {
-        event: final.uuid,
-        direction: 'upstream',
-      });
-
-      expect(result.structuredContent).toHaveProperty('chain');
-      expect(result.structuredContent).toHaveProperty('direction', 'upstream');
-    });
-
-    it('should get downstream effects', async () => {
-      const graphs = server.getOrchestrator().getGraphs();
-      const root = await graphs.causal.addNode('Root', 'cause');
-
-      const result = await callTool(server, 'get_causal_chain', {
-        event: root.uuid,
-        direction: 'downstream',
-      });
-
-      expect(result.structuredContent).toHaveProperty(
-        'direction',
-        'downstream',
-      );
-    });
-  });
-
-  describe('explain_why', () => {
-    it('should explain why an event occurred', async () => {
-      const graphs = server.getOrchestrator().getGraphs();
-      const cause = await graphs.causal.addNode('Missing env var', 'cause');
-      const effect = await graphs.causal.addNode('Service crash', 'effect');
-      await graphs.causal.addLink(
-        cause.uuid,
-        effect.uuid,
-        0.95,
-        'Error logs confirmed',
-      );
-
-      const result = await callTool(server, 'explain_why', {
-        event: effect.uuid,
-      });
-
-      // The explain_why tool returns a response with causal chain data
-      expect(result.content[0].type).toBe('text');
-    });
-  });
-
   // ==========================================================================
-  // Semantic Tools (require valid API key for embeddings)
+  // Semantic Write Tools (require valid API key for embeddings)
   // ==========================================================================
 
   describe('add_concept', () => {
@@ -398,19 +260,6 @@ describe('Tool Handlers', () => {
       });
 
       // With test API key, this will fail gracefully
-      // The test verifies the tool handler runs and returns proper response structure
-      expect(result.content[0].type).toBe('text');
-    });
-  });
-
-  describe('search_semantic', () => {
-    it('should handle search_semantic request', async () => {
-      const result = await callTool(server, 'search_semantic', {
-        query: 'data storage',
-        limit: 5,
-      });
-
-      // With test API key, this may fail or return empty results
       // The test verifies the tool handler runs and returns proper response structure
       expect(result.content[0].type).toBe('text');
     });
@@ -492,21 +341,8 @@ describe('Tool Handlers', () => {
   });
 
   // ==========================================================================
-  // High-Level LLM Tools (require mocking)
+  // Write Tools
   // ==========================================================================
-
-  describe('recall', () => {
-    it('should handle recall query', async () => {
-      // Note: This will use the real LLM if API key is valid
-      // In real tests, you'd mock the LLM provider
-      const result = await callTool(server, 'recall', {
-        query: 'What do I know?',
-      });
-
-      // Should return some response structure
-      expect(result.content).toBeDefined();
-    });
-  });
 
   describe('remember', () => {
     it('should handle remember request', async () => {
@@ -516,6 +352,192 @@ describe('Tool Handlers', () => {
       });
 
       expect(result.content).toBeDefined();
+    });
+  });
+
+  // ==========================================================================
+  // MAGMA Retrieval Tools
+  // ==========================================================================
+
+  describe('semantic_search', () => {
+    it('should handle semantic search request', async () => {
+      const result = await callTool(server, 'semantic_search', {
+        query: 'deployment failure',
+        limit: 5,
+      });
+
+      // With test API key, this may fail or return empty results
+      // The test verifies the tool handler runs and returns proper response structure
+      expect(result.content[0].type).toBe('text');
+    });
+
+    it('should apply min_score filter', async () => {
+      const result = await callTool(server, 'semantic_search', {
+        query: 'authentication',
+        min_score: 0.8,
+      });
+
+      expect(result.content[0].type).toBe('text');
+    });
+  });
+
+  describe('entity_lookup', () => {
+    it('should handle entity lookup request', async () => {
+      // First add an entity
+      const graphs = server.getOrchestrator().getGraphs();
+      const entity = await graphs.entity.addEntity(
+        'TestLookupEntity',
+        'TestType',
+      );
+
+      const result = await callTool(server, 'entity_lookup', {
+        entity_ids: [entity.uuid],
+        depth: 1,
+      });
+
+      expect(result.content[0].type).toBe('text');
+      expect(result.structuredContent).toHaveProperty('entities');
+    });
+
+    it('should handle non-existent entities gracefully', async () => {
+      const result = await callTool(server, 'entity_lookup', {
+        entity_ids: ['non-existent-uuid'],
+      });
+
+      expect(result.content[0].type).toBe('text');
+    });
+  });
+
+  describe('temporal_expand', () => {
+    it('should handle temporal expansion request', async () => {
+      const graphs = server.getOrchestrator().getGraphs();
+      const entity = await graphs.entity.addEntity(
+        'TestTemporalEntity',
+        'TestType',
+      );
+
+      const result = await callTool(server, 'temporal_expand', {
+        entity_ids: [entity.uuid],
+      });
+
+      expect(result.content[0].type).toBe('text');
+      expect(result.structuredContent).toHaveProperty('events');
+    });
+
+    it('should accept date range parameters', async () => {
+      const result = await callTool(server, 'temporal_expand', {
+        entity_ids: ['test-entity-id'],
+        from: '2024-01-01T00:00:00Z',
+        to: '2024-12-31T23:59:59Z',
+      });
+
+      expect(result.content[0].type).toBe('text');
+    });
+  });
+
+  describe('causal_expand', () => {
+    it('should handle causal expansion request', async () => {
+      const result = await callTool(server, 'causal_expand', {
+        entity_ids: ['test-entity-id'],
+        direction: 'both',
+        depth: 2,
+      });
+
+      expect(result.content[0].type).toBe('text');
+      expect(result.structuredContent).toHaveProperty('links');
+    });
+
+    it('should handle upstream direction', async () => {
+      const result = await callTool(server, 'causal_expand', {
+        entity_ids: ['test-entity-id'],
+        direction: 'upstream',
+      });
+
+      expect(result.structuredContent).toHaveProperty('direction', 'upstream');
+    });
+  });
+
+  describe('subgraph_merge', () => {
+    it('should merge multiple graph views', async () => {
+      const views = [
+        {
+          source: 'semantic' as const,
+          nodes: [{ uuid: 'node1', data: { name: 'test' }, score: 0.8 }],
+        },
+        {
+          source: 'entity' as const,
+          nodes: [
+            { uuid: 'node1', data: { name: 'test' }, score: 0.7 },
+            { uuid: 'node2', data: { name: 'test2' }, score: 0.6 },
+          ],
+        },
+      ];
+
+      const result = await callTool(server, 'subgraph_merge', {
+        views,
+      });
+
+      expect(result.content[0].type).toBe('text');
+      expect(result.structuredContent).toHaveProperty('merged');
+      expect(result.structuredContent).toHaveProperty('nodeCount');
+    });
+
+    it('should apply min_score pruning', async () => {
+      const views = [
+        {
+          source: 'semantic' as const,
+          nodes: [
+            { uuid: 'node1', data: {}, score: 0.9 },
+            { uuid: 'node2', data: {}, score: 0.3 },
+          ],
+        },
+      ];
+
+      const result = await callTool(server, 'subgraph_merge', {
+        views,
+        min_score: 0.5,
+      });
+
+      expect(result.content[0].type).toBe('text');
+    });
+  });
+
+  describe('linearize_context', () => {
+    it('should linearize a merged subgraph', async () => {
+      const subgraph = {
+        nodes: [
+          {
+            uuid: 'node1',
+            data: { description: 'Test node' },
+            viewCount: 1,
+            views: ['semantic' as const],
+            finalScore: 0.8,
+          },
+        ],
+        viewContributions: { semantic: 1, entity: 0, temporal: 0, causal: 0 },
+      };
+
+      const result = await callTool(server, 'linearize_context', {
+        subgraph,
+        intent: 'WHY',
+      });
+
+      expect(result.content[0].type).toBe('text');
+      expect(result.structuredContent).toHaveProperty('strategy');
+    });
+
+    it('should respect different intent types', async () => {
+      const subgraph = {
+        nodes: [],
+        viewContributions: { semantic: 0, entity: 0, temporal: 0, causal: 0 },
+      };
+
+      const result = await callTool(server, 'linearize_context', {
+        subgraph,
+        intent: 'WHEN',
+      });
+
+      expect(result.content[0].type).toBe('text');
     });
   });
 });
@@ -533,9 +555,9 @@ describe('Tool Error Handling', () => {
   });
 
   it('should format errors consistently', async () => {
-    // Try to get an entity that doesn't exist (not an error, returns not found)
-    const result = await callTool(server, 'get_entity', {
-      name: 'NonExistent',
+    // Try semantic_search - returns results or empty array
+    const result = await callTool(server, 'semantic_search', {
+      query: 'NonExistent topic',
     });
 
     expect(result.content[0].type).toBe('text');
@@ -557,5 +579,272 @@ describe('Tool Error Handling', () => {
 
     // This should fail to start
     await expect(badServer.start()).rejects.toThrow();
+  });
+});
+
+describe('Zod Validation Error Handling', () => {
+  let server: PolygMCPServer;
+
+  beforeEach(async () => {
+    server = new PolygMCPServer(TEST_CONFIG);
+    await server.start();
+  });
+
+  afterEach(async () => {
+    await server.stop();
+  });
+
+  describe('semantic_search validation', () => {
+    it('should reject missing query', async () => {
+      const result = (await callTool(server, 'semantic_search', {})) as {
+        content: Array<{ type: string; text: string }>;
+        isError?: boolean;
+      };
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text.toLowerCase()).toContain('validation');
+      expect(result.content[0].text.toLowerCase()).toContain('query');
+    });
+
+    it('should reject invalid limit type', async () => {
+      const result = (await callTool(server, 'semantic_search', {
+        query: 'test',
+        limit: 'not-a-number',
+      })) as {
+        content: Array<{ type: string; text: string }>;
+        isError?: boolean;
+      };
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text.toLowerCase()).toContain('validation');
+    });
+
+    it('should reject limit out of range', async () => {
+      const result = (await callTool(server, 'semantic_search', {
+        query: 'test',
+        limit: 200, // Max is 100
+      })) as {
+        content: Array<{ type: string; text: string }>;
+        isError?: boolean;
+      };
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text.toLowerCase()).toContain('validation');
+    });
+
+    it('should reject min_score out of range', async () => {
+      const result = (await callTool(server, 'semantic_search', {
+        query: 'test',
+        min_score: 1.5, // Max is 1
+      })) as {
+        content: Array<{ type: string; text: string }>;
+        isError?: boolean;
+      };
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text.toLowerCase()).toContain('validation');
+    });
+  });
+
+  describe('entity_lookup validation', () => {
+    it('should reject missing entity_ids', async () => {
+      const result = (await callTool(server, 'entity_lookup', {})) as {
+        content: Array<{ type: string; text: string }>;
+        isError?: boolean;
+      };
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text.toLowerCase()).toContain('validation');
+    });
+
+    it('should reject empty entity_ids array', async () => {
+      const result = (await callTool(server, 'entity_lookup', {
+        entity_ids: [],
+      })) as {
+        content: Array<{ type: string; text: string }>;
+        isError?: boolean;
+      };
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text.toLowerCase()).toContain('validation');
+    });
+
+    it('should reject depth out of range', async () => {
+      const result = (await callTool(server, 'entity_lookup', {
+        entity_ids: ['test-id'],
+        depth: 10, // Max is 5
+      })) as {
+        content: Array<{ type: string; text: string }>;
+        isError?: boolean;
+      };
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text.toLowerCase()).toContain('validation');
+    });
+  });
+
+  describe('temporal_expand validation', () => {
+    it('should reject missing entity_ids', async () => {
+      const result = (await callTool(server, 'temporal_expand', {})) as {
+        content: Array<{ type: string; text: string }>;
+        isError?: boolean;
+      };
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text.toLowerCase()).toContain('validation');
+    });
+
+    it('should reject empty entity_ids array', async () => {
+      const result = (await callTool(server, 'temporal_expand', {
+        entity_ids: [],
+      })) as {
+        content: Array<{ type: string; text: string }>;
+        isError?: boolean;
+      };
+
+      expect(result.isError).toBe(true);
+    });
+  });
+
+  describe('causal_expand validation', () => {
+    it('should reject missing entity_ids', async () => {
+      const result = (await callTool(server, 'causal_expand', {})) as {
+        content: Array<{ type: string; text: string }>;
+        isError?: boolean;
+      };
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text.toLowerCase()).toContain('validation');
+    });
+
+    it('should reject invalid direction', async () => {
+      const result = (await callTool(server, 'causal_expand', {
+        entity_ids: ['test-id'],
+        direction: 'invalid-direction',
+      })) as {
+        content: Array<{ type: string; text: string }>;
+        isError?: boolean;
+      };
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text.toLowerCase()).toContain('validation');
+    });
+
+    it('should reject depth out of range', async () => {
+      const result = (await callTool(server, 'causal_expand', {
+        entity_ids: ['test-id'],
+        depth: 0, // Min is 1
+      })) as {
+        content: Array<{ type: string; text: string }>;
+        isError?: boolean;
+      };
+
+      expect(result.isError).toBe(true);
+    });
+  });
+
+  describe('subgraph_merge validation', () => {
+    it('should reject missing views', async () => {
+      const result = (await callTool(server, 'subgraph_merge', {})) as {
+        content: Array<{ type: string; text: string }>;
+        isError?: boolean;
+      };
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text.toLowerCase()).toContain('validation');
+    });
+
+    it('should reject empty views array', async () => {
+      const result = (await callTool(server, 'subgraph_merge', {
+        views: [],
+      })) as {
+        content: Array<{ type: string; text: string }>;
+        isError?: boolean;
+      };
+
+      expect(result.isError).toBe(true);
+    });
+
+    it('should reject invalid view structure', async () => {
+      const result = (await callTool(server, 'subgraph_merge', {
+        views: [{ source: 'invalid-source', nodes: [] }],
+      })) as {
+        content: Array<{ type: string; text: string }>;
+        isError?: boolean;
+      };
+
+      expect(result.isError).toBe(true);
+    });
+
+    it('should reject multi_view_boost below 1', async () => {
+      const result = (await callTool(server, 'subgraph_merge', {
+        views: [{ source: 'semantic', nodes: [] }],
+        multi_view_boost: 0.5, // Min is 1
+      })) as {
+        content: Array<{ type: string; text: string }>;
+        isError?: boolean;
+      };
+
+      expect(result.isError).toBe(true);
+    });
+  });
+
+  describe('linearize_context validation', () => {
+    it('should reject missing subgraph', async () => {
+      const result = (await callTool(server, 'linearize_context', {
+        intent: 'WHY',
+      })) as {
+        content: Array<{ type: string; text: string }>;
+        isError?: boolean;
+      };
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text.toLowerCase()).toContain('validation');
+    });
+
+    it('should reject missing intent', async () => {
+      const result = (await callTool(server, 'linearize_context', {
+        subgraph: {
+          nodes: [],
+          viewContributions: { semantic: 0, entity: 0, temporal: 0, causal: 0 },
+        },
+      })) as {
+        content: Array<{ type: string; text: string }>;
+        isError?: boolean;
+      };
+
+      expect(result.isError).toBe(true);
+    });
+
+    it('should reject invalid intent type', async () => {
+      const result = (await callTool(server, 'linearize_context', {
+        subgraph: {
+          nodes: [],
+          viewContributions: { semantic: 0, entity: 0, temporal: 0, causal: 0 },
+        },
+        intent: 'INVALID_INTENT',
+      })) as {
+        content: Array<{ type: string; text: string }>;
+        isError?: boolean;
+      };
+
+      expect(result.isError).toBe(true);
+    });
+
+    it('should reject max_tokens out of range', async () => {
+      const result = (await callTool(server, 'linearize_context', {
+        subgraph: {
+          nodes: [],
+          viewContributions: { semantic: 0, entity: 0, temporal: 0, causal: 0 },
+        },
+        intent: 'WHY',
+        max_tokens: 50, // Min is 100
+      })) as {
+        content: Array<{ type: string; text: string }>;
+        isError?: boolean;
+      };
+
+      expect(result.isError).toBe(true);
+    });
   });
 });

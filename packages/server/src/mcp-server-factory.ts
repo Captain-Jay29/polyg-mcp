@@ -1,24 +1,28 @@
 // MCP Server Factory - Creates configured McpServer instances with all tools registered
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { CausalNode } from '@polyg-mcp/core';
+import {
+  type CausalNode,
+  ContextLinearizer,
+  SubgraphMerger,
+} from '@polyg-mcp/core';
 import {
   AddCausalLinkSchema,
   AddConceptSchema,
   AddEntitySchema,
   AddEventSchema,
   AddFactSchema,
-  type CausalLink,
+  CausalExpandSchema,
   ClearGraphSchema,
-  ExplainWhySchema,
-  GetCausalChainSchema,
-  GetEntitySchema,
+  EntityLookupSchema,
+  type GraphView,
+  LinearizeContextSchema,
   LinkEntitiesSchema,
-  QueryTimelineSchema,
-  RecallInputSchema,
   RememberInputSchema,
-  SearchSemanticSchema,
+  SemanticSearchSchema,
+  SubgraphMergeSchema,
+  TemporalExpandSchema,
 } from '@polyg-mcp/shared';
-import { formatToolError, safeParseDate } from './errors.js';
+import { formatToolError, safeParseDate, validateToolInput } from './errors.js';
 import type { SharedResources } from './shared-resources.js';
 
 const SERVER_VERSION = '0.1.0';
@@ -42,22 +46,26 @@ export function createMcpServer(resources: SharedResources): McpServer {
     },
   );
 
-  // Register all tools
+  // Register management tools (2)
   registerStatisticsTool(mcpServer, resources);
   registerClearGraphTool(mcpServer, resources);
-  registerRecallTool(mcpServer, resources);
+
+  // Register write tools (7)
   registerRememberTool(mcpServer, resources);
-  registerGetEntityTool(mcpServer, resources);
   registerAddEntityTool(mcpServer, resources);
   registerLinkEntitiesTool(mcpServer, resources);
-  registerQueryTimelineTool(mcpServer, resources);
   registerAddEventTool(mcpServer, resources);
   registerAddFactTool(mcpServer, resources);
-  registerGetCausalChainTool(mcpServer, resources);
   registerAddCausalLinkTool(mcpServer, resources);
-  registerExplainWhyTool(mcpServer, resources);
-  registerSearchSemanticTool(mcpServer, resources);
   registerAddConceptTool(mcpServer, resources);
+
+  // Register MAGMA retrieval tools (6)
+  registerSemanticSearchTool(mcpServer, resources);
+  registerEntityLookupTool(mcpServer, resources);
+  registerTemporalExpandTool(mcpServer, resources);
+  registerCausalExpandTool(mcpServer, resources);
+  registerSubgraphMergeTool(mcpServer, resources);
+  registerLinearizeContextTool(mcpServer, resources);
 
   return mcpServer;
 }
@@ -151,40 +159,8 @@ function registerClearGraphTool(
 }
 
 // ============================================================================
-// High-Level LLM Tools
+// Write Tools
 // ============================================================================
-
-function registerRecallTool(
-  mcpServer: McpServer,
-  resources: SharedResources,
-): void {
-  mcpServer.registerTool(
-    'recall',
-    {
-      description:
-        'Query the memory system using natural language. Uses LLM to classify intent, query relevant graphs in parallel, and synthesize a coherent response.',
-      inputSchema: RecallInputSchema,
-    },
-    async (args) => {
-      try {
-        const result = await resources.orchestrator.recall(args.query);
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: result.answer,
-            },
-          ],
-          structuredContent: args.include_reasoning
-            ? result
-            : { answer: result.answer, confidence: result.confidence },
-        };
-      } catch (error) {
-        return formatToolError(error, 'recall');
-      }
-    },
-  );
-}
 
 function registerRememberTool(
   mcpServer: McpServer,
@@ -214,68 +190,6 @@ function registerRememberTool(
         };
       } catch (error) {
         return formatToolError(error, 'remember');
-      }
-    },
-  );
-}
-
-// ============================================================================
-// Entity Tools
-// ============================================================================
-
-function registerGetEntityTool(
-  mcpServer: McpServer,
-  resources: SharedResources,
-): void {
-  mcpServer.registerTool(
-    'get_entity',
-    {
-      description:
-        'Get an entity by name or UUID, optionally including its relationships',
-      inputSchema: GetEntitySchema,
-    },
-    async (args) => {
-      try {
-        const graphs = resources.orchestrator.getGraphs();
-        const entity = await graphs.entity.getEntity(args.name);
-
-        if (!entity) {
-          return {
-            content: [
-              {
-                type: 'text' as const,
-                text: `Entity not found: ${args.name}`,
-              },
-            ],
-          };
-        }
-
-        let result: Record<string, unknown> = { entity };
-
-        if (args.include_relationships) {
-          try {
-            const relationships = await graphs.entity.getRelationships(
-              entity.uuid,
-            );
-            result = { entity, relationships };
-          } catch (error) {
-            throw new Error(
-              `Failed to fetch relationships for entity '${entity.name}': ${error instanceof Error ? error.message : String(error)}`,
-            );
-          }
-        }
-
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify(result, null, 2),
-            },
-          ],
-          structuredContent: result,
-        };
-      } catch (error) {
-        return formatToolError(error, 'get_entity');
       }
     },
   );
@@ -343,43 +257,6 @@ function registerLinkEntitiesTool(
         };
       } catch (error) {
         return formatToolError(error, 'link_entities');
-      }
-    },
-  );
-}
-
-// ============================================================================
-// Temporal Tools
-// ============================================================================
-
-function registerQueryTimelineTool(
-  mcpServer: McpServer,
-  resources: SharedResources,
-): void {
-  mcpServer.registerTool(
-    'query_timeline',
-    {
-      description: 'Query events and facts within a time range',
-      inputSchema: QueryTimelineSchema,
-    },
-    async (args) => {
-      try {
-        const fromDate = safeParseDate(args.from, 'from');
-        const toDate = safeParseDate(args.to, 'to');
-
-        const graphs = resources.orchestrator.getGraphs();
-        const results = await graphs.temporal.queryTimeline(fromDate, toDate);
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify(results, null, 2),
-            },
-          ],
-          structuredContent: { events: results },
-        };
-      } catch (error) {
-        return formatToolError(error, 'query_timeline');
       }
     },
   );
@@ -461,48 +338,6 @@ function registerAddFactTool(
   );
 }
 
-// ============================================================================
-// Causal Tools
-// ============================================================================
-
-function registerGetCausalChainTool(
-  mcpServer: McpServer,
-  resources: SharedResources,
-): void {
-  mcpServer.registerTool(
-    'get_causal_chain',
-    {
-      description:
-        'Get the causal chain for an event (upstream causes or downstream effects)',
-      inputSchema: GetCausalChainSchema,
-    },
-    async (args) => {
-      try {
-        const graphs = resources.orchestrator.getGraphs();
-
-        let result: CausalLink[];
-        if (args.direction === 'upstream') {
-          result = await graphs.causal.getUpstreamCauses(args.event);
-        } else {
-          result = await graphs.causal.getDownstreamEffects(args.event);
-        }
-
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify(result, null, 2),
-            },
-          ],
-          structuredContent: { chain: result, direction: args.direction },
-        };
-      } catch (error) {
-        return formatToolError(error, 'get_causal_chain');
-      }
-    },
-  );
-}
-
 function registerAddCausalLinkTool(
   mcpServer: McpServer,
   resources: SharedResources,
@@ -571,82 +406,6 @@ function registerAddCausalLinkTool(
   );
 }
 
-function registerExplainWhyTool(
-  mcpServer: McpServer,
-  resources: SharedResources,
-): void {
-  mcpServer.registerTool(
-    'explain_why',
-    {
-      description: 'Get a causal explanation for why something happened',
-      inputSchema: ExplainWhySchema,
-    },
-    async (args) => {
-      try {
-        const graphs = resources.orchestrator.getGraphs();
-        const explanation = await graphs.causal.explainWhy(args.event);
-
-        if (explanation.length === 0) {
-          return {
-            content: [
-              {
-                type: 'text' as const,
-                text: `No causal explanation found for: ${args.event}`,
-              },
-            ],
-          };
-        }
-
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify(explanation, null, 2),
-            },
-          ],
-          structuredContent: { explanation, event: args.event },
-        };
-      } catch (error) {
-        return formatToolError(error, 'explain_why');
-      }
-    },
-  );
-}
-
-// ============================================================================
-// Semantic Tools
-// ============================================================================
-
-function registerSearchSemanticTool(
-  mcpServer: McpServer,
-  resources: SharedResources,
-): void {
-  mcpServer.registerTool(
-    'search_semantic',
-    {
-      description: 'Search for concepts using semantic similarity',
-      inputSchema: SearchSemanticSchema,
-    },
-    async (args) => {
-      try {
-        const graphs = resources.orchestrator.getGraphs();
-        const results = await graphs.semantic.search(args.query, args.limit);
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify(results, null, 2),
-            },
-          ],
-          structuredContent: { matches: results, query: args.query },
-        };
-      } catch (error) {
-        return formatToolError(error, 'search_semantic');
-      }
-    },
-  );
-}
-
 function registerAddConceptTool(
   mcpServer: McpServer,
   resources: SharedResources,
@@ -680,6 +439,401 @@ function registerAddConceptTool(
         };
       } catch (error) {
         return formatToolError(error, 'add_concept');
+      }
+    },
+  );
+}
+
+// ============================================================================
+// MAGMA Retrieval Tools
+// ============================================================================
+
+function registerSemanticSearchTool(
+  mcpServer: McpServer,
+  resources: SharedResources,
+): void {
+  mcpServer.registerTool(
+    'semantic_search',
+    {
+      description:
+        'Find seed concepts via vector similarity search. Returns concept matches with scores that can be used for graph expansion.',
+      inputSchema: SemanticSearchSchema,
+    },
+    async (args) => {
+      // Validate input with Zod schema
+      const validation = validateToolInput(
+        args,
+        SemanticSearchSchema,
+        'semantic_search',
+      );
+      if (!validation.success) {
+        return formatToolError(validation.error, 'semantic_search');
+      }
+      const { query, limit = 10, min_score = 0.5 } = validation.data;
+
+      try {
+        const graphs = resources.orchestrator.getGraphs();
+        const results = await graphs.semantic.search(query, limit);
+
+        // Filter by minimum score
+        const filtered = results.filter((r) => r.score >= min_score);
+
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify(filtered, null, 2),
+            },
+          ],
+          structuredContent: {
+            matches: filtered,
+            query,
+            total: filtered.length,
+          },
+        };
+      } catch (error) {
+        return formatToolError(error, 'semantic_search');
+      }
+    },
+  );
+}
+
+function registerEntityLookupTool(
+  mcpServer: McpServer,
+  resources: SharedResources,
+): void {
+  mcpServer.registerTool(
+    'entity_lookup',
+    {
+      description:
+        'Expand entity relationships from seed entity IDs. Returns entities and their relationships up to specified depth.',
+      inputSchema: EntityLookupSchema,
+    },
+    async (args) => {
+      // Validate input with Zod schema
+      const validation = validateToolInput(
+        args,
+        EntityLookupSchema,
+        'entity_lookup',
+      );
+      if (!validation.success) {
+        return formatToolError(validation.error, 'entity_lookup');
+      }
+      const {
+        entity_ids,
+        depth = 2,
+        include_properties = false,
+      } = validation.data;
+
+      try {
+        const graphs = resources.orchestrator.getGraphs();
+        const results: Array<{
+          entity: unknown;
+          relationships: unknown[];
+        }> = [];
+
+        for (const entityId of entity_ids) {
+          // getEntity accepts both UUID and name
+          const entity = await graphs.entity.getEntity(entityId);
+
+          if (entity) {
+            const relationships = await graphs.entity.getRelationships(
+              entity.uuid,
+            );
+
+            // For depth > 1, recursively get related entities
+            const allRelationships = [...relationships];
+            if (depth > 1) {
+              const seenIds = new Set([entity.uuid]);
+              let currentLevel = relationships;
+
+              for (let d = 1; d < depth && currentLevel.length > 0; d++) {
+                const nextLevel: typeof relationships = [];
+                for (const rel of currentLevel) {
+                  for (const relatedId of [rel.source.uuid, rel.target.uuid]) {
+                    if (!seenIds.has(relatedId)) {
+                      seenIds.add(relatedId);
+                      try {
+                        const relatedRels =
+                          await graphs.entity.getRelationships(relatedId);
+                        nextLevel.push(...relatedRels);
+                        allRelationships.push(...relatedRels);
+                      } catch {
+                        // Entity not found - skip
+                      }
+                    }
+                  }
+                }
+                currentLevel = nextLevel;
+              }
+            }
+
+            results.push({
+              entity: include_properties
+                ? entity
+                : { uuid: entity.uuid, name: entity.name },
+              relationships: allRelationships,
+            });
+          }
+        }
+
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify(results, null, 2),
+            },
+          ],
+          structuredContent: {
+            entities: results,
+            depth,
+            total: results.length,
+          },
+        };
+      } catch (error) {
+        return formatToolError(error, 'entity_lookup');
+      }
+    },
+  );
+}
+
+function registerTemporalExpandTool(
+  mcpServer: McpServer,
+  resources: SharedResources,
+): void {
+  mcpServer.registerTool(
+    'temporal_expand',
+    {
+      description:
+        'Query events involving seed entities within a time range. Returns temporal events linked to the specified entities.',
+      inputSchema: TemporalExpandSchema,
+    },
+    async (args) => {
+      // Validate input with Zod schema
+      const validation = validateToolInput(
+        args,
+        TemporalExpandSchema,
+        'temporal_expand',
+      );
+      if (!validation.success) {
+        return formatToolError(validation.error, 'temporal_expand');
+      }
+      const { entity_ids, from, to } = validation.data;
+
+      try {
+        const graphs = resources.orchestrator.getGraphs();
+
+        // Parse dates or use wide default range
+        const now = new Date();
+        const fromDate = from
+          ? safeParseDate(from, 'from')
+          : new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+        const toDate = to
+          ? safeParseDate(to, 'to')
+          : new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
+
+        const allEvents: unknown[] = [];
+
+        for (const entityId of entity_ids) {
+          const events = await graphs.temporal.queryTimeline(
+            fromDate,
+            toDate,
+            entityId,
+          );
+          allEvents.push(...events);
+        }
+
+        // Deduplicate by UUID
+        const seen = new Set<string>();
+        const uniqueEvents = allEvents.filter((e) => {
+          const event = e as { uuid: string };
+          if (seen.has(event.uuid)) return false;
+          seen.add(event.uuid);
+          return true;
+        });
+
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify(uniqueEvents, null, 2),
+            },
+          ],
+          structuredContent: {
+            events: uniqueEvents,
+            from: fromDate.toISOString(),
+            to: toDate.toISOString(),
+            total: uniqueEvents.length,
+          },
+        };
+      } catch (error) {
+        return formatToolError(error, 'temporal_expand');
+      }
+    },
+  );
+}
+
+function registerCausalExpandTool(
+  mcpServer: McpServer,
+  resources: SharedResources,
+): void {
+  mcpServer.registerTool(
+    'causal_expand',
+    {
+      description:
+        'Traverse causal chains from seed entities. Returns causal links (cause-effect relationships) in the specified direction.',
+      inputSchema: CausalExpandSchema,
+    },
+    async (args) => {
+      // Validate input with Zod schema
+      const validation = validateToolInput(
+        args,
+        CausalExpandSchema,
+        'causal_expand',
+      );
+      if (!validation.success) {
+        return formatToolError(validation.error, 'causal_expand');
+      }
+      const { entity_ids, direction = 'both', depth = 3 } = validation.data;
+
+      try {
+        const graphs = resources.orchestrator.getGraphs();
+
+        // Create entity mentions for causal traversal
+        const entityMentions = entity_ids.map((id) => ({
+          mention: id,
+          type: undefined,
+        }));
+
+        const causalLinks = await graphs.causal.traverse(
+          entityMentions,
+          direction,
+          depth,
+        );
+
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify(causalLinks, null, 2),
+            },
+          ],
+          structuredContent: {
+            links: causalLinks,
+            direction,
+            depth,
+            total: causalLinks.length,
+          },
+        };
+      } catch (error) {
+        return formatToolError(error, 'causal_expand');
+      }
+    },
+  );
+}
+
+function registerSubgraphMergeTool(
+  mcpServer: McpServer,
+  _resources: SharedResources,
+): void {
+  mcpServer.registerTool(
+    'subgraph_merge',
+    {
+      description:
+        'Combine and score multiple graph views. Nodes found in multiple views get boosted scores. Returns a merged subgraph.',
+      inputSchema: SubgraphMergeSchema,
+    },
+    async (args) => {
+      // Validate input with Zod schema
+      const validation = validateToolInput(
+        args,
+        SubgraphMergeSchema,
+        'subgraph_merge',
+      );
+      if (!validation.success) {
+        return formatToolError(validation.error, 'subgraph_merge');
+      }
+      const { views, multi_view_boost = 1.5, min_score } = validation.data;
+
+      try {
+        const merger = new SubgraphMerger({
+          multiViewBoost: multi_view_boost,
+        });
+
+        const merged = merger.merge(views as GraphView[]);
+
+        // Apply min_score filtering if specified
+        let result = merged;
+        if (min_score !== undefined) {
+          result = {
+            ...merged,
+            nodes: merged.nodes.filter((n) => n.finalScore >= min_score),
+          };
+        }
+
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+          structuredContent: {
+            merged: result,
+            nodeCount: result.nodes.length,
+            viewContributions: result.viewContributions,
+          },
+        };
+      } catch (error) {
+        return formatToolError(error, 'subgraph_merge');
+      }
+    },
+  );
+}
+
+function registerLinearizeContextTool(
+  mcpServer: McpServer,
+  _resources: SharedResources,
+): void {
+  mcpServer.registerTool(
+    'linearize_context',
+    {
+      description:
+        'Format a merged subgraph into ordered text context for LLM consumption. Uses intent-based ordering strategy.',
+      inputSchema: LinearizeContextSchema,
+    },
+    async (args) => {
+      // Validate input with Zod schema
+      const validation = validateToolInput(
+        args,
+        LinearizeContextSchema,
+        'linearize_context',
+      );
+      if (!validation.success) {
+        return formatToolError(validation.error, 'linearize_context');
+      }
+      const { subgraph, intent, max_tokens = 4000 } = validation.data;
+
+      try {
+        const linearizer = new ContextLinearizer(max_tokens);
+        const linearized = linearizer.linearize(subgraph, intent);
+
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: linearized.text,
+            },
+          ],
+          structuredContent: {
+            text: linearized.text,
+            nodeCount: linearized.nodeCount,
+            strategy: linearized.strategy,
+            estimatedTokens: linearized.estimatedTokens,
+          },
+        };
+      } catch (error) {
+        return formatToolError(error, 'linearize_context');
       }
     },
   );
