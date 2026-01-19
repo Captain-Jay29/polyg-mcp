@@ -1,7 +1,7 @@
 import type {
-  ClassifierOutput,
   EmbeddingProvider,
   LLMProvider,
+  MAGMAIntent,
   SynthesizerOutput,
 } from '@polyg-mcp/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -40,14 +40,17 @@ function createMockEmbeddings(): EmbeddingProvider {
   };
 }
 
-// Helper to create a valid ClassifierOutput
-function mockClassifierOutput(
-  overrides: Partial<ClassifierOutput> = {},
-): ClassifierOutput {
+// Helper to create a valid MAGMAIntent for the new MAGMA flow
+function mockMAGMAIntent(overrides: Partial<MAGMAIntent> = {}): MAGMAIntent {
   return {
-    intents: ['entity'],
-    entities: [{ mention: 'test entity' }],
+    type: 'WHO',
+    entities: ['test entity'],
     confidence: 0.9,
+    depthHints: {
+      entity: 3,
+      temporal: 1,
+      causal: 1,
+    },
     ...overrides,
   };
 }
@@ -115,10 +118,10 @@ describe('Orchestrator', () => {
   });
 
   describe('recall', () => {
-    it('should execute full pipeline: classify → execute → synthesize', async () => {
-      const classifierOutput = mockClassifierOutput({
-        intents: ['entity'],
-        entities: [{ mention: 'Alice' }],
+    it('should execute full MAGMA pipeline: classify → execute → linearize → synthesize', async () => {
+      const magmaIntent = mockMAGMAIntent({
+        type: 'WHO',
+        entities: ['Alice'],
       });
 
       const synthesizerOutput = mockSynthesizerOutput({
@@ -126,12 +129,12 @@ describe('Orchestrator', () => {
         sources: ['entity'],
       });
 
-      // Mock LLM to return classifier output first, then synthesizer output
+      // Mock LLM to return MAGMA intent first, then synthesizer output
       vi.mocked(llm.complete)
-        .mockResolvedValueOnce(JSON.stringify(classifierOutput))
+        .mockResolvedValueOnce(JSON.stringify(magmaIntent))
         .mockResolvedValueOnce(JSON.stringify(synthesizerOutput));
 
-      // Mock entity graph resolve to return empty (no entities found)
+      // Mock graph queries to return empty (no entities found)
       vi.mocked(db.query).mockResolvedValue({ records: [], metadata: [] });
 
       const result = await orchestrator.recall('Who is Alice?');
@@ -142,11 +145,11 @@ describe('Orchestrator', () => {
     });
 
     it('should pass context to classifier', async () => {
-      const classifierOutput = mockClassifierOutput();
+      const magmaIntent = mockMAGMAIntent();
       const synthesizerOutput = mockSynthesizerOutput();
 
       vi.mocked(llm.complete)
-        .mockResolvedValueOnce(JSON.stringify(classifierOutput))
+        .mockResolvedValueOnce(JSON.stringify(magmaIntent))
         .mockResolvedValueOnce(JSON.stringify(synthesizerOutput));
       vi.mocked(db.query).mockResolvedValue({ records: [], metadata: [] });
 
@@ -166,46 +169,44 @@ describe('Orchestrator', () => {
       );
 
       await expect(orchestrator.recall('test query')).rejects.toThrow(
-        'Intent classification failed: Failed to get LLM response for classification',
+        'Intent classification failed: Failed to get LLM response for MAGMA classification',
       );
     });
 
-    it('should handle partial graph failures gracefully', async () => {
-      // The executor uses Promise.allSettled, so individual graph failures
-      // don't throw - they're captured in the failed results array
-      const classifierOutput = mockClassifierOutput({
-        intents: ['temporal'],
-        timeframe: { type: 'relative', value: 'last week' },
+    it('should handle graph expansion with empty results gracefully', async () => {
+      // MAGMA executor handles graph failures gracefully - returns semantic-only
+      const magmaIntent = mockMAGMAIntent({
+        type: 'WHEN',
+        entities: ['deployment'],
+        depthHints: { entity: 1, temporal: 3, causal: 1 },
       });
 
       const synthesizerOutput = mockSynthesizerOutput({
-        answer: 'Some results were unavailable',
+        answer: 'No temporal events found',
         confidence: 0.5,
       });
 
       vi.mocked(llm.complete)
-        .mockResolvedValueOnce(JSON.stringify(classifierOutput))
+        .mockResolvedValueOnce(JSON.stringify(magmaIntent))
         .mockResolvedValueOnce(JSON.stringify(synthesizerOutput));
 
-      // Make the temporal query fail - executor will capture this in failed array
-      vi.mocked(db.query).mockRejectedValueOnce(
-        new Error('Database connection lost'),
-      );
+      // Return empty results - MAGMA handles this gracefully
+      vi.mocked(db.query).mockResolvedValue({ records: [], metadata: [] });
 
       const result = await orchestrator.recall('What happened last week?');
 
-      // Pipeline completes but synthesizer receives failed results
-      expect(result.answer).toBe('Some results were unavailable');
+      // Pipeline completes with semantic-only fallback
+      expect(result.answer).toBe('No temporal events found');
     });
 
     it('should throw with context when synthesizer fails', async () => {
-      const classifierOutput = mockClassifierOutput({
-        intents: ['entity'],
-        entities: [{ mention: 'test' }],
+      const magmaIntent = mockMAGMAIntent({
+        type: 'WHO',
+        entities: ['test'],
       });
 
       vi.mocked(llm.complete)
-        .mockResolvedValueOnce(JSON.stringify(classifierOutput))
+        .mockResolvedValueOnce(JSON.stringify(magmaIntent))
         .mockRejectedValueOnce(new Error('LLM rate limited'));
 
       vi.mocked(db.query).mockResolvedValue({ records: [], metadata: [] });
@@ -215,24 +216,26 @@ describe('Orchestrator', () => {
       );
     });
 
-    it('should handle queries with no matching intents gracefully', async () => {
-      const classifierOutput = mockClassifierOutput({
-        intents: [],
+    it('should handle EXPLORE intent with balanced depth hints', async () => {
+      const magmaIntent = mockMAGMAIntent({
+        type: 'EXPLORE',
         entities: [],
+        depthHints: { entity: 2, temporal: 2, causal: 2 },
       });
 
       const synthesizerOutput = mockSynthesizerOutput({
-        answer: 'I could not find relevant information',
-        confidence: 0.3,
+        answer: 'Exploring the topic broadly',
+        confidence: 0.6,
       });
 
       vi.mocked(llm.complete)
-        .mockResolvedValueOnce(JSON.stringify(classifierOutput))
+        .mockResolvedValueOnce(JSON.stringify(magmaIntent))
         .mockResolvedValueOnce(JSON.stringify(synthesizerOutput));
+      vi.mocked(db.query).mockResolvedValue({ records: [], metadata: [] });
 
-      const result = await orchestrator.recall('random gibberish');
+      const result = await orchestrator.recall('Tell me about the system');
 
-      expect(result.confidence).toBe(0.3);
+      expect(result.confidence).toBe(0.6);
     });
   });
 

@@ -88,6 +88,25 @@ export class ExecutorError extends RetrievalError {
 }
 
 /**
+ * Error for Orchestrator operations
+ */
+export class OrchestratorError extends RetrievalError {
+  constructor(
+    message: string,
+    public readonly step:
+      | 'validation'
+      | 'classification'
+      | 'execution'
+      | 'linearization'
+      | 'synthesis',
+    cause?: Error,
+  ) {
+    super(message, 'Orchestrator', step, cause);
+    this.name = 'OrchestratorError';
+  }
+}
+
+/**
  * Wrap unknown errors in RetrievalError
  */
 export function wrapRetrievalError(
