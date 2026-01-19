@@ -212,7 +212,12 @@ export const TimeframeSchema = z.object({
   end: z.string().optional(),
 });
 
-// Classifier output schema
+/**
+ * Classifier output schema (legacy graph-centric)
+ * @deprecated Use MAGMAIntentSchema for new implementations.
+ * This schema uses graph-centric intents (semantic/temporal/causal/entity)
+ * which will be replaced by question-centric intents (WHY/WHEN/WHO/WHAT).
+ */
 export const ClassifierOutputSchema = z.object({
   intents: z.array(IntentTypeSchema),
   entities: z.array(EntityMentionSchema),
