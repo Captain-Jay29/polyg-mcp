@@ -13,6 +13,7 @@ import {
   RelationshipError,
   TemporalError,
 } from '@polyg-mcp/core';
+import type { ZodError, ZodSchema } from 'zod';
 
 /**
  * Base error class for all server-related errors
@@ -290,4 +291,80 @@ export function safeParseDate(dateStr: string, fieldName: string): Date {
   }
 
   return date;
+}
+
+/**
+ * Result of validating tool input
+ */
+export type ValidationResult<T> =
+  | { success: true; data: T }
+  | { success: false; error: ToolInputValidationError };
+
+/**
+ * Validate tool input against a Zod schema.
+ * Returns typed data on success, or a ToolInputValidationError on failure.
+ *
+ * @example
+ * ```ts
+ * const result = validateToolInput(args, SemanticSearchSchema, 'semantic_search');
+ * if (!result.success) {
+ *   return formatToolError(result.error, 'semantic_search');
+ * }
+ * const { query, limit, min_score } = result.data;
+ * ```
+ */
+export function validateToolInput<T>(
+  input: unknown,
+  schema: ZodSchema<T>,
+  toolName: string,
+): ValidationResult<T> {
+  const result = schema.safeParse(input);
+
+  if (result.success) {
+    return { success: true, data: result.data };
+  }
+
+  // Convert Zod errors to our validation error format
+  // ZodError has an 'issues' property (array of ZodIssue)
+  const zodError = result.error as ZodError<T>;
+  const validationErrors = zodError.issues.map((issue) => ({
+    path: issue.path.join('.') || 'input',
+    message: issue.message,
+  }));
+
+  const errorMessages = validationErrors
+    .map((e) => `${e.path}: ${e.message}`)
+    .join(', ');
+
+  return {
+    success: false,
+    error: new ToolInputValidationError(
+      `Invalid input for ${toolName}: ${errorMessages}`,
+      toolName,
+      validationErrors,
+    ),
+  };
+}
+
+/**
+ * Validate tool input and format error response if validation fails.
+ * Returns null if validation succeeds, or an error response if it fails.
+ *
+ * @example
+ * ```ts
+ * const validationError = validateOrError(args, SemanticSearchSchema, 'semantic_search');
+ * if (validationError) return validationError;
+ * // args is now validated (though not typed - use validateToolInput for typing)
+ * ```
+ */
+export function validateOrError<T>(
+  input: unknown,
+  schema: ZodSchema<T>,
+  toolName: string,
+): ReturnType<typeof formatToolError> | null {
+  const result = validateToolInput(input, schema, toolName);
+  if (!result.success) {
+    return formatToolError(result.error, toolName);
+  }
+  return null;
 }

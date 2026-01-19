@@ -581,3 +581,270 @@ describe('Tool Error Handling', () => {
     await expect(badServer.start()).rejects.toThrow();
   });
 });
+
+describe('Zod Validation Error Handling', () => {
+  let server: PolygMCPServer;
+
+  beforeEach(async () => {
+    server = new PolygMCPServer(TEST_CONFIG);
+    await server.start();
+  });
+
+  afterEach(async () => {
+    await server.stop();
+  });
+
+  describe('semantic_search validation', () => {
+    it('should reject missing query', async () => {
+      const result = (await callTool(server, 'semantic_search', {})) as {
+        content: Array<{ type: string; text: string }>;
+        isError?: boolean;
+      };
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text.toLowerCase()).toContain('validation');
+      expect(result.content[0].text.toLowerCase()).toContain('query');
+    });
+
+    it('should reject invalid limit type', async () => {
+      const result = (await callTool(server, 'semantic_search', {
+        query: 'test',
+        limit: 'not-a-number',
+      })) as {
+        content: Array<{ type: string; text: string }>;
+        isError?: boolean;
+      };
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text.toLowerCase()).toContain('validation');
+    });
+
+    it('should reject limit out of range', async () => {
+      const result = (await callTool(server, 'semantic_search', {
+        query: 'test',
+        limit: 200, // Max is 100
+      })) as {
+        content: Array<{ type: string; text: string }>;
+        isError?: boolean;
+      };
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text.toLowerCase()).toContain('validation');
+    });
+
+    it('should reject min_score out of range', async () => {
+      const result = (await callTool(server, 'semantic_search', {
+        query: 'test',
+        min_score: 1.5, // Max is 1
+      })) as {
+        content: Array<{ type: string; text: string }>;
+        isError?: boolean;
+      };
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text.toLowerCase()).toContain('validation');
+    });
+  });
+
+  describe('entity_lookup validation', () => {
+    it('should reject missing entity_ids', async () => {
+      const result = (await callTool(server, 'entity_lookup', {})) as {
+        content: Array<{ type: string; text: string }>;
+        isError?: boolean;
+      };
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text.toLowerCase()).toContain('validation');
+    });
+
+    it('should reject empty entity_ids array', async () => {
+      const result = (await callTool(server, 'entity_lookup', {
+        entity_ids: [],
+      })) as {
+        content: Array<{ type: string; text: string }>;
+        isError?: boolean;
+      };
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text.toLowerCase()).toContain('validation');
+    });
+
+    it('should reject depth out of range', async () => {
+      const result = (await callTool(server, 'entity_lookup', {
+        entity_ids: ['test-id'],
+        depth: 10, // Max is 5
+      })) as {
+        content: Array<{ type: string; text: string }>;
+        isError?: boolean;
+      };
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text.toLowerCase()).toContain('validation');
+    });
+  });
+
+  describe('temporal_expand validation', () => {
+    it('should reject missing entity_ids', async () => {
+      const result = (await callTool(server, 'temporal_expand', {})) as {
+        content: Array<{ type: string; text: string }>;
+        isError?: boolean;
+      };
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text.toLowerCase()).toContain('validation');
+    });
+
+    it('should reject empty entity_ids array', async () => {
+      const result = (await callTool(server, 'temporal_expand', {
+        entity_ids: [],
+      })) as {
+        content: Array<{ type: string; text: string }>;
+        isError?: boolean;
+      };
+
+      expect(result.isError).toBe(true);
+    });
+  });
+
+  describe('causal_expand validation', () => {
+    it('should reject missing entity_ids', async () => {
+      const result = (await callTool(server, 'causal_expand', {})) as {
+        content: Array<{ type: string; text: string }>;
+        isError?: boolean;
+      };
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text.toLowerCase()).toContain('validation');
+    });
+
+    it('should reject invalid direction', async () => {
+      const result = (await callTool(server, 'causal_expand', {
+        entity_ids: ['test-id'],
+        direction: 'invalid-direction',
+      })) as {
+        content: Array<{ type: string; text: string }>;
+        isError?: boolean;
+      };
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text.toLowerCase()).toContain('validation');
+    });
+
+    it('should reject depth out of range', async () => {
+      const result = (await callTool(server, 'causal_expand', {
+        entity_ids: ['test-id'],
+        depth: 0, // Min is 1
+      })) as {
+        content: Array<{ type: string; text: string }>;
+        isError?: boolean;
+      };
+
+      expect(result.isError).toBe(true);
+    });
+  });
+
+  describe('subgraph_merge validation', () => {
+    it('should reject missing views', async () => {
+      const result = (await callTool(server, 'subgraph_merge', {})) as {
+        content: Array<{ type: string; text: string }>;
+        isError?: boolean;
+      };
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text.toLowerCase()).toContain('validation');
+    });
+
+    it('should reject empty views array', async () => {
+      const result = (await callTool(server, 'subgraph_merge', {
+        views: [],
+      })) as {
+        content: Array<{ type: string; text: string }>;
+        isError?: boolean;
+      };
+
+      expect(result.isError).toBe(true);
+    });
+
+    it('should reject invalid view structure', async () => {
+      const result = (await callTool(server, 'subgraph_merge', {
+        views: [{ source: 'invalid-source', nodes: [] }],
+      })) as {
+        content: Array<{ type: string; text: string }>;
+        isError?: boolean;
+      };
+
+      expect(result.isError).toBe(true);
+    });
+
+    it('should reject multi_view_boost below 1', async () => {
+      const result = (await callTool(server, 'subgraph_merge', {
+        views: [{ source: 'semantic', nodes: [] }],
+        multi_view_boost: 0.5, // Min is 1
+      })) as {
+        content: Array<{ type: string; text: string }>;
+        isError?: boolean;
+      };
+
+      expect(result.isError).toBe(true);
+    });
+  });
+
+  describe('linearize_context validation', () => {
+    it('should reject missing subgraph', async () => {
+      const result = (await callTool(server, 'linearize_context', {
+        intent: 'WHY',
+      })) as {
+        content: Array<{ type: string; text: string }>;
+        isError?: boolean;
+      };
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text.toLowerCase()).toContain('validation');
+    });
+
+    it('should reject missing intent', async () => {
+      const result = (await callTool(server, 'linearize_context', {
+        subgraph: {
+          nodes: [],
+          viewContributions: { semantic: 0, entity: 0, temporal: 0, causal: 0 },
+        },
+      })) as {
+        content: Array<{ type: string; text: string }>;
+        isError?: boolean;
+      };
+
+      expect(result.isError).toBe(true);
+    });
+
+    it('should reject invalid intent type', async () => {
+      const result = (await callTool(server, 'linearize_context', {
+        subgraph: {
+          nodes: [],
+          viewContributions: { semantic: 0, entity: 0, temporal: 0, causal: 0 },
+        },
+        intent: 'INVALID_INTENT',
+      })) as {
+        content: Array<{ type: string; text: string }>;
+        isError?: boolean;
+      };
+
+      expect(result.isError).toBe(true);
+    });
+
+    it('should reject max_tokens out of range', async () => {
+      const result = (await callTool(server, 'linearize_context', {
+        subgraph: {
+          nodes: [],
+          viewContributions: { semantic: 0, entity: 0, temporal: 0, causal: 0 },
+        },
+        intent: 'WHY',
+        max_tokens: 50, // Min is 100
+      })) as {
+        content: Array<{ type: string; text: string }>;
+        isError?: boolean;
+      };
+
+      expect(result.isError).toBe(true);
+    });
+  });
+});

@@ -22,7 +22,7 @@ import {
   SubgraphMergeSchema,
   TemporalExpandSchema,
 } from '@polyg-mcp/shared';
-import { formatToolError, safeParseDate } from './errors.js';
+import { formatToolError, safeParseDate, validateToolInput } from './errors.js';
 import type { SharedResources } from './shared-resources.js';
 
 const SERVER_VERSION = '0.1.0';
@@ -460,15 +460,23 @@ function registerSemanticSearchTool(
       inputSchema: SemanticSearchSchema,
     },
     async (args) => {
+      // Validate input with Zod schema
+      const validation = validateToolInput(
+        args,
+        SemanticSearchSchema,
+        'semantic_search',
+      );
+      if (!validation.success) {
+        return formatToolError(validation.error, 'semantic_search');
+      }
+      const { query, limit = 10, min_score = 0.5 } = validation.data;
+
       try {
         const graphs = resources.orchestrator.getGraphs();
-        const limit = args.limit ?? 10;
-        const minScore = args.min_score ?? 0.5;
-
-        const results = await graphs.semantic.search(args.query, limit);
+        const results = await graphs.semantic.search(query, limit);
 
         // Filter by minimum score
-        const filtered = results.filter((r) => r.score >= minScore);
+        const filtered = results.filter((r) => r.score >= min_score);
 
         return {
           content: [
@@ -479,7 +487,7 @@ function registerSemanticSearchTool(
           ],
           structuredContent: {
             matches: filtered,
-            query: args.query,
+            query,
             total: filtered.length,
           },
         };
@@ -502,15 +510,29 @@ function registerEntityLookupTool(
       inputSchema: EntityLookupSchema,
     },
     async (args) => {
+      // Validate input with Zod schema
+      const validation = validateToolInput(
+        args,
+        EntityLookupSchema,
+        'entity_lookup',
+      );
+      if (!validation.success) {
+        return formatToolError(validation.error, 'entity_lookup');
+      }
+      const {
+        entity_ids,
+        depth = 2,
+        include_properties = false,
+      } = validation.data;
+
       try {
         const graphs = resources.orchestrator.getGraphs();
-        const depth = args.depth ?? 2;
         const results: Array<{
           entity: unknown;
           relationships: unknown[];
         }> = [];
 
-        for (const entityId of args.entity_ids) {
+        for (const entityId of entity_ids) {
           // getEntity accepts both UUID and name
           const entity = await graphs.entity.getEntity(entityId);
 
@@ -547,7 +569,7 @@ function registerEntityLookupTool(
             }
 
             results.push({
-              entity: args.include_properties
+              entity: include_properties
                 ? entity
                 : { uuid: entity.uuid, name: entity.name },
               relationships: allRelationships,
@@ -587,21 +609,32 @@ function registerTemporalExpandTool(
       inputSchema: TemporalExpandSchema,
     },
     async (args) => {
+      // Validate input with Zod schema
+      const validation = validateToolInput(
+        args,
+        TemporalExpandSchema,
+        'temporal_expand',
+      );
+      if (!validation.success) {
+        return formatToolError(validation.error, 'temporal_expand');
+      }
+      const { entity_ids, from, to } = validation.data;
+
       try {
         const graphs = resources.orchestrator.getGraphs();
 
         // Parse dates or use wide default range
         const now = new Date();
-        const fromDate = args.from
-          ? safeParseDate(args.from, 'from')
+        const fromDate = from
+          ? safeParseDate(from, 'from')
           : new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
-        const toDate = args.to
-          ? safeParseDate(args.to, 'to')
+        const toDate = to
+          ? safeParseDate(to, 'to')
           : new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
 
         const allEvents: unknown[] = [];
 
-        for (const entityId of args.entity_ids) {
+        for (const entityId of entity_ids) {
           const events = await graphs.temporal.queryTimeline(
             fromDate,
             toDate,
@@ -652,13 +685,22 @@ function registerCausalExpandTool(
       inputSchema: CausalExpandSchema,
     },
     async (args) => {
+      // Validate input with Zod schema
+      const validation = validateToolInput(
+        args,
+        CausalExpandSchema,
+        'causal_expand',
+      );
+      if (!validation.success) {
+        return formatToolError(validation.error, 'causal_expand');
+      }
+      const { entity_ids, direction = 'both', depth = 3 } = validation.data;
+
       try {
         const graphs = resources.orchestrator.getGraphs();
-        const direction = args.direction ?? 'both';
-        const depth = args.depth ?? 3;
 
         // Create entity mentions for causal traversal
-        const entityMentions = args.entity_ids.map((id) => ({
+        const entityMentions = entity_ids.map((id) => ({
           mention: id,
           type: undefined,
         }));
@@ -702,20 +744,30 @@ function registerSubgraphMergeTool(
       inputSchema: SubgraphMergeSchema,
     },
     async (args) => {
+      // Validate input with Zod schema
+      const validation = validateToolInput(
+        args,
+        SubgraphMergeSchema,
+        'subgraph_merge',
+      );
+      if (!validation.success) {
+        return formatToolError(validation.error, 'subgraph_merge');
+      }
+      const { views, multi_view_boost = 1.5, min_score } = validation.data;
+
       try {
         const merger = new SubgraphMerger({
-          multiViewBoost: args.multi_view_boost ?? 1.5,
+          multiViewBoost: multi_view_boost,
         });
 
-        const merged = merger.merge(args.views as GraphView[]);
+        const merged = merger.merge(views as GraphView[]);
 
         // Apply min_score filtering if specified
         let result = merged;
-        if (args.min_score !== undefined) {
-          const minScore = args.min_score;
+        if (min_score !== undefined) {
           result = {
             ...merged,
-            nodes: merged.nodes.filter((n) => n.finalScore >= minScore),
+            nodes: merged.nodes.filter((n) => n.finalScore >= min_score),
           };
         }
 
@@ -751,9 +803,20 @@ function registerLinearizeContextTool(
       inputSchema: LinearizeContextSchema,
     },
     async (args) => {
+      // Validate input with Zod schema
+      const validation = validateToolInput(
+        args,
+        LinearizeContextSchema,
+        'linearize_context',
+      );
+      if (!validation.success) {
+        return formatToolError(validation.error, 'linearize_context');
+      }
+      const { subgraph, intent, max_tokens = 4000 } = validation.data;
+
       try {
-        const linearizer = new ContextLinearizer(args.max_tokens ?? 4000);
-        const linearized = linearizer.linearize(args.subgraph, args.intent);
+        const linearizer = new ContextLinearizer(max_tokens);
+        const linearized = linearizer.linearize(subgraph, intent);
 
         return {
           content: [
