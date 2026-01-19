@@ -75,11 +75,15 @@ export class ContextLinearizer {
     try {
       const strategy = this.getStrategy(validatedIntent);
       const orderedNodes = this.orderNodes(validatedMerged.nodes, strategy);
-      const text = this.formatContext(orderedNodes, strategy, validatedIntent);
+      const { text, includedNodeCount } = this.formatContext(
+        orderedNodes,
+        strategy,
+        validatedIntent,
+      );
 
       const result: LinearizedContext = {
         text,
-        nodeCount: orderedNodes.length,
+        nodeCount: includedNodeCount, // Actual count post-truncation
         strategy,
         estimatedTokens: Math.ceil(text.length / 4),
       };
@@ -214,15 +218,17 @@ export class ContextLinearizer {
 
   /**
    * Format nodes into context string
+   * @returns Object with text and actual count of nodes included (post-truncation)
    */
   private formatContext(
     nodes: ScoredNode[],
     strategy: OrderingStrategy,
     intentType: MAGMAIntentType,
-  ): string {
+  ): { text: string; includedNodeCount: number } {
     const sections: string[] = [];
     let currentTokens = 0;
     const tokenBudget = this.maxTokens;
+    const includedNodes: ScoredNode[] = [];
 
     // Add header based on intent
     const header = this.getHeader(intentType);
@@ -240,16 +246,20 @@ export class ContextLinearizer {
       }
 
       sections.push(formatted);
+      includedNodes.push(node);
       currentTokens += nodeTokens;
     }
 
-    // Add view summary
-    const summary = this.formatViewSummary(nodes);
+    // Add view summary (only for included nodes)
+    const summary = this.formatViewSummary(includedNodes);
     if (currentTokens + Math.ceil(summary.length / 4) <= tokenBudget) {
       sections.push(summary);
     }
 
-    return sections.join('\n');
+    return {
+      text: sections.join('\n'),
+      includedNodeCount: includedNodes.length,
+    };
   }
 
   /**

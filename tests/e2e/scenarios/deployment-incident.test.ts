@@ -55,12 +55,13 @@ describe.skipIf(!OPENAI_API_KEY)(
       const tools = mcpClient.getTools();
       expect(tools.length).toBeGreaterThan(0);
 
-      // Check for expected tools
+      // Check for expected MAGMA tools
       const toolNames = tools.map((t) => t.name);
-      expect(toolNames).toContain('recall');
       expect(toolNames).toContain('remember');
-      expect(toolNames).toContain('get_entity');
-      expect(toolNames).toContain('query_timeline');
+      expect(toolNames).toContain('semantic_search');
+      expect(toolNames).toContain('entity_lookup');
+      expect(toolNames).toContain('temporal_expand');
+      expect(toolNames).toContain('causal_expand');
     });
 
     describe('Causal Reasoning', () => {
@@ -79,12 +80,15 @@ describe.skipIf(!OPENAI_API_KEY)(
             answer.includes('missing'),
         ).toBe(true);
 
-        // Should use causal graph tools
-        const usedCausalTools = result.toolsUsed.some(
+        // Should use MAGMA retrieval tools (semantic, causal, etc.)
+        const usedMAGMATools = result.toolsUsed.some(
           (t) =>
-            t.includes('causal') || t.includes('explain') || t === 'recall',
+            t.includes('causal') ||
+            t.includes('semantic') ||
+            t.includes('entity') ||
+            t.includes('temporal'),
         );
-        expect(usedCausalTools).toBe(true);
+        expect(usedMAGMATools).toBe(true);
       });
 
       it('should trace cascading failures', async () => {
@@ -112,10 +116,10 @@ describe.skipIf(!OPENAI_API_KEY)(
 
         expect(result.success).toBe(true);
 
-        // Should use timeline tools
+        // Should use temporal or semantic search tools
         expect(
           result.toolsUsed.some(
-            (t) => t.includes('timeline') || t === 'recall',
+            (t) => t.includes('temporal') || t.includes('semantic'),
           ),
         ).toBe(true);
 
