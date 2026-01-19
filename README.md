@@ -140,29 +140,35 @@ Add to your `claude_desktop_config.json`:
 
 ## 🔌 MCP Tools
 
-### `recall` — Query Memory
+### MAGMA Retrieval Tools (6 tools)
 
-```typescript
-recall({ query: "Why did the auth service fail after the Tuesday deployment?" })
-```
+| Tool | Purpose |
+|------|---------|
+| `semantic_search` | Find seed concepts via vector similarity |
+| `entity_lookup` | Expand entity relationships from seeds |
+| `temporal_expand` | Query events involving seed entities |
+| `causal_expand` | Traverse causal chains from seed entities |
+| `subgraph_merge` | Combine and score graph views |
+| `linearize_context` | Format merged subgraph for LLM |
 
-**Response:**
-> "The auth service failed because the AUTH_SECRET environment variable was missing in the Tuesday deployment. This was caused by the config refactor merged on Monday."
+### Write Tools (7 tools)
 
-### `remember` — Store Memory
+| Tool | Purpose |
+|------|---------|
+| `remember` | Store natural language memory |
+| `add_entity` | Add entity to graph |
+| `add_event` | Add temporal event |
+| `add_fact` | Add time-bounded fact |
+| `add_concept` | Add semantic concept |
+| `add_causal_link` | Create cause → effect link |
+| `link_entities` | Create entity relationship |
 
-```typescript
-remember({ 
-  content: "Deployment failed due to missing AUTH_SECRET",
-  metadata: { type: "incident", service: "auth" }
-})
-```
+### Admin Tools (2 tools)
 
-### `forget` — Remove Memory
-
-```typescript
-forget({ id: "memory-uuid-here" })
-```
+| Tool | Purpose |
+|------|---------|
+| `get_statistics` | Get graph statistics |
+| `clear_graph` | Clear specific graph |
 
 ---
 
@@ -173,14 +179,18 @@ forget({ id: "memory-uuid-here" })
 Why did the auth service fail after the Tuesday deployment?
 ```
 
-**What happens internally:**
+**MAGMA Pipeline:**
 
-1. **Intent Classification** → Detects: `causal` + `temporal`
-2. **Parallel Queries** → Queries Causal Graph + Temporal Graph simultaneously
-3. **Synthesis** → LLM merges findings into coherent explanation
+1. **Intent Classification** → Detects: `WHY` intent with depth hints (causal=3, temporal=1)
+2. **Semantic Search** → Finds seed concepts matching "auth service", "deployment", "failure"
+3. **Seed Extraction** → Uses X_REPRESENTS links to find entity IDs
+4. **Parallel Expansion** → Causal chains (depth 3) + Temporal events (depth 1)
+5. **Subgraph Merge** → Combine views, boost nodes found in multiple graphs
+6. **Linearization** → Order nodes for causal reasoning (cause → effect)
+7. **Synthesis** → LLM generates answer from structured context
 
 **Answer:**
-> "The auth service failed because the AUTH_SECRET environment variable was missing in the Tuesday deployment. The config was refactored on Monday, and the new deployment template didn't include the secret. The service owner was notified at 2:34 PM."
+> "The auth service failed because the AUTH_SECRET environment variable was missing in the Tuesday deployment. The config was refactored on Monday, and the new deployment template didn't include the secret."
 
 ---
 
@@ -188,10 +198,10 @@ Why did the auth service fail after the Tuesday deployment?
 
 | Metric | Value |
 |:-------|:------|
-| Parallel query execution | ✅ Up to 4 graphs simultaneously |
-| LLM calls per query | 2 (classify + synthesize) |
-| Average response time | ~800ms |
-| Memory overhead | Minimal (graph indices in-memory) |
+| MAGMA pipeline steps | 7 (classify → search → seed → expand → merge → linearize → synthesize) |
+| Parallel graph expansion | ✅ Entity, Temporal, Causal expanded simultaneously |
+| LLM calls per query | 2 (intent classify + synthesize) |
+| Intent-based depth | Adaptive (WHY=deep causal, WHEN=deep temporal, etc.) |
 
 ---
 
@@ -212,13 +222,14 @@ POLYG_LOG_LEVEL=info
 
 ## 📦 Roadmap
 
-- [x] Core multi-graph architecture
-- [x] LLM intent classification
-- [x] Parallel query execution
-- [x] MCP tool interface
-- [ ] Persistent storage backends (PostgreSQL, Redis)
+- [x] Core multi-graph architecture (Entity, Temporal, Causal, Semantic)
+- [x] MAGMA retrieval pipeline (intent → seed → expand → merge → linearize)
+- [x] LLM intent classification (WHY/WHEN/WHO/WHAT/EXPLORE)
+- [x] Cross-graph linking (X_REPRESENTS, X_INVOLVES)
+- [x] MCP tool interface (15 tools: 6 MAGMA + 7 write + 2 admin)
+- [x] FalkorDB persistent storage
+- [ ] Semantic indexing in write tools (auto X_REPRESENTS creation)
 - [ ] Graph visualization UI
-- [ ] Custom graph definitions
 - [ ] Streaming responses
 
 ---
