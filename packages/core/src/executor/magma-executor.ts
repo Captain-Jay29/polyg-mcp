@@ -9,24 +9,28 @@
  *
  * "Vectors locate. Graphs explain. Policies decide how to think."
  */
-import type {
-  DepthHints,
-  GraphView,
-  MAGMAConfig,
-  MAGMAIntent,
-  MergedSubgraph,
+import {
+  type DepthHints,
+  type GraphView,
+  type MAGMAConfig,
+  type MAGMAIntent,
+  MAGMAIntentSchema,
+  type MergedSubgraph,
 } from '@polyg-mcp/shared';
+import { z } from 'zod';
 import type { CausalGraph } from '../graphs/causal.js';
 import type { CrossLinker } from '../graphs/cross-linker.js';
 import type { EntityGraph } from '../graphs/entity.js';
 import type { SemanticGraph } from '../graphs/semantic.js';
 import type { TemporalGraph } from '../graphs/temporal.js';
 import {
+  ExecutorError,
   filterSeedsByScore,
   getEntityIds,
+  RetrievalValidationError,
+  seedFromSemantic,
   type SeedExtractionResult,
   SubgraphMerger,
-  seedFromSemantic,
 } from '../retrieval/index.js';
 
 export interface MAGMAGraphRegistry {
@@ -37,11 +41,14 @@ export interface MAGMAGraphRegistry {
   crossLinker: CrossLinker;
 }
 
-export interface MAGMAExecutorConfig {
-  semanticTopK: number;
-  minSemanticScore: number;
-  timeout: number;
-}
+// Zod schema for executor config validation
+const MAGMAExecutorConfigSchema = z.object({
+  semanticTopK: z.number().int().min(1).max(100).default(10),
+  minSemanticScore: z.number().min(0).max(1).default(0.5),
+  timeout: z.number().int().min(100).max(60000).default(5000),
+});
+
+export type MAGMAExecutorConfig = z.infer<typeof MAGMAExecutorConfigSchema>;
 
 const DEFAULT_CONFIG: MAGMAExecutorConfig = {
   semanticTopK: 10,
@@ -76,7 +83,22 @@ export class MAGMAExecutor {
     private graphs: MAGMAGraphRegistry,
     config?: Partial<MAGMAExecutorConfig>,
   ) {
-    this.config = { ...DEFAULT_CONFIG, ...config };
+    // Validate and apply config with defaults
+    const mergedConfig = { ...DEFAULT_CONFIG, ...config };
+    const configResult = MAGMAExecutorConfigSchema.safeParse(mergedConfig);
+
+    if (!configResult.success) {
+      const errors = configResult.error.issues.map(
+        (e: z.ZodIssue) => `${e.path.join('.')}: ${e.message}`,
+      );
+      throw new RetrievalValidationError(
+        `Invalid MAGMAExecutor config: ${errors.join(', ')}`,
+        'MAGMAExecutor',
+        errors,
+      );
+    }
+
+    this.config = configResult.data;
     this.merger = new SubgraphMerger();
   }
 
@@ -105,6 +127,28 @@ export class MAGMAExecutor {
     query: string,
     intent: MAGMAIntent,
   ): Promise<MAGMAExecutionResult> {
+    // Validate query
+    if (!query || typeof query !== 'string' || query.trim().length === 0) {
+      throw new RetrievalValidationError(
+        'Query must be a non-empty string',
+        'MAGMAExecutor',
+        ['query: must be a non-empty string'],
+      );
+    }
+
+    // Validate intent
+    const intentResult = MAGMAIntentSchema.safeParse(intent);
+    if (!intentResult.success) {
+      const errors = intentResult.error.issues.map(
+        (e: z.ZodIssue) => `${e.path.join('.')}: ${e.message}`,
+      );
+      throw new RetrievalValidationError(
+        `Invalid MAGMAIntent: ${errors.join(', ')}`,
+        'MAGMAExecutor',
+        errors,
+      );
+    }
+
     const totalStart = Date.now();
 
     // Step 1: Semantic search for seed concepts
@@ -367,7 +411,13 @@ export class MAGMAExecutor {
       promise,
       new Promise<never>((_, reject) =>
         setTimeout(
-          () => reject(new Error('MAGMA execution timeout')),
+          () =>
+            reject(
+              new ExecutorError(
+                `Operation timed out after ${this.config.timeout}ms`,
+                'timeout',
+              ),
+            ),
           this.config.timeout,
         ),
       ),

@@ -74,6 +74,20 @@ export class SeedExtractionError extends RetrievalError {
 }
 
 /**
+ * Error for MAGMA executor operations
+ */
+export class ExecutorError extends RetrievalError {
+  constructor(
+    message: string,
+    public readonly step: string,
+    cause?: Error,
+  ) {
+    super(message, 'MAGMAExecutor', step, cause);
+    this.name = 'ExecutorError';
+  }
+}
+
+/**
  * Wrap unknown errors in RetrievalError
  */
 export function wrapRetrievalError(

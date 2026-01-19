@@ -11,6 +11,7 @@ export {
   type OrderingStrategy,
 } from './context-linearizer.js';
 export {
+  ExecutorError,
   LinearizationError,
   MergeError,
   RetrievalError,
