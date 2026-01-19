@@ -6,6 +6,7 @@ import type {
   MAGMAIntent,
   SynthesizerOutput,
 } from '@polyg-mcp/shared';
+import { z } from 'zod';
 import { IntentClassifier } from './agents/intent-classifier.js';
 import { Synthesizer } from './agents/synthesizer.js';
 import {
@@ -18,8 +19,20 @@ import { CrossLinker } from './graphs/cross-linker.js';
 import { EntityGraph } from './graphs/entity.js';
 import { SemanticGraph } from './graphs/semantic.js';
 import { TemporalGraph } from './graphs/temporal.js';
-import { ContextLinearizer } from './retrieval/context-linearizer.js';
+import {
+  ContextLinearizer,
+  OrchestratorError,
+  RetrievalValidationError,
+} from './retrieval/index.js';
 import type { FalkorDBAdapter } from './storage/falkordb.js';
+
+// Zod schema for config validation
+const OrchestratorConfigSchema = z.object({
+  semanticTopK: z.number().int().min(1).max(100).optional(),
+  minSemanticScore: z.number().min(0).max(1).optional(),
+  timeout: z.number().int().min(100).max(60000).optional(),
+  maxContextTokens: z.number().int().min(100).max(100000).optional(),
+});
 
 export interface OrchestratorConfig {
   /** MAGMA semantic search top-K (default: 10) */
@@ -31,6 +44,13 @@ export interface OrchestratorConfig {
   /** Context linearizer max tokens (default: 4000) */
   maxContextTokens?: number;
 }
+
+const DEFAULT_CONFIG: Required<OrchestratorConfig> = {
+  semanticTopK: 10,
+  minSemanticScore: 0.5,
+  timeout: 5000,
+  maxContextTokens: 4000,
+};
 
 /**
  * Orchestrator connects all pipeline components using MAGMA-style retrieval:
@@ -63,6 +83,25 @@ export class Orchestrator {
     readonly embeddings: EmbeddingProvider,
     config: OrchestratorConfig = {},
   ) {
+    // Validate config
+    const configResult = OrchestratorConfigSchema.safeParse(config);
+    if (!configResult.success) {
+      const errors = configResult.error.issues.map(
+        (e: z.ZodIssue) => `${e.path.join('.')}: ${e.message}`,
+      );
+      throw new RetrievalValidationError(
+        `Invalid Orchestrator config: ${errors.join(', ')}`,
+        'Orchestrator',
+        errors,
+      );
+    }
+
+    // Merge with defaults
+    const validatedConfig = {
+      ...DEFAULT_CONFIG,
+      ...configResult.data,
+    };
+
     // Initialize graphs
     this.entityGraph = new EntityGraph(db);
     this.temporalGraph = new TemporalGraph(db);
@@ -83,13 +122,13 @@ export class Orchestrator {
       crossLinker: this.crossLinker,
     };
     this.executor = new MAGMAExecutor(graphRegistry, {
-      semanticTopK: config.semanticTopK ?? 10,
-      minSemanticScore: config.minSemanticScore ?? 0.5,
-      timeout: config.timeout ?? 5000,
+      semanticTopK: validatedConfig.semanticTopK,
+      minSemanticScore: validatedConfig.minSemanticScore,
+      timeout: validatedConfig.timeout,
     });
 
     // Initialize context linearizer
-    this.linearizer = new ContextLinearizer(config.maxContextTokens ?? 4000);
+    this.linearizer = new ContextLinearizer(validatedConfig.maxContextTokens);
   }
 
   /**
@@ -103,34 +142,59 @@ export class Orchestrator {
    * @param query - The user's natural language query
    * @param context - Optional context for the query
    * @returns Synthesized response with answer and reasoning
-   * @throws {Error} With step-specific context if any stage fails
+   * @throws {OrchestratorError} With step-specific context if any stage fails
+   * @throws {RetrievalValidationError} If query validation fails
    */
   async recall(query: string, context?: string): Promise<SynthesizerOutput> {
+    // Validate query
+    if (!query || typeof query !== 'string' || query.trim().length === 0) {
+      throw new RetrievalValidationError(
+        'Query must be a non-empty string',
+        'Orchestrator',
+        ['query: must be a non-empty string'],
+      );
+    }
+
     // Step 1: Classify intent using MAGMA classification (WHY/WHEN/WHO/WHAT)
     const classifierInput: ClassifierInput = { query, context };
-    const intent = await this.classifier
-      .classifyMAGMA(classifierInput)
-      .catch((error) => {
-        throw new Error(
-          `Intent classification failed: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      });
+    let intent: MAGMAIntent;
+    try {
+      intent = await this.classifier.classifyMAGMA(classifierInput);
+    } catch (error) {
+      throw new OrchestratorError(
+        `Intent classification failed: ${error instanceof Error ? error.message : String(error)}`,
+        'classification',
+        error instanceof Error ? error : undefined,
+      );
+    }
 
     // Step 2: Execute MAGMA retrieval pipeline
     // (semantic search → seed extraction → parallel expansion → merge)
-    const executionResult = await this.executor
-      .execute(query, intent)
-      .catch((error) => {
-        throw new Error(
-          `MAGMA execution failed: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      });
+    let executionResult: MAGMAExecutionResult;
+    try {
+      executionResult = await this.executor.execute(query, intent);
+    } catch (error) {
+      throw new OrchestratorError(
+        `MAGMA execution failed: ${error instanceof Error ? error.message : String(error)}`,
+        'execution',
+        error instanceof Error ? error : undefined,
+      );
+    }
 
     // Step 3: Linearize merged subgraph for LLM context
-    const linearizedContext = this.linearizer.linearize(
-      executionResult.merged,
-      intent.type,
-    );
+    let linearizedContext;
+    try {
+      linearizedContext = this.linearizer.linearize(
+        executionResult.merged,
+        intent.type,
+      );
+    } catch (error) {
+      throw new OrchestratorError(
+        `Context linearization failed: ${error instanceof Error ? error.message : String(error)}`,
+        'linearization',
+        error instanceof Error ? error : undefined,
+      );
+    }
 
     // Step 4: Synthesize the results into a coherent response
     // Map MAGMA intent type to legacy intent for synthesizer compatibility
@@ -184,13 +248,15 @@ export class Orchestrator {
       graph_results: graphResults,
     };
 
-    return await this.synthesizer
-      .synthesize(synthesizerInput)
-      .catch((error) => {
-        throw new Error(
-          `Response synthesis failed: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      });
+    try {
+      return await this.synthesizer.synthesize(synthesizerInput);
+    } catch (error) {
+      throw new OrchestratorError(
+        `Response synthesis failed: ${error instanceof Error ? error.message : String(error)}`,
+        'synthesis',
+        error instanceof Error ? error : undefined,
+      );
+    }
   }
 
   /**
@@ -204,14 +270,46 @@ export class Orchestrator {
    * @param query - The user's natural language query
    * @param context - Optional context for the query
    * @returns MAGMA execution result with merged subgraph and timing
+   * @throws {OrchestratorError} With step-specific context if any stage fails
+   * @throws {RetrievalValidationError} If query validation fails
    */
   async recallRaw(
     query: string,
     context?: string,
   ): Promise<MAGMAExecutionResult & { intent: MAGMAIntent }> {
+    // Validate query
+    if (!query || typeof query !== 'string' || query.trim().length === 0) {
+      throw new RetrievalValidationError(
+        'Query must be a non-empty string',
+        'Orchestrator',
+        ['query: must be a non-empty string'],
+      );
+    }
+
     const classifierInput: ClassifierInput = { query, context };
-    const intent = await this.classifier.classifyMAGMA(classifierInput);
-    const result = await this.executor.execute(query, intent);
+
+    let intent: MAGMAIntent;
+    try {
+      intent = await this.classifier.classifyMAGMA(classifierInput);
+    } catch (error) {
+      throw new OrchestratorError(
+        `Intent classification failed: ${error instanceof Error ? error.message : String(error)}`,
+        'classification',
+        error instanceof Error ? error : undefined,
+      );
+    }
+
+    let result: MAGMAExecutionResult;
+    try {
+      result = await this.executor.execute(query, intent);
+    } catch (error) {
+      throw new OrchestratorError(
+        `MAGMA execution failed: ${error instanceof Error ? error.message : String(error)}`,
+        'execution',
+        error instanceof Error ? error : undefined,
+      );
+    }
+
     return { ...result, intent };
   }
 

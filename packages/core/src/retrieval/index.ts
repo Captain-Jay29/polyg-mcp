@@ -14,6 +14,7 @@ export {
   ExecutorError,
   LinearizationError,
   MergeError,
+  OrchestratorError,
   RetrievalError,
   RetrievalValidationError,
   SeedExtractionError,
