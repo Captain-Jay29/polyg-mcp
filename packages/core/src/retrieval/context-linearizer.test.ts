@@ -1,6 +1,12 @@
 // Tests for ContextLinearizer
+
+import type {
+  GraphViewSource,
+  MAGMAIntentType,
+  MergedSubgraph,
+  ScoredNode,
+} from '@polyg-mcp/shared';
 import { describe, expect, it } from 'vitest';
-import type { GraphViewSource, MAGMAIntentType, MergedSubgraph, ScoredNode } from '@polyg-mcp/shared';
 import { ContextLinearizer } from './context-linearizer.js';
 import { RetrievalValidationError } from './errors.js';
 
@@ -45,7 +51,9 @@ describe('ContextLinearizer', () => {
     });
 
     it('should throw for maxTokens above maximum (100000)', () => {
-      expect(() => new ContextLinearizer(200000)).toThrow(RetrievalValidationError);
+      expect(() => new ContextLinearizer(200000)).toThrow(
+        RetrievalValidationError,
+      );
     });
 
     it('should accept minimum valid maxTokens', () => {
@@ -74,7 +82,10 @@ describe('ContextLinearizer', () => {
 
       it('should linearize single node', () => {
         const linearizer = new ContextLinearizer();
-        const node = createNode('n1', { name: 'Test Node', entity_type: 'Concept' });
+        const node = createNode('n1', {
+          name: 'Test Node',
+          entity_type: 'Concept',
+        });
         const merged = createMergedSubgraph([node]);
         const result = linearizer.linearize(merged, 'EXPLORE');
 
@@ -101,7 +112,10 @@ describe('ContextLinearizer', () => {
 
       it('should include view sources in output', () => {
         const linearizer = new ContextLinearizer();
-        const node = createNode('n1', { name: 'Multi-view' }, ['semantic', 'entity']);
+        const node = createNode('n1', { name: 'Multi-view' }, [
+          'semantic',
+          'entity',
+        ]);
         const merged = createMergedSubgraph([node]);
         const result = linearizer.linearize(merged, 'EXPLORE');
 
@@ -202,8 +216,18 @@ describe('ContextLinearizer', () => {
       it('should order temporal nodes by date when available', () => {
         const linearizer = new ContextLinearizer();
         const nodes = [
-          createNode('later', { name: 'Later', occurred_at: '2024-06-15' }, ['temporal'], 0.9),
-          createNode('earlier', { name: 'Earlier', occurred_at: '2024-01-01' }, ['temporal'], 0.8),
+          createNode(
+            'later',
+            { name: 'Later', occurred_at: '2024-06-15' },
+            ['temporal'],
+            0.9,
+          ),
+          createNode(
+            'earlier',
+            { name: 'Earlier', occurred_at: '2024-01-01' },
+            ['temporal'],
+            0.8,
+          ),
         ];
         const merged = createMergedSubgraph(nodes);
         const result = linearizer.linearize(merged, 'WHEN');
@@ -216,9 +240,24 @@ describe('ContextLinearizer', () => {
       it('should group nodes by entity type for WHO/WHAT intent', () => {
         const linearizer = new ContextLinearizer();
         const nodes = [
-          createNode('p1', { name: 'Person 1', entity_type: 'Person' }, ['entity'], 0.9),
-          createNode('o1', { name: 'Org 1', entity_type: 'Organization' }, ['entity'], 0.95),
-          createNode('p2', { name: 'Person 2', entity_type: 'Person' }, ['entity'], 0.8),
+          createNode(
+            'p1',
+            { name: 'Person 1', entity_type: 'Person' },
+            ['entity'],
+            0.9,
+          ),
+          createNode(
+            'o1',
+            { name: 'Org 1', entity_type: 'Organization' },
+            ['entity'],
+            0.95,
+          ),
+          createNode(
+            'p2',
+            { name: 'Person 2', entity_type: 'Person' },
+            ['entity'],
+            0.8,
+          ),
         ];
         const merged = createMergedSubgraph(nodes);
         const result = linearizer.linearize(merged, 'WHO');
@@ -234,8 +273,18 @@ describe('ContextLinearizer', () => {
       it('should order by score within same entity type group', () => {
         const linearizer = new ContextLinearizer();
         const nodes = [
-          createNode('low', { name: 'Low Score', entity_type: 'Person' }, ['entity'], 0.5),
-          createNode('high', { name: 'High Score', entity_type: 'Person' }, ['entity'], 0.9),
+          createNode(
+            'low',
+            { name: 'Low Score', entity_type: 'Person' },
+            ['entity'],
+            0.5,
+          ),
+          createNode(
+            'high',
+            { name: 'High Score', entity_type: 'Person' },
+            ['entity'],
+            0.9,
+          ),
         ];
         const merged = createMergedSubgraph(nodes);
         const result = linearizer.linearize(merged, 'WHO');
@@ -266,7 +315,10 @@ describe('ContextLinearizer', () => {
     describe('node formatting', () => {
       it('should format node with name and type', () => {
         const linearizer = new ContextLinearizer();
-        const node = createNode('n1', { name: 'Test Entity', entity_type: 'Service' });
+        const node = createNode('n1', {
+          name: 'Test Entity',
+          entity_type: 'Service',
+        });
         const merged = createMergedSubgraph([node]);
         const result = linearizer.linearize(merged, 'EXPLORE');
 
@@ -284,7 +336,11 @@ describe('ContextLinearizer', () => {
 
       it('should show confidence for causal_chain strategy', () => {
         const linearizer = new ContextLinearizer();
-        const node = createNode('n1', { name: 'Causal Node', confidence: 0.85 }, ['causal']);
+        const node = createNode(
+          'n1',
+          { name: 'Causal Node', confidence: 0.85 },
+          ['causal'],
+        );
         const merged = createMergedSubgraph([node]);
         const result = linearizer.linearize(merged, 'WHY');
 
@@ -293,7 +349,11 @@ describe('ContextLinearizer', () => {
 
       it('should show date for temporal strategy', () => {
         const linearizer = new ContextLinearizer();
-        const node = createNode('n1', { name: 'Event', occurred_at: '2024-03-15' }, ['temporal']);
+        const node = createNode(
+          'n1',
+          { name: 'Event', occurred_at: '2024-03-15' },
+          ['temporal'],
+        );
         const merged = createMergedSubgraph([node]);
         const result = linearizer.linearize(merged, 'WHEN');
 
@@ -310,7 +370,9 @@ describe('ContextLinearizer', () => {
         const result = linearizer.linearize(merged, 'EXPLORE');
 
         expect(result.text).toContain('Server');
-        expect(result.text).toContain('A production web server handling API requests');
+        expect(result.text).toContain(
+          'A production web server handling API requests',
+        );
       });
 
       it('should truncate long descriptions', () => {
@@ -330,9 +392,14 @@ describe('ContextLinearizer', () => {
       it('should truncate when exceeding maxTokens', () => {
         const linearizer = new ContextLinearizer(150); // Very low token limit
         // Create nodes with longer content to ensure truncation
-        const longDescription = 'This is a longer description that takes up more tokens in the context window to ensure truncation happens properly.';
+        const longDescription =
+          'This is a longer description that takes up more tokens in the context window to ensure truncation happens properly.';
         const nodes = Array.from({ length: 20 }, (_, i) =>
-          createNode(`n${i}`, { name: `Node Number ${i}`, description: longDescription, entity_type: 'TestType' }),
+          createNode(`n${i}`, {
+            name: `Node Number ${i}`,
+            description: longDescription,
+            entity_type: 'TestType',
+          }),
         );
         const merged = createMergedSubgraph(nodes);
         const result = linearizer.linearize(merged, 'EXPLORE');
@@ -356,7 +423,9 @@ describe('ContextLinearizer', () => {
         const merged = createMergedSubgraph(nodes);
         const result = linearizer.linearize(merged, 'EXPLORE');
 
-        expect(result.text).not.toContain('[... additional context truncated ...]');
+        expect(result.text).not.toContain(
+          '[... additional context truncated ...]',
+        );
         expect(result.nodeCount).toBe(2);
       });
     });
@@ -395,9 +464,9 @@ describe('ContextLinearizer', () => {
       it('should throw for null merged subgraph', () => {
         const linearizer = new ContextLinearizer();
 
-        expect(() => linearizer.linearize(null as unknown as MergedSubgraph, 'EXPLORE')).toThrow(
-          RetrievalValidationError,
-        );
+        expect(() =>
+          linearizer.linearize(null as unknown as MergedSubgraph, 'EXPLORE'),
+        ).toThrow(RetrievalValidationError);
       });
     });
   });
@@ -406,8 +475,12 @@ describe('ContextLinearizer', () => {
     it('should extract date from occurred_at field', () => {
       const linearizer = new ContextLinearizer();
       const nodes = [
-        createNode('n1', { name: 'Event 1', occurred_at: '2024-06-01' }, ['temporal']),
-        createNode('n2', { name: 'Event 2', occurred_at: '2024-01-01' }, ['temporal']),
+        createNode('n1', { name: 'Event 1', occurred_at: '2024-06-01' }, [
+          'temporal',
+        ]),
+        createNode('n2', { name: 'Event 2', occurred_at: '2024-01-01' }, [
+          'temporal',
+        ]),
       ];
       const merged = createMergedSubgraph(nodes);
       const result = linearizer.linearize(merged, 'WHEN');
@@ -421,8 +494,12 @@ describe('ContextLinearizer', () => {
     it('should extract date from valid_from field', () => {
       const linearizer = new ContextLinearizer();
       const nodes = [
-        createNode('n1', { name: 'Later', valid_from: '2024-12-01' }, ['temporal']),
-        createNode('n2', { name: 'Earlier', valid_from: '2024-01-01' }, ['temporal']),
+        createNode('n1', { name: 'Later', valid_from: '2024-12-01' }, [
+          'temporal',
+        ]),
+        createNode('n2', { name: 'Earlier', valid_from: '2024-01-01' }, [
+          'temporal',
+        ]),
       ];
       const merged = createMergedSubgraph(nodes);
       const result = linearizer.linearize(merged, 'WHEN');
@@ -435,8 +512,18 @@ describe('ContextLinearizer', () => {
     it('should fall back to score when dates are invalid', () => {
       const linearizer = new ContextLinearizer();
       const nodes = [
-        createNode('low', { name: 'Low Score', occurred_at: 'invalid' }, ['temporal'], 0.3),
-        createNode('high', { name: 'High Score', occurred_at: 'also-invalid' }, ['temporal'], 0.9),
+        createNode(
+          'low',
+          { name: 'Low Score', occurred_at: 'invalid' },
+          ['temporal'],
+          0.3,
+        ),
+        createNode(
+          'high',
+          { name: 'High Score', occurred_at: 'also-invalid' },
+          ['temporal'],
+          0.9,
+        ),
       ];
       const merged = createMergedSubgraph(nodes);
       const result = linearizer.linearize(merged, 'WHEN');
@@ -453,7 +540,9 @@ describe('ContextLinearizer', () => {
       const linearizer = new ContextLinearizer();
       const nodes = [
         createNode('n1', { name: 'N1', entity_type: 'Person' }, ['entity']),
-        createNode('n2', { name: 'N2', entity_type: 'Organization' }, ['entity']),
+        createNode('n2', { name: 'N2', entity_type: 'Organization' }, [
+          'entity',
+        ]),
       ];
       const merged = createMergedSubgraph(nodes);
       const result = linearizer.linearize(merged, 'WHO');

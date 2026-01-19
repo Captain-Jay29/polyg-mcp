@@ -1,8 +1,9 @@
 // Tests for SubgraphMerger
-import { describe, expect, it } from 'vitest';
+
 import type { GraphView } from '@polyg-mcp/shared';
-import { SubgraphMerger } from './subgraph-merger.js';
+import { describe, expect, it } from 'vitest';
 import { RetrievalValidationError } from './errors.js';
+import { SubgraphMerger } from './subgraph-merger.js';
 
 describe('SubgraphMerger', () => {
   describe('constructor', () => {
@@ -182,9 +183,9 @@ describe('SubgraphMerger', () => {
 
     it('should throw for non-array input', () => {
       const merger = new SubgraphMerger();
-      expect(() => merger.merge('not an array' as unknown as GraphView[])).toThrow(
-        RetrievalValidationError,
-      );
+      expect(() =>
+        merger.merge('not an array' as unknown as GraphView[]),
+      ).toThrow(RetrievalValidationError);
     });
 
     it('should throw for invalid view structure', () => {
@@ -193,7 +194,9 @@ describe('SubgraphMerger', () => {
         { source: 'invalid_source', nodes: [] },
       ] as unknown as GraphView[];
 
-      expect(() => merger.merge(invalidViews)).toThrow(RetrievalValidationError);
+      expect(() => merger.merge(invalidViews)).toThrow(
+        RetrievalValidationError,
+      );
     });
 
     it('should handle three-view boost correctly', () => {
@@ -240,7 +243,10 @@ describe('SubgraphMerger', () => {
       const merger = new SubgraphMerger({ minNodesPerView: 5 });
       const view: GraphView = {
         source: 'semantic',
-        nodes: [{ uuid: 'n1', data: {} }, { uuid: 'n2', data: {} }],
+        nodes: [
+          { uuid: 'n1', data: {} },
+          { uuid: 'n2', data: {} },
+        ],
       };
       expect(merger.hasMinimumNodes(view)).toBe(false);
     });
@@ -274,7 +280,10 @@ describe('SubgraphMerger', () => {
 
     it('should throw for negative n', () => {
       const merger = new SubgraphMerger();
-      const merged = { nodes: [], viewContributions: { semantic: 0, entity: 0, temporal: 0, causal: 0 } };
+      const merged = {
+        nodes: [],
+        viewContributions: { semantic: 0, entity: 0, temporal: 0, causal: 0 },
+      };
       expect(() => merger.topN(merged, -1)).toThrow(RetrievalValidationError);
     });
   });
@@ -305,8 +314,13 @@ describe('SubgraphMerger', () => {
 
     it('should throw for minViews < 1', () => {
       const merger = new SubgraphMerger();
-      const merged = { nodes: [], viewContributions: { semantic: 0, entity: 0, temporal: 0, causal: 0 } };
-      expect(() => merger.filterByViewCount(merged, 0)).toThrow(RetrievalValidationError);
+      const merged = {
+        nodes: [],
+        viewContributions: { semantic: 0, entity: 0, temporal: 0, causal: 0 },
+      };
+      expect(() => merger.filterByViewCount(merged, 0)).toThrow(
+        RetrievalValidationError,
+      );
     });
   });
 
@@ -332,8 +346,13 @@ describe('SubgraphMerger', () => {
 
     it('should throw for negative minScore', () => {
       const merger = new SubgraphMerger();
-      const merged = { nodes: [], viewContributions: { semantic: 0, entity: 0, temporal: 0, causal: 0 } };
-      expect(() => merger.filterByScore(merged, -0.5)).toThrow(RetrievalValidationError);
+      const merged = {
+        nodes: [],
+        viewContributions: { semantic: 0, entity: 0, temporal: 0, causal: 0 },
+      };
+      expect(() => merger.filterByScore(merged, -0.5)).toThrow(
+        RetrievalValidationError,
+      );
     });
   });
 

@@ -1,14 +1,15 @@
 // Tests for seed-extractor functions
-import { describe, expect, it, vi } from 'vitest';
+
 import type { SemanticMatch } from '@polyg-mcp/shared';
+import { describe, expect, it, vi } from 'vitest';
 import type { CrossLink, CrossLinker } from '../graphs/cross-linker.js';
 import { RetrievalValidationError, SeedExtractionError } from './errors.js';
 import {
   filterSeedsByScore,
   getEntityIds,
+  type SeedEntity,
   seedFromSemantic,
   seedFromSemanticBatch,
-  type SeedEntity,
 } from './seed-extractor.js';
 
 // Helper to create a mock CrossLinker
@@ -160,7 +161,10 @@ describe('seedFromSemantic', () => {
       const crossLinker = createMockCrossLinker({});
 
       await expect(
-        seedFromSemantic('not an array' as unknown as SemanticMatch[], crossLinker),
+        seedFromSemantic(
+          'not an array' as unknown as SemanticMatch[],
+          crossLinker,
+        ),
       ).rejects.toThrow(RetrievalValidationError);
     });
 
@@ -174,9 +178,9 @@ describe('seedFromSemantic', () => {
       const crossLinker = createMockCrossLinker({});
       const invalidMatches = [{ invalid: true }] as unknown as SemanticMatch[];
 
-      await expect(seedFromSemantic(invalidMatches, crossLinker)).rejects.toThrow(
-        RetrievalValidationError,
-      );
+      await expect(
+        seedFromSemantic(invalidMatches, crossLinker),
+      ).rejects.toThrow(RetrievalValidationError);
     });
   });
 
@@ -235,13 +239,13 @@ describe('seedFromSemanticBatch', () => {
   it('should throw for batch size less than 1', async () => {
     const crossLinker = createMockCrossLinker({});
 
-    await expect(
-      seedFromSemanticBatch([], crossLinker, 0),
-    ).rejects.toThrow(RetrievalValidationError);
+    await expect(seedFromSemanticBatch([], crossLinker, 0)).rejects.toThrow(
+      RetrievalValidationError,
+    );
 
-    await expect(
-      seedFromSemanticBatch([], crossLinker, -5),
-    ).rejects.toThrow(RetrievalValidationError);
+    await expect(seedFromSemanticBatch([], crossLinker, -5)).rejects.toThrow(
+      RetrievalValidationError,
+    );
   });
 
   it('should deduplicate across batches', async () => {
@@ -274,7 +278,10 @@ describe('seedFromSemanticBatch', () => {
       const crossLinker = createMockCrossLinker({});
 
       await expect(
-        seedFromSemanticBatch('invalid' as unknown as SemanticMatch[], crossLinker),
+        seedFromSemanticBatch(
+          'invalid' as unknown as SemanticMatch[],
+          crossLinker,
+        ),
       ).rejects.toThrow(RetrievalValidationError);
     });
   });

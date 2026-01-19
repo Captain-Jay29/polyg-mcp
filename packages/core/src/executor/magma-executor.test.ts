@@ -1,12 +1,13 @@
 // Tests for MAGMAExecutor
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+
 import type { MAGMAIntent, SemanticMatch } from '@polyg-mcp/shared';
-import { RetrievalValidationError, ExecutorError } from '../retrieval/index.js';
-import type { CrossLinker, CrossLink } from '../graphs/cross-linker.js';
+import { describe, expect, it, vi } from 'vitest';
 import type { CausalGraph } from '../graphs/causal.js';
+import type { CrossLink, CrossLinker } from '../graphs/cross-linker.js';
 import type { EntityGraph } from '../graphs/entity.js';
 import type { SemanticGraph } from '../graphs/semantic.js';
 import type { TemporalGraph } from '../graphs/temporal.js';
+import { ExecutorError, RetrievalValidationError } from '../retrieval/index.js';
 import { MAGMAExecutor, type MAGMAGraphRegistry } from './magma-executor.js';
 
 // Mock data helpers
@@ -40,13 +41,18 @@ function createValidIntent(
 }
 
 // Mock graph factory
-function createMockGraphs(options: {
-  semanticResults?: SemanticMatch[];
-  crossLinks?: Record<string, CrossLink[]>;
-  entityRelationships?: Record<string, { source: { uuid: string }; target: { uuid: string } }[]>;
-  temporalEvents?: Record<string, { uuid: string; description: string }[]>;
-  causalLinks?: { cause: string; effect: string; confidence: number }[];
-} = {}): MAGMAGraphRegistry {
+function createMockGraphs(
+  options: {
+    semanticResults?: SemanticMatch[];
+    crossLinks?: Record<string, CrossLink[]>;
+    entityRelationships?: Record<
+      string,
+      { source: { uuid: string }; target: { uuid: string } }[]
+    >;
+    temporalEvents?: Record<string, { uuid: string; description: string }[]>;
+    causalLinks?: { cause: string; effect: string; confidence: number }[];
+  } = {},
+): MAGMAGraphRegistry {
   const {
     semanticResults = [],
     crossLinks = {},
@@ -124,12 +130,12 @@ describe('MAGMAExecutor', () => {
     it('should throw for invalid minSemanticScore', () => {
       const graphs = createMockGraphs();
 
-      expect(() => new MAGMAExecutor(graphs, { minSemanticScore: -0.1 })).toThrow(
-        RetrievalValidationError,
-      );
-      expect(() => new MAGMAExecutor(graphs, { minSemanticScore: 1.5 })).toThrow(
-        RetrievalValidationError,
-      );
+      expect(
+        () => new MAGMAExecutor(graphs, { minSemanticScore: -0.1 }),
+      ).toThrow(RetrievalValidationError);
+      expect(
+        () => new MAGMAExecutor(graphs, { minSemanticScore: 1.5 }),
+      ).toThrow(RetrievalValidationError);
     });
 
     it('should throw for invalid timeout', () => {
@@ -184,9 +190,9 @@ describe('MAGMAExecutor', () => {
         const executor = new MAGMAExecutor(graphs);
         const intent = createValidIntent();
 
-        await expect(executor.execute(null as unknown as string, intent)).rejects.toThrow(
-          RetrievalValidationError,
-        );
+        await expect(
+          executor.execute(null as unknown as string, intent),
+        ).rejects.toThrow(RetrievalValidationError);
       });
 
       it('should throw for invalid intent', async () => {
@@ -194,7 +200,9 @@ describe('MAGMAExecutor', () => {
         const executor = new MAGMAExecutor(graphs);
 
         await expect(
-          executor.execute('test query', { invalid: true } as unknown as MAGMAIntent),
+          executor.execute('test query', {
+            invalid: true,
+          } as unknown as MAGMAIntent),
         ).rejects.toThrow(RetrievalValidationError);
       });
     });
@@ -223,9 +231,7 @@ describe('MAGMAExecutor', () => {
     describe('full pipeline flow', () => {
       it('should execute full MAGMA pipeline with all graphs', async () => {
         const graphs = createMockGraphs({
-          semanticResults: [
-            createSemanticMatch('concept1', 0.9),
-          ],
+          semanticResults: [createSemanticMatch('concept1', 0.9)],
           crossLinks: {
             concept1: [createCrossLink('concept1', 'entity1')],
           },
@@ -247,7 +253,10 @@ describe('MAGMAExecutor', () => {
           depthHints: { entity: 1, temporal: 1, causal: 2 },
         });
 
-        const result = await executor.execute('why did the deployment fail?', intent);
+        const result = await executor.execute(
+          'why did the deployment fail?',
+          intent,
+        );
 
         // Should have semantic, entity, temporal, and causal views
         expect(result.merged.viewContributions.semantic).toBeGreaterThan(0);
@@ -402,7 +411,11 @@ describe('MAGMAExecutor', () => {
             concept1: [createCrossLink('concept1', 'entity1')],
           },
           causalLinks: [
-            { cause: 'misconfiguration', effect: 'server crash', confidence: 0.9 },
+            {
+              cause: 'misconfiguration',
+              effect: 'server crash',
+              confidence: 0.9,
+            },
             { cause: 'server crash', effect: 'data loss', confidence: 0.85 },
           ],
         });
@@ -412,7 +425,10 @@ describe('MAGMAExecutor', () => {
           depthHints: { entity: 1, temporal: 1, causal: 3 },
         });
 
-        const result = await executor.execute('why did the server crash?', intent);
+        const result = await executor.execute(
+          'why did the server crash?',
+          intent,
+        );
 
         // 4 unique nodes: misconfiguration, server crash, data loss (server crash is cause and effect)
         expect(result.merged.viewContributions.causal).toBeGreaterThan(0);
@@ -456,9 +472,10 @@ describe('MAGMAExecutor', () => {
         // Total should be at least the sum of parts
         expect(result.timing.totalMs).toBeGreaterThanOrEqual(
           result.timing.semanticMs +
-          result.timing.seedExtractionMs +
-          result.timing.expansionMs +
-          result.timing.mergeMs - 10, // Allow small margin for timing variations
+            result.timing.seedExtractionMs +
+            result.timing.expansionMs +
+            result.timing.mergeMs -
+            10, // Allow small margin for timing variations
         );
       });
     });
