@@ -1,4 +1,11 @@
-// Parallel Graph Executor - queries multiple graphs concurrently
+/**
+ * Parallel Graph Executor - queries multiple graphs concurrently
+ *
+ * @deprecated This executor will be replaced by MAGMAExecutor in Phase 4.
+ * The current implementation queries graphs independently based on intent,
+ * while MAGMAExecutor uses semantic seeding for cascading graph traversal:
+ * semantic search → seed extraction → parallel expansion from seeds → merge
+ */
 import type {
   ClassifierOutput,
   GraphResult,
@@ -16,6 +23,9 @@ export interface GraphRegistry {
   entity: EntityGraph;
 }
 
+/**
+ * @deprecated Use MAGMAExecutor (Phase 4) for new implementations
+ */
 export class ParallelGraphExecutor {
   constructor(
     private graphs: GraphRegistry,

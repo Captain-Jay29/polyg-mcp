@@ -18,7 +18,12 @@ export class IntentClassifier {
   constructor(private llm: LLMProvider) {}
 
   /**
-   * Classify a natural language query into structured intents
+   * Classify a natural language query into structured intents (legacy graph-centric)
+   *
+   * @deprecated Use classifyMAGMA() for new implementations. This method uses
+   * graph-centric intents (semantic/temporal/causal/entity) which will be
+   * replaced by question-centric intents (WHY/WHEN/WHO/WHAT) in Phase 5.
+   *
    * @throws {ClassifierError} When classification fails
    * @throws {LLMResponseParseError} When LLM response is not valid JSON
    * @throws {LLMResponseValidationError} When LLM response fails schema validation

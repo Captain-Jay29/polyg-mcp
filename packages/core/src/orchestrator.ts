@@ -74,9 +74,15 @@ export class Orchestrator {
   }
 
   /**
-   * Recall - the main LLM-powered query pipeline
+   * Recall - the main LLM-powered query pipeline (legacy graph-centric)
    *
    * Flow: Query → IntentClassifier → ParallelGraphExecutor → Synthesizer → Response
+   *
+   * @deprecated This method will be replaced by recallMAGMA() in Phase 5.
+   * The current implementation uses graph-centric intents (semantic/temporal/causal/entity)
+   * with independent parallel queries. MAGMA uses question-centric intents (WHY/WHEN/WHO/WHAT)
+   * with semantic seeding and cascading graph traversal.
+   *
    * @throws {Error} With step-specific context if any stage fails
    */
   async recall(query: string, context?: string): Promise<SynthesizerOutput> {
