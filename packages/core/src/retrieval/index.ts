@@ -11,6 +11,14 @@ export {
   type OrderingStrategy,
 } from './context-linearizer.js';
 export {
+  LinearizationError,
+  MergeError,
+  RetrievalError,
+  RetrievalValidationError,
+  SeedExtractionError,
+  wrapRetrievalError,
+} from './errors.js';
+export {
   filterSeedsByScore,
   getEntityIds,
   type SeedEntity,

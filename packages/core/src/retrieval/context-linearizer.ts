@@ -4,28 +4,41 @@
  * Part of MAGMA retrieval: formats merged subgraph into a linear context
  * string optimized for the query intent type.
  */
-import type {
-  MAGMAIntentType,
-  MergedSubgraph,
-  ScoredNode,
+import {
+  type MAGMAIntentType,
+  MAGMAIntentTypeSchema,
+  type MergedSubgraph,
+  MergedSubgraphSchema,
+  type ScoredNode,
 } from '@polyg-mcp/shared';
+import { z } from 'zod';
+import { LinearizationError, RetrievalValidationError } from './errors.js';
 
-export interface LinearizedContext {
-  /** Formatted context string for LLM */
-  text: string;
-  /** Number of nodes included */
-  nodeCount: number;
-  /** Ordering strategy used */
-  strategy: OrderingStrategy;
-  /** Token estimate (rough, ~4 chars per token) */
-  estimatedTokens: number;
-}
+// Schema for linearized context output
+const LinearizedContextSchema = z.object({
+  text: z.string(),
+  nodeCount: z.number().int().min(0),
+  strategy: z.enum([
+    'causal_chain',
+    'temporal',
+    'entity_grouped',
+    'score_ranked',
+  ]),
+  estimatedTokens: z.number().int().min(0),
+});
+
+export type LinearizedContext = z.infer<typeof LinearizedContextSchema>;
 
 export type OrderingStrategy =
   | 'causal_chain' // WHY: cause → effect ordering
   | 'temporal' // WHEN: chronological ordering
   | 'entity_grouped' // WHO/WHAT: group by entity type
   | 'score_ranked'; // EXPLORE: by relevance score
+
+// Schema for constructor options
+const LinearizerOptionsSchema = z.object({
+  maxTokens: z.number().int().min(100).max(100000).default(4000),
+});
 
 /**
  * ContextLinearizer formats merged subgraphs into LLM-ready context strings.
@@ -35,26 +48,102 @@ export class ContextLinearizer {
   private maxTokens: number;
 
   constructor(maxTokens = 4000) {
-    this.maxTokens = maxTokens;
+    const result = LinearizerOptionsSchema.safeParse({ maxTokens });
+    if (!result.success) {
+      throw new RetrievalValidationError(
+        'Invalid linearizer options',
+        'ContextLinearizer',
+        result.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`),
+      );
+    }
+    this.maxTokens = result.data.maxTokens;
   }
 
   /**
    * Linearize merged subgraph based on intent type
+   * @throws {RetrievalValidationError} If inputs are invalid
+   * @throws {LinearizationError} If linearization fails
    */
   linearize(
     merged: MergedSubgraph,
     intentType: MAGMAIntentType,
   ): LinearizedContext {
-    const strategy = this.getStrategy(intentType);
-    const orderedNodes = this.orderNodes(merged.nodes, strategy);
-    const text = this.formatContext(orderedNodes, strategy, intentType);
+    // Validate inputs
+    const validatedMerged = this.validateMergedSubgraph(merged);
+    const validatedIntent = this.validateIntentType(intentType);
 
-    return {
-      text,
-      nodeCount: orderedNodes.length,
-      strategy,
-      estimatedTokens: Math.ceil(text.length / 4),
-    };
+    try {
+      const strategy = this.getStrategy(validatedIntent);
+      const orderedNodes = this.orderNodes(validatedMerged.nodes, strategy);
+      const text = this.formatContext(orderedNodes, strategy, validatedIntent);
+
+      const result: LinearizedContext = {
+        text,
+        nodeCount: orderedNodes.length,
+        strategy,
+        estimatedTokens: Math.ceil(text.length / 4),
+      };
+
+      // Validate output
+      return this.validateOutput(result);
+    } catch (error) {
+      if (
+        error instanceof RetrievalValidationError ||
+        error instanceof LinearizationError
+      ) {
+        throw error;
+      }
+      throw new LinearizationError(
+        `Failed to linearize context for intent ${intentType}`,
+        intentType,
+        error instanceof Error ? error : undefined,
+      );
+    }
+  }
+
+  /**
+   * Validate merged subgraph input
+   */
+  private validateMergedSubgraph(merged: MergedSubgraph): MergedSubgraph {
+    const result = MergedSubgraphSchema.safeParse(merged);
+    if (!result.success) {
+      throw new RetrievalValidationError(
+        'Invalid merged subgraph',
+        'ContextLinearizer',
+        result.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`),
+      );
+    }
+    return result.data;
+  }
+
+  /**
+   * Validate intent type
+   */
+  private validateIntentType(intentType: MAGMAIntentType): MAGMAIntentType {
+    const result = MAGMAIntentTypeSchema.safeParse(intentType);
+    if (!result.success) {
+      throw new RetrievalValidationError(
+        `Invalid intent type: ${intentType}`,
+        'ContextLinearizer',
+        [`Expected one of: WHY, WHEN, WHO, WHAT, EXPLORE. Got: ${intentType}`],
+      );
+    }
+    return result.data;
+  }
+
+  /**
+   * Validate output
+   */
+  private validateOutput(result: LinearizedContext): LinearizedContext {
+    const validated = LinearizedContextSchema.safeParse(result);
+    if (!validated.success) {
+      throw new RetrievalValidationError(
+        'Invalid linearization result',
+        'ContextLinearizer',
+        validated.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`),
+      );
+    }
+    return validated.data;
   }
 
   /**
@@ -116,6 +205,7 @@ export class ContextLinearizer {
           if (aType !== bType) return aType.localeCompare(bType);
           return b.finalScore - a.finalScore;
         });
+
       default:
         // Default: pure score ranking
         return ordered.sort((a, b) => b.finalScore - a.finalScore);
@@ -265,5 +355,12 @@ export class ContextLinearizer {
     if (!data || typeof data !== 'object') return 'unknown';
     const obj = data as Record<string, unknown>;
     return String(obj.entity_type || obj.node_type || obj.type || 'unknown');
+  }
+
+  /**
+   * Get max tokens setting (for debugging/testing)
+   */
+  getMaxTokens(): number {
+    return this.maxTokens;
   }
 }

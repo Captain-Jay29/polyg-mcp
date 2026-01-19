@@ -4,29 +4,85 @@
  * Part of MAGMA retrieval: uses X_REPRESENTS cross-links to find entity IDs
  * from semantic concept matches, providing seeds for graph traversal.
  */
-import type { SemanticMatch } from '@polyg-mcp/shared';
+import { type SemanticMatch, SemanticMatchSchema } from '@polyg-mcp/shared';
+import { z } from 'zod';
 import type { CrossLinker } from '../graphs/cross-linker.js';
+import { RetrievalValidationError, SeedExtractionError } from './errors.js';
 
-export interface SeedEntity {
-  /** Entity UUID */
-  entityId: string;
-  /** Source concept UUID that linked to this entity */
-  sourceConceptId: string;
-  /** Semantic score from the original match */
-  semanticScore: number;
+// Schema for seed entity
+const SeedEntitySchema = z.object({
+  entityId: z.string().min(1),
+  sourceConceptId: z.string().min(1),
+  semanticScore: z.number().min(0).max(1),
+});
+
+export type SeedEntity = z.infer<typeof SeedEntitySchema>;
+
+// Schema for extraction result
+const SeedExtractionResultSchema = z.object({
+  entitySeeds: z.array(SeedEntitySchema),
+  conceptIds: z.array(z.string()),
+  stats: z.object({
+    conceptsSearched: z.number().int().min(0),
+    entitiesFound: z.number().int().min(0),
+    conceptsWithoutLinks: z.number().int().min(0),
+  }),
+});
+
+export type SeedExtractionResult = z.infer<typeof SeedExtractionResultSchema>;
+
+/**
+ * Validate semantic matches array
+ */
+function validateSemanticMatches(matches: SemanticMatch[]): SemanticMatch[] {
+  if (!Array.isArray(matches)) {
+    throw new RetrievalValidationError(
+      'Semantic matches must be an array',
+      'SeedExtractor',
+      [`Expected array, got ${typeof matches}`],
+    );
+  }
+
+  const errors: string[] = [];
+  const validated: SemanticMatch[] = [];
+
+  for (let i = 0; i < matches.length; i++) {
+    const result = SemanticMatchSchema.safeParse(matches[i]);
+    if (result.success) {
+      validated.push(result.data);
+    } else {
+      errors.push(
+        ...result.error.issues.map(
+          (issue) => `matches[${i}].${issue.path.join('.')}: ${issue.message}`,
+        ),
+      );
+    }
+  }
+
+  if (errors.length > 0) {
+    throw new RetrievalValidationError(
+      `Invalid semantic matches: ${errors.length} validation error(s)`,
+      'SeedExtractor',
+      errors,
+    );
+  }
+
+  return validated;
 }
 
-export interface SeedExtractionResult {
-  /** Entity IDs suitable for graph traversal */
-  entitySeeds: SeedEntity[];
-  /** Concept IDs from semantic search (for fallback) */
-  conceptIds: string[];
-  /** Statistics */
-  stats: {
-    conceptsSearched: number;
-    entitiesFound: number;
-    conceptsWithoutLinks: number;
-  };
+/**
+ * Validate extraction result
+ */
+function validateResult(result: SeedExtractionResult): SeedExtractionResult {
+  const validated = SeedExtractionResultSchema.safeParse(result);
+  if (!validated.success) {
+    throw new RetrievalValidationError(
+      'Invalid extraction result',
+      'SeedExtractor',
+      validated.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`),
+    );
+  }
+  return validated.data;
 }
 
 /**
@@ -40,85 +96,38 @@ export interface SeedExtractionResult {
  * @param semanticMatches - Results from semantic graph search
  * @param crossLinker - CrossLinker instance for following X_REPRESENTS
  * @returns Entity seeds for graph traversal
+ * @throws {RetrievalValidationError} If inputs are invalid
+ * @throws {SeedExtractionError} If extraction fails
  */
 export async function seedFromSemantic(
   semanticMatches: SemanticMatch[],
   crossLinker: CrossLinker,
 ): Promise<SeedExtractionResult> {
-  const entitySeeds: SeedEntity[] = [];
-  const conceptIds: string[] = [];
-  const seenEntities = new Set<string>();
-  let conceptsWithoutLinks = 0;
+  // Validate inputs
+  const validatedMatches = validateSemanticMatches(semanticMatches);
 
-  for (const match of semanticMatches) {
-    const conceptId = match.concept.uuid;
-    conceptIds.push(conceptId);
-
-    // Get all outgoing cross-links from this concept
-    const links = await crossLinker.getLinksFrom(conceptId);
-
-    // Filter to X_REPRESENTS links (Concept → Entity)
-    const entityLinks = links.filter((l) => l.linkType === 'X_REPRESENTS');
-
-    if (entityLinks.length === 0) {
-      conceptsWithoutLinks++;
-      continue;
-    }
-
-    // Add each linked entity as a seed
-    for (const link of entityLinks) {
-      if (!seenEntities.has(link.targetId)) {
-        seenEntities.add(link.targetId);
-        entitySeeds.push({
-          entityId: link.targetId,
-          sourceConceptId: conceptId,
-          semanticScore: match.score,
-        });
-      }
-    }
+  if (!crossLinker) {
+    throw new RetrievalValidationError(
+      'CrossLinker is required',
+      'SeedExtractor',
+      ['crossLinker parameter is null or undefined'],
+    );
   }
 
-  return {
-    entitySeeds,
-    conceptIds,
-    stats: {
-      conceptsSearched: semanticMatches.length,
-      entitiesFound: entitySeeds.length,
-      conceptsWithoutLinks,
-    },
-  };
-}
+  try {
+    const entitySeeds: SeedEntity[] = [];
+    const conceptIds: string[] = [];
+    const seenEntities = new Set<string>();
+    let conceptsWithoutLinks = 0;
 
-/**
- * Batch version of seed extraction for efficiency with large result sets.
- * Groups concepts and makes fewer database calls.
- */
-export async function seedFromSemanticBatch(
-  semanticMatches: SemanticMatch[],
-  crossLinker: CrossLinker,
-  batchSize = 10,
-): Promise<SeedExtractionResult> {
-  const entitySeeds: SeedEntity[] = [];
-  const conceptIds: string[] = [];
-  const seenEntities = new Set<string>();
-  let conceptsWithoutLinks = 0;
+    for (const match of validatedMatches) {
+      const conceptId = match.concept.uuid;
+      conceptIds.push(conceptId);
 
-  // Process in batches
-  for (let i = 0; i < semanticMatches.length; i += batchSize) {
-    const batch = semanticMatches.slice(i, i + batchSize);
+      // Get all outgoing cross-links from this concept
+      const links = await crossLinker.getLinksFrom(conceptId);
 
-    // Process batch in parallel
-    const linkResults = await Promise.all(
-      batch.map(async (match) => {
-        const conceptId = match.concept.uuid;
-        conceptIds.push(conceptId);
-        const links = await crossLinker.getLinksFrom(conceptId);
-        return { match, conceptId, links };
-      }),
-    );
-
-    // Collect results
-    for (const { match, conceptId, links } of linkResults) {
+      // Filter to X_REPRESENTS links (Concept → Entity)
       const entityLinks = links.filter((l) => l.linkType === 'X_REPRESENTS');
 
       if (entityLinks.length === 0) {
@@ -126,6 +135,7 @@ export async function seedFromSemanticBatch(
         continue;
       }
 
+      // Add each linked entity as a seed
       for (const link of entityLinks) {
         if (!seenEntities.has(link.targetId)) {
           seenEntities.add(link.targetId);
@@ -137,23 +147,137 @@ export async function seedFromSemanticBatch(
         }
       }
     }
+
+    const result: SeedExtractionResult = {
+      entitySeeds,
+      conceptIds,
+      stats: {
+        conceptsSearched: validatedMatches.length,
+        entitiesFound: entitySeeds.length,
+        conceptsWithoutLinks,
+      },
+    };
+
+    return validateResult(result);
+  } catch (error) {
+    if (error instanceof RetrievalValidationError) {
+      throw error;
+    }
+    throw new SeedExtractionError(
+      'Failed to extract seeds from semantic matches',
+      semanticMatches.length,
+      error instanceof Error ? error : undefined,
+    );
+  }
+}
+
+/**
+ * Batch version of seed extraction for efficiency with large result sets.
+ * Groups concepts and makes fewer database calls.
+ *
+ * @throws {RetrievalValidationError} If inputs are invalid
+ * @throws {SeedExtractionError} If extraction fails
+ */
+export async function seedFromSemanticBatch(
+  semanticMatches: SemanticMatch[],
+  crossLinker: CrossLinker,
+  batchSize = 10,
+): Promise<SeedExtractionResult> {
+  // Validate inputs
+  const validatedMatches = validateSemanticMatches(semanticMatches);
+
+  if (!crossLinker) {
+    throw new RetrievalValidationError(
+      'CrossLinker is required',
+      'SeedExtractor',
+      ['crossLinker parameter is null or undefined'],
+    );
   }
 
-  return {
-    entitySeeds,
-    conceptIds,
-    stats: {
-      conceptsSearched: semanticMatches.length,
-      entitiesFound: entitySeeds.length,
-      conceptsWithoutLinks,
-    },
-  };
+  if (batchSize < 1) {
+    throw new RetrievalValidationError(
+      'Batch size must be at least 1',
+      'SeedExtractor',
+      [`Expected batchSize >= 1, got ${batchSize}`],
+    );
+  }
+
+  try {
+    const entitySeeds: SeedEntity[] = [];
+    const conceptIds: string[] = [];
+    const seenEntities = new Set<string>();
+    let conceptsWithoutLinks = 0;
+
+    // Process in batches
+    for (let i = 0; i < validatedMatches.length; i += batchSize) {
+      const batch = validatedMatches.slice(i, i + batchSize);
+
+      // Process batch in parallel
+      const linkResults = await Promise.all(
+        batch.map(async (match) => {
+          const conceptId = match.concept.uuid;
+          conceptIds.push(conceptId);
+          const links = await crossLinker.getLinksFrom(conceptId);
+          return { match, conceptId, links };
+        }),
+      );
+
+      // Collect results
+      for (const { match, conceptId, links } of linkResults) {
+        const entityLinks = links.filter((l) => l.linkType === 'X_REPRESENTS');
+
+        if (entityLinks.length === 0) {
+          conceptsWithoutLinks++;
+          continue;
+        }
+
+        for (const link of entityLinks) {
+          if (!seenEntities.has(link.targetId)) {
+            seenEntities.add(link.targetId);
+            entitySeeds.push({
+              entityId: link.targetId,
+              sourceConceptId: conceptId,
+              semanticScore: match.score,
+            });
+          }
+        }
+      }
+    }
+
+    const result: SeedExtractionResult = {
+      entitySeeds,
+      conceptIds,
+      stats: {
+        conceptsSearched: validatedMatches.length,
+        entitiesFound: entitySeeds.length,
+        conceptsWithoutLinks,
+      },
+    };
+
+    return validateResult(result);
+  } catch (error) {
+    if (error instanceof RetrievalValidationError) {
+      throw error;
+    }
+    throw new SeedExtractionError(
+      'Failed to extract seeds from semantic matches (batch)',
+      semanticMatches.length,
+      error instanceof Error ? error : undefined,
+    );
+  }
 }
 
 /**
  * Get unique entity IDs from seeds (simple array for traversal)
  */
 export function getEntityIds(seeds: SeedEntity[]): string[] {
+  if (!Array.isArray(seeds)) {
+    throw new RetrievalValidationError(
+      'Seeds must be an array',
+      'SeedExtractor',
+      [`Expected array, got ${typeof seeds}`],
+    );
+  }
   return seeds.map((s) => s.entityId);
 }
 
@@ -164,5 +288,19 @@ export function filterSeedsByScore(
   seeds: SeedEntity[],
   minScore: number,
 ): SeedEntity[] {
+  if (!Array.isArray(seeds)) {
+    throw new RetrievalValidationError(
+      'Seeds must be an array',
+      'SeedExtractor',
+      [`Expected array, got ${typeof seeds}`],
+    );
+  }
+  if (minScore < 0 || minScore > 1) {
+    throw new RetrievalValidationError(
+      'minScore must be between 0 and 1',
+      'SeedExtractor',
+      [`Expected 0 <= minScore <= 1, got ${minScore}`],
+    );
+  }
   return seeds.filter((s) => s.semanticScore >= minScore);
 }
