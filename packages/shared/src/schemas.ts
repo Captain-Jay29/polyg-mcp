@@ -177,6 +177,114 @@ export const MergedSubgraphSchema = z.object({
   viewContributions: z.record(GraphViewSourceSchema, z.number()),
 });
 
+// ============================================================================
+// MAGMA Tool Schemas - for MAGMA-style retrieval MCP tools
+// ============================================================================
+
+// semantic_search - Find seed concepts via vector similarity
+export const SemanticSearchSchema = z.object({
+  query: z.string().describe('Natural language query for semantic search'),
+  limit: z
+    .number()
+    .int()
+    .min(1)
+    .max(100)
+    .optional()
+    .describe('Maximum number of results (default: 10)'),
+  min_score: z
+    .number()
+    .min(0)
+    .max(1)
+    .optional()
+    .describe('Minimum similarity score threshold (default: 0.5)'),
+});
+
+// entity_lookup - Expand entity relationships from seeds
+export const EntityLookupSchema = z.object({
+  entity_ids: z
+    .array(z.string())
+    .min(1)
+    .describe('Entity UUIDs or names to expand from'),
+  depth: z
+    .number()
+    .int()
+    .min(1)
+    .max(5)
+    .optional()
+    .describe('Relationship traversal depth (default: 2)'),
+  include_properties: z
+    .boolean()
+    .optional()
+    .describe('Include entity properties in response'),
+});
+
+// temporal_expand - Query events involving seed entities
+export const TemporalExpandSchema = z.object({
+  entity_ids: z
+    .array(z.string())
+    .min(1)
+    .describe('Entity UUIDs to find events for'),
+  from: z.string().optional().describe('Start date (ISO format)'),
+  to: z.string().optional().describe('End date (ISO format)'),
+  depth: z
+    .number()
+    .int()
+    .min(1)
+    .max(5)
+    .optional()
+    .describe('Temporal chain traversal depth (default: 2)'),
+});
+
+// causal_expand - Traverse causal chains from seed entities
+export const CausalExpandSchema = z.object({
+  entity_ids: z
+    .array(z.string())
+    .min(1)
+    .describe('Entity UUIDs to find causal chains for'),
+  direction: z
+    .enum(['upstream', 'downstream', 'both'])
+    .optional()
+    .describe('Direction to traverse (default: both)'),
+  depth: z
+    .number()
+    .int()
+    .min(1)
+    .max(5)
+    .optional()
+    .describe('Causal chain traversal depth (default: 3)'),
+});
+
+// subgraph_merge - Combine and score graph views
+export const SubgraphMergeSchema = z.object({
+  views: z.array(GraphViewSchema).min(1).describe('Graph views to merge'),
+  multi_view_boost: z
+    .number()
+    .min(1)
+    .optional()
+    .describe('Score multiplier for nodes in multiple views (default: 1.5)'),
+  min_score: z
+    .number()
+    .min(0)
+    .max(1)
+    .optional()
+    .describe('Minimum score threshold for pruning'),
+});
+
+// linearize_context - Format merged subgraph for LLM
+export const LinearizeContextSchema = z.object({
+  subgraph: MergedSubgraphSchema.describe('Merged subgraph to linearize'),
+  intent: MAGMAIntentTypeSchema.describe(
+    'Intent type for ordering strategy (WHY, WHEN, WHO, WHAT, EXPLORE)',
+  ),
+  max_tokens: z
+    .number()
+    .int()
+    .min(100)
+    .max(100000)
+    .optional()
+    .describe('Maximum context tokens (default: 4000)'),
+});
+
 // MAGMA configuration
 export const MAGMAConfigSchema = z.object({
   // Seeding
@@ -475,6 +583,14 @@ export type SearchSemanticInput = z.infer<typeof SearchSemanticSchema>;
 export type AddConceptInput = z.infer<typeof AddConceptSchema>;
 export type ClearGraphInput = z.infer<typeof ClearGraphSchema>;
 export type ExportGraphInput = z.infer<typeof ExportGraphSchema>;
+
+// MAGMA tool input types
+export type SemanticSearchInput = z.infer<typeof SemanticSearchSchema>;
+export type EntityLookupInput = z.infer<typeof EntityLookupSchema>;
+export type TemporalExpandInput = z.infer<typeof TemporalExpandSchema>;
+export type CausalExpandInput = z.infer<typeof CausalExpandSchema>;
+export type SubgraphMergeInput = z.infer<typeof SubgraphMergeSchema>;
+export type LinearizeContextInput = z.infer<typeof LinearizeContextSchema>;
 
 // LLM output types (legacy)
 export type IntentType = z.infer<typeof IntentTypeSchema>;
