@@ -4,7 +4,7 @@ import { MCPClient } from './agent/mcp-client.js';
 import { seedDeploymentIncident } from './datasets/deployment-incident.js';
 
 async function main(): Promise<void> {
-  const serverUrl = process.env.POLYG_SERVER_URL ?? 'http://localhost:3000';
+  const serverUrl = process.env.POLYG_SERVER_URL ?? 'http://localhost:4000';
   const dataset = process.argv[2] ?? 'deployment-incident';
 
   console.log(`Connecting to MCP server at ${serverUrl}...`);

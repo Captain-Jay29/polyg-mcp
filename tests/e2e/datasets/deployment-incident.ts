@@ -8,6 +8,12 @@ export interface DeploymentIncidentData {
   events: EventData[];
   causalLinks: CausalLinkData[];
   facts: FactData[];
+  concepts: ConceptData[];
+}
+
+interface ConceptData {
+  name: string;
+  description: string;
 }
 
 interface EntityData {
@@ -255,34 +261,97 @@ export const DEPLOYMENT_INCIDENT: DeploymentIncidentData = {
       validFrom: '2026-01-15T14:24:00Z',
     },
   ],
+
+  // Semantic concepts for MAGMA retrieval - these enable semantic search entry points
+  concepts: [
+    // Service concepts
+    {
+      name: 'auth-service',
+      description:
+        'Authentication service handling JWT tokens and user login, a critical microservice in the platform',
+    },
+    {
+      name: 'api-gateway',
+      description:
+        'API Gateway service that routes requests and depends on auth-service for authentication',
+    },
+    {
+      name: 'user-dashboard',
+      description:
+        'User dashboard frontend application that displays user information and depends on API gateway',
+    },
+    // Incident concepts
+    {
+      name: 'JWT_SECRET missing',
+      description:
+        'Missing JWT_SECRET environment variable that caused auth-service to crash during deployment',
+    },
+    {
+      name: 'production incident',
+      description:
+        'Production incident on January 15 2026 caused by missing JWT_SECRET in auth-service deployment',
+    },
+    {
+      name: 'CrashLoopBackOff',
+      description:
+        'Kubernetes pod state when a container repeatedly crashes and restarts',
+    },
+    {
+      name: 'cascading failure',
+      description:
+        'Failure pattern where auth-service crash caused api-gateway 503 errors and user-dashboard unresponsiveness',
+    },
+    // People concepts
+    {
+      name: 'Alice SRE engineer',
+      description:
+        'Alice is an SRE on the platform team who investigated and fixed the auth-service incident',
+    },
+    {
+      name: 'Bob developer',
+      description:
+        'Bob is a developer on the platform team who deployed auth-service v2.3.0',
+    },
+    // Infrastructure concepts
+    {
+      name: 'kubernetes deployment',
+      description:
+        'Kubernetes cluster deployment of auth-service v2.3.0 that triggered the incident',
+    },
+    {
+      name: 'secrets management',
+      description:
+        'AWS Secrets Manager that stores the JWT_SECRET environment variable for auth-service',
+    },
+  ],
 };
 
-// Test queries with expected behaviors
+// Test queries with expected behaviors - updated for MAGMA retrieval tools
 export const TEST_QUERIES = [
   {
     query: 'What caused the auth service to fail?',
-    expectedTools: ['get_causal_chain', 'explain_why'],
+    expectedTools: ['semantic_search', 'causal_expand'],
     expectedInAnswer: ['JWT_SECRET', 'environment variable', 'missing'],
   },
   {
     query: 'What happened between 2pm and 3pm on January 15th?',
-    expectedTools: ['query_timeline'],
+    expectedTools: ['semantic_search', 'temporal_expand'],
     expectedInAnswer: ['deployment', 'CrashLoopBackOff', 'recovered'],
   },
   {
     query: 'Who was involved in the incident response?',
-    expectedTools: ['get_entity', 'query_timeline'],
+    expectedTools: ['semantic_search', 'entity_lookup'],
     expectedInAnswer: ['alice', 'bob'],
   },
   {
     query: 'What services depend on auth-service?',
-    expectedTools: ['get_entity'],
+    expectedTools: ['semantic_search', 'entity_lookup'],
     expectedInAnswer: ['api-gateway'],
   },
   {
     query:
       'What was the root cause of the user dashboard becoming unresponsive?',
-    expectedTools: ['get_causal_chain', 'explain_why'],
+    expectedTools: ['semantic_search', 'causal_expand'],
     expectedInAnswer: ['JWT_SECRET', 'auth-service', 'api-gateway'],
   },
 ];
@@ -381,6 +450,21 @@ export async function seedDeploymentIncident(client: MCPClient): Promise<void> {
       errors++;
       const msg = error instanceof Error ? error.message : String(error);
       console.error(`  ✗ ERROR adding fact: ${msg}`);
+    }
+  }
+
+  // Add semantic concepts (required for MAGMA retrieval via semantic_search)
+  for (const concept of DEPLOYMENT_INCIDENT.concepts) {
+    try {
+      await client.callTool('add_concept', {
+        name: concept.name,
+        description: concept.description,
+      });
+      console.log(`  ✓ Added concept: ${concept.name}`);
+    } catch (error) {
+      errors++;
+      const msg = error instanceof Error ? error.message : String(error);
+      console.error(`  ✗ ERROR adding concept ${concept.name}: ${msg}`);
     }
   }
 

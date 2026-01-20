@@ -8,14 +8,13 @@ import {
   TEST_QUERIES,
 } from '../datasets/deployment-incident.js';
 
-// Skip if no API key or server not running
+// Skip if no API key available
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const SERVER_URL = process.env.POLYG_SERVER_URL ?? 'http://localhost:4000';
 
-// TODO: E2E tests need updating for MAGMA retrieval - write tools don't create
-// semantic concepts or X_REPRESENTS cross-links needed for semantic_search to work.
-// Skip until semantic indexing is implemented in write tools.
-describe.skip('Deployment Incident E2E Tests', { timeout: 120000 }, () => {
+// E2E tests for MAGMA retrieval pipeline
+// Requires: OPENAI_API_KEY env var and running polyg-mcp server
+describe.skipIf(!OPENAI_API_KEY)('Deployment Incident E2E Tests', { timeout: 120000 }, () => {
   let mcpClient: MCPClient;
   let agent: ReActAgent;
 
@@ -44,24 +43,40 @@ describe.skip('Deployment Incident E2E Tests', { timeout: 120000 }, () => {
   afterAll(async () => {
     // Clear test data
     try {
-      await mcpClient.callTool('clear_graph', { graphs: ['all'] });
+      await mcpClient.callTool('clear_graph', { graph: 'all' });
     } catch {
       // Ignore cleanup errors
     }
     await mcpClient.disconnect();
   });
 
-  it('should connect to MCP server and discover tools', () => {
+  it('should connect to MCP server and discover all 15 tools', () => {
     const tools = mcpClient.getTools();
-    expect(tools.length).toBeGreaterThan(0);
-
-    // Check for expected MAGMA tools
     const toolNames = tools.map((t) => t.name);
+
+    // Management tools (2)
+    expect(toolNames).toContain('get_statistics');
+    expect(toolNames).toContain('clear_graph');
+
+    // Write tools (7)
     expect(toolNames).toContain('remember');
+    expect(toolNames).toContain('add_entity');
+    expect(toolNames).toContain('link_entities');
+    expect(toolNames).toContain('add_event');
+    expect(toolNames).toContain('add_fact');
+    expect(toolNames).toContain('add_causal_link');
+    expect(toolNames).toContain('add_concept');
+
+    // MAGMA retrieval tools (6)
     expect(toolNames).toContain('semantic_search');
     expect(toolNames).toContain('entity_lookup');
     expect(toolNames).toContain('temporal_expand');
     expect(toolNames).toContain('causal_expand');
+    expect(toolNames).toContain('subgraph_merge');
+    expect(toolNames).toContain('linearize_context');
+
+    // Total should be 15
+    expect(tools.length).toBe(15);
   });
 
   describe('Causal Reasoning', () => {

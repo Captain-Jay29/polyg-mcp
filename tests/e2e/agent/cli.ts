@@ -18,7 +18,7 @@ interface CLIOptions {
 function parseArgs(): CLIOptions {
   const args = process.argv.slice(2);
   const options: CLIOptions = {
-    serverUrl: process.env.POLYG_SERVER_URL ?? 'http://localhost:3000',
+    serverUrl: process.env.POLYG_SERVER_URL ?? 'http://localhost:4000',
     model: process.env.POLYG_AGENT_MODEL ?? 'gpt-4o-mini',
     apiKey: process.env.OPENAI_API_KEY ?? '',
     maxSteps: 10,
@@ -73,7 +73,7 @@ polyg-mcp E2E Test Agent
 Usage: tsx tests/e2e/agent/cli.ts [options]
 
 Options:
-  -s, --server <url>      MCP server URL (default: http://localhost:3000)
+  -s, --server <url>      MCP server URL (default: http://localhost:4000)
   -m, --model <model>     OpenAI model to use (default: gpt-4o-mini)
   -k, --api-key <key>     OpenAI API key (or set OPENAI_API_KEY env var)
   --max-steps <n>         Maximum reasoning steps (default: 10)
@@ -101,7 +101,7 @@ Examples:
   tsx tests/e2e/agent/cli.ts -q "What caused the auth service failure?"
 
   # With custom server
-  tsx tests/e2e/agent/cli.ts -s http://localhost:4000 -i
+  tsx tests/e2e/agent/cli.ts -s http://localhost:3000 -i
 `);
 }
 
