@@ -210,6 +210,49 @@ describe('Tool Handlers', () => {
 
       expect(result.content[0].text).toContain('Added fact');
     });
+
+    it(
+      'should create X_INVOLVES link to subject entity',
+      { retry: 3 },
+      async () => {
+        const graphs = server.getOrchestrator().getGraphs();
+
+        // Create entity first
+        await graphs.entity.addEntity('auth-service', 'service');
+
+        await waitForConsistency();
+
+        // Add fact with subject_entity
+        const result = await callTool(server, 'add_fact', {
+          subject: 'auth-service',
+          predicate: 'status',
+          object: 'healthy',
+          valid_from: '2024-01-01T00:00:00Z',
+          subject_entity: 'auth-service',
+        });
+
+        expect(result.content[0].text).toContain('Added fact');
+        expect(result.content[0].text).toContain('about');
+        expect(result.content[0].text).toContain('auth-service');
+        expect(
+          (result.structuredContent as Record<string, unknown>).linkedEntity,
+        ).toBe('auth-service');
+      },
+    );
+
+    it('should silently skip non-existent subject entity', async () => {
+      const result = await callTool(server, 'add_fact', {
+        subject: 'SomeService',
+        predicate: 'status',
+        object: 'running',
+        valid_from: '2024-01-01T00:00:00Z',
+        subject_entity: 'non-existent-entity',
+      });
+
+      // Should succeed without the entity link
+      expect(result.content[0].text).toContain('Added fact');
+      expect(result.content[0].text).not.toContain('about');
+    });
   });
 
   // ==========================================================================
@@ -245,6 +288,98 @@ describe('Tool Handlers', () => {
 
       expect(result.content[0].text).toContain('Added causal link');
       expect(result.content[0].text).toContain('0.95');
+    });
+
+    it('should create X_AFFECTS links to entities', { retry: 3 }, async () => {
+      const graphs = server.getOrchestrator().getGraphs();
+
+      // Create entities first (vars unused - entities looked up by name)
+      await graphs.entity.addEntity('auth-service', 'service');
+      await graphs.entity.addEntity('JWT_SECRET', 'config');
+
+      await waitForConsistency();
+
+      // Create causal link with entities
+      const result = await callTool(server, 'add_causal_link', {
+        cause: 'Missing config',
+        effect: 'Service crash',
+        confidence: 0.95,
+        entities: ['auth-service', 'JWT_SECRET'],
+      });
+
+      expect(result.content[0].text).toContain('Added causal link');
+      expect(result.content[0].text).toContain('affects');
+      expect(result.content[0].text).toContain('auth-service');
+      expect(result.content[0].text).toContain('JWT_SECRET');
+    });
+
+    it('should create X_REFERS_TO links to events', { retry: 3 }, async () => {
+      const graphs = server.getOrchestrator().getGraphs();
+
+      // Create events first
+      await graphs.temporal.addEvent(
+        'Bob started deployment',
+        new Date('2024-01-15T14:00:00Z'),
+      );
+      await graphs.temporal.addEvent(
+        'Service crashed',
+        new Date('2024-01-15T14:03:00Z'),
+      );
+
+      await waitForConsistency();
+
+      // Create causal link with events
+      const result = await callTool(server, 'add_causal_link', {
+        cause: 'Deployment triggered',
+        effect: 'Service failure',
+        confidence: 0.9,
+        events: ['Bob started deployment', 'Service crashed'],
+      });
+
+      expect(result.content[0].text).toContain('Added causal link');
+      expect(result.content[0].text).toContain('refers to');
+    });
+
+    it(
+      'should handle both entities and events together',
+      { retry: 3 },
+      async () => {
+        const graphs = server.getOrchestrator().getGraphs();
+
+        // Create entities and events
+        await graphs.entity.addEntity('TestService', 'service');
+        await graphs.temporal.addEvent(
+          'Test event occurred',
+          new Date('2024-01-15T10:00:00Z'),
+        );
+
+        await waitForConsistency();
+
+        const result = await callTool(server, 'add_causal_link', {
+          cause: 'Config change',
+          effect: 'Service restart',
+          confidence: 0.85,
+          entities: ['TestService'],
+          events: ['Test event occurred'],
+        });
+
+        expect(result.content[0].text).toContain('Added causal link');
+        expect(result.content[0].text).toContain('affects');
+        expect(result.content[0].text).toContain('refers to');
+      },
+    );
+
+    it('should silently skip non-existent entities', async () => {
+      const result = await callTool(server, 'add_causal_link', {
+        cause: 'Some cause',
+        effect: 'Some effect',
+        confidence: 0.8,
+        entities: ['non-existent-entity'],
+      });
+
+      // Should succeed without the entity link
+      expect(result.content[0].text).toContain('Added causal link');
+      expect(result.content[0].text).not.toContain('affects');
     });
   });
 

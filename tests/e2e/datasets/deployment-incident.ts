@@ -1,51 +1,15 @@
 // Deployment Incident Test Dataset
 // Simulates a production incident caused by a missing environment variable
 
-import type { MCPClient } from '../agent/mcp-client.js';
+import { seedDataset } from './seed-utils.js';
+import type {
+  Dataset,
+  DatasetModule,
+  MCPClientLike,
+  TestQuery,
+} from './types.js';
 
-export interface DeploymentIncidentData {
-  entities: EntityData[];
-  events: EventData[];
-  causalLinks: CausalLinkData[];
-  facts: FactData[];
-  concepts: ConceptData[];
-}
-
-interface ConceptData {
-  name: string;
-  description: string;
-}
-
-interface EntityData {
-  name: string;
-  type: string;
-  properties?: Record<string, string>;
-  relationships?: { target: string; type: string }[];
-}
-
-interface EventData {
-  description: string;
-  timestamp: string;
-  entities: string[];
-}
-
-interface CausalLinkData {
-  cause: string;
-  effect: string;
-  confidence: number;
-  mechanism?: string;
-}
-
-interface FactData {
-  subject: string;
-  predicate: string;
-  object: string;
-  validFrom: string;
-  validTo?: string;
-}
-
-// The incident scenario data
-export const DEPLOYMENT_INCIDENT: DeploymentIncidentData = {
+export const DEPLOYMENT_INCIDENT: Dataset = {
   entities: [
     // Services
     {
@@ -187,36 +151,42 @@ export const DEPLOYMENT_INCIDENT: DeploymentIncidentData = {
       effect: 'auth-service deployment missing JWT_SECRET',
       confidence: 1.0,
       mechanism: 'code review missed the deletion',
+      entities: ['JWT_SECRET', 'auth-service', 'bob'],
     },
     {
       cause: 'auth-service deployment missing JWT_SECRET',
       effect: 'auth-service crashed on startup',
       confidence: 1.0,
       mechanism: 'required environment variable validation failed',
+      entities: ['auth-service', 'JWT_SECRET'],
     },
     {
       cause: 'auth-service crashed on startup',
       effect: 'auth-service pod entered CrashLoopBackOff',
       confidence: 1.0,
       mechanism: 'kubernetes restart policy',
+      entities: ['auth-service', 'kubernetes-cluster'],
     },
     {
       cause: 'auth-service pod entered CrashLoopBackOff',
       effect: 'api-gateway returned 503 errors',
       confidence: 0.95,
       mechanism: 'upstream service unavailable',
+      entities: ['auth-service', 'api-gateway'],
     },
     {
       cause: 'api-gateway returned 503 errors',
       effect: 'user-dashboard login became unresponsive',
       confidence: 0.9,
       mechanism: 'frontend depends on authentication API',
+      entities: ['api-gateway', 'user-dashboard'],
     },
     {
       cause: 'Alice added JWT_SECRET back to manifest',
       effect: 'auth-service pod became healthy',
       confidence: 1.0,
       mechanism: 'environment variable now available',
+      entities: ['alice', 'JWT_SECRET', 'auth-service'],
     },
   ],
 
@@ -268,66 +238,77 @@ export const DEPLOYMENT_INCIDENT: DeploymentIncidentData = {
     {
       name: 'auth-service',
       description:
-        'Authentication service handling JWT tokens and user login, a critical microservice in the platform',
+        'Authentication service handling JWT tokens and user login, a critical microservice in the platform. Owned by the platform team, written in TypeScript. Experienced a CrashLoopBackOff incident on January 15 2026 when JWT_SECRET environment variable was missing from deployment.',
+      entities: ['auth-service', 'JWT_SECRET', 'kubernetes-cluster'],
     },
     {
       name: 'api-gateway',
       description:
-        'API Gateway service that routes requests and depends on auth-service for authentication',
+        'API Gateway service that routes requests and depends on auth-service for authentication. Written in Go by the platform team. Started returning 503 errors when auth-service became unavailable during the January 2026 incident.',
+      entities: ['api-gateway', 'auth-service'],
     },
     {
       name: 'user-dashboard',
       description:
-        'User dashboard frontend application that displays user information and depends on API gateway',
+        'User dashboard frontend application built in React that displays user information and depends on API gateway for backend calls. Became unresponsive during the cascading failure when auth-service crashed.',
+      entities: ['user-dashboard', 'api-gateway'],
     },
     // Incident concepts
     {
       name: 'JWT_SECRET missing',
       description:
-        'Missing JWT_SECRET environment variable that caused auth-service to crash during deployment',
+        'Missing JWT_SECRET environment variable that caused auth-service to crash during deployment on January 15 2026. The variable was accidentally removed in PR #1234 and the deletion was missed during code review. Alice discovered the issue and Bob confirmed it.',
+      entities: ['JWT_SECRET', 'auth-service', 'alice', 'bob'],
     },
     {
       name: 'production incident',
       description:
-        'Production incident on January 15 2026 caused by missing JWT_SECRET in auth-service deployment',
+        'Production incident on January 15 2026 caused by missing JWT_SECRET in auth-service deployment. The incident lasted approximately 26 minutes from 14:00 to 14:26 UTC. Triggered PagerDuty alerts and required Alice (SRE) and Bob (developer) to investigate and resolve.',
+      entities: ['auth-service', 'JWT_SECRET', 'alice', 'bob'],
     },
     {
       name: 'CrashLoopBackOff',
       description:
-        'Kubernetes pod state when a container repeatedly crashes and restarts',
+        'Kubernetes pod state when a container repeatedly crashes and restarts. The auth-service entered CrashLoopBackOff at 14:03 UTC on January 15 2026 because it failed environment variable validation on startup without JWT_SECRET.',
+      entities: ['auth-service', 'kubernetes-cluster', 'JWT_SECRET'],
     },
     {
       name: 'cascading failure',
       description:
-        'Failure pattern where auth-service crash caused api-gateway 503 errors and user-dashboard unresponsiveness',
+        'Failure pattern where auth-service crash caused api-gateway 503 errors and user-dashboard unresponsiveness. The service dependency chain auth-service -> api-gateway -> user-dashboard propagated the failure through the system.',
+      entities: ['auth-service', 'api-gateway', 'user-dashboard'],
     },
     // People concepts
     {
       name: 'Alice SRE engineer',
       description:
-        'Alice is an SRE on the platform team who investigated and fixed the auth-service incident',
+        'Alice is an SRE on the platform team who investigated and fixed the auth-service incident on January 15 2026. She received the PagerDuty alert, discovered the missing JWT_SECRET, and redeployed the service with the fix.',
+      entities: ['alice', 'auth-service', 'JWT_SECRET'],
     },
     {
       name: 'Bob developer',
       description:
-        'Bob is a developer on the platform team who deployed auth-service v2.3.0',
+        'Bob is a developer on the platform team who deployed auth-service v2.3.0 on January 15 2026. He confirmed that the JWT_SECRET reference was accidentally removed in PR #1234 during the incident investigation.',
+      entities: ['bob', 'auth-service', 'JWT_SECRET'],
     },
     // Infrastructure concepts
     {
       name: 'kubernetes deployment',
       description:
-        'Kubernetes cluster deployment of auth-service v2.3.0 that triggered the incident',
+        'Kubernetes cluster deployment of auth-service v2.3.0 that triggered the incident. The cluster successfully pulled the container image but the pod entered CrashLoopBackOff due to missing environment variable.',
+      entities: ['kubernetes-cluster', 'auth-service'],
     },
     {
       name: 'secrets management',
       description:
-        'AWS Secrets Manager that stores the JWT_SECRET environment variable for auth-service',
+        'AWS Secrets Manager that stores the JWT_SECRET environment variable for auth-service. The secret existed in Secrets Manager but the reference to it was removed from the deployment manifest in PR #1234.',
+      entities: ['secrets-manager', 'JWT_SECRET', 'auth-service'],
     },
   ],
 };
 
 // Test queries with expected behaviors - updated for MAGMA retrieval tools
-export const TEST_QUERIES = [
+export const DEPLOYMENT_INCIDENT_QUERIES: TestQuery[] = [
   {
     query: 'What caused the auth service to fail?',
     expectedTools: ['semantic_search', 'causal_expand'],
@@ -356,122 +337,22 @@ export const TEST_QUERIES = [
   },
 ];
 
-// Seed the dataset into the MCP server
-export async function seedDeploymentIncident(client: MCPClient): Promise<void> {
-  console.log('Seeding deployment incident data...');
+// Legacy export for backwards compatibility
+export const TEST_QUERIES = DEPLOYMENT_INCIDENT_QUERIES;
 
-  let errors = 0;
-
-  // Add entities
-  for (const entity of DEPLOYMENT_INCIDENT.entities) {
-    try {
-      await client.callTool('add_entity', {
-        name: entity.name,
-        entity_type: entity.type,
-        properties: entity.properties ?? {},
-      });
-      console.log(`  ✓ Added entity: ${entity.name}`);
-    } catch (error) {
-      errors++;
-      const msg = error instanceof Error ? error.message : String(error);
-      console.error(`  ✗ ERROR adding entity ${entity.name}: ${msg}`);
-    }
-  }
-
-  // Add relationships
-  for (const entity of DEPLOYMENT_INCIDENT.entities) {
-    if (entity.relationships) {
-      for (const rel of entity.relationships) {
-        try {
-          await client.callTool('link_entities', {
-            source: entity.name,
-            target: rel.target,
-            relationship: rel.type,
-          });
-          console.log(
-            `  ✓ Added relationship: ${entity.name} -[${rel.type}]-> ${rel.target}`,
-          );
-        } catch (error) {
-          errors++;
-          const msg = error instanceof Error ? error.message : String(error);
-          console.error(`  ✗ ERROR adding relationship: ${msg}`);
-        }
-      }
-    }
-  }
-
-  // Add events
-  for (const event of DEPLOYMENT_INCIDENT.events) {
-    try {
-      await client.callTool('add_event', {
-        description: event.description,
-        occurred_at: event.timestamp,
-      });
-      console.log(`  ✓ Added event: ${event.description.slice(0, 50)}...`);
-    } catch (error) {
-      errors++;
-      const msg = error instanceof Error ? error.message : String(error);
-      console.error(`  ✗ ERROR adding event: ${msg}`);
-    }
-  }
-
-  // Add causal links
-  for (const link of DEPLOYMENT_INCIDENT.causalLinks) {
-    try {
-      await client.callTool('add_causal_link', {
-        cause: link.cause,
-        effect: link.effect,
-        confidence: link.confidence,
-      });
-      console.log(
-        `  ✓ Added causal link: ${link.cause.slice(0, 30)}... -> ${link.effect.slice(0, 30)}...`,
-      );
-    } catch (error) {
-      errors++;
-      const msg = error instanceof Error ? error.message : String(error);
-      console.error(`  ✗ ERROR adding causal link: ${msg}`);
-    }
-  }
-
-  // Add facts
-  for (const fact of DEPLOYMENT_INCIDENT.facts) {
-    try {
-      await client.callTool('add_fact', {
-        subject: fact.subject,
-        predicate: fact.predicate,
-        object: fact.object,
-        valid_from: fact.validFrom,
-        valid_to: fact.validTo,
-      });
-      console.log(
-        `  ✓ Added fact: ${fact.subject} ${fact.predicate} ${fact.object}`,
-      );
-    } catch (error) {
-      errors++;
-      const msg = error instanceof Error ? error.message : String(error);
-      console.error(`  ✗ ERROR adding fact: ${msg}`);
-    }
-  }
-
-  // Add semantic concepts (required for MAGMA retrieval via semantic_search)
-  for (const concept of DEPLOYMENT_INCIDENT.concepts) {
-    try {
-      await client.callTool('add_concept', {
-        name: concept.name,
-        description: concept.description,
-      });
-      console.log(`  ✓ Added concept: ${concept.name}`);
-    } catch (error) {
-      errors++;
-      const msg = error instanceof Error ? error.message : String(error);
-      console.error(`  ✗ ERROR adding concept ${concept.name}: ${msg}`);
-    }
-  }
-
-  console.log('');
-  if (errors > 0) {
-    console.error(`Dataset seeding completed with ${errors} error(s)!`);
-  } else {
-    console.log('Dataset seeding complete! All items added successfully.');
-  }
+export async function seedDeploymentIncident(
+  client: MCPClientLike,
+): Promise<void> {
+  await seedDataset(client, DEPLOYMENT_INCIDENT, 'Deployment Incident');
 }
+
+export const deploymentIncidentModule: DatasetModule = {
+  name: 'deployment-incident',
+  description: 'Missing environment variable causes cascading service failure',
+  data: DEPLOYMENT_INCIDENT,
+  queries: DEPLOYMENT_INCIDENT_QUERIES,
+  seed: seedDeploymentIncident,
+};
+
+// Legacy type exports for backwards compatibility
+export type { Dataset as DeploymentIncidentData } from './types.js';

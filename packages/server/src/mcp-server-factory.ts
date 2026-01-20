@@ -281,14 +281,39 @@ function registerAddEventTool(
           args.description,
           occurredAt,
         );
+
+        // Link event to entities if specified
+        const linkedEntities: string[] = [];
+        if (args.entities && Array.isArray(args.entities)) {
+          for (const entityRef of args.entities) {
+            try {
+              const entity = await graphs.entity.getEntity(entityRef);
+              if (entity) {
+                await graphs.temporal.linkEventToEntity(
+                  event.uuid,
+                  entity.uuid,
+                );
+                linkedEntities.push(entity.name);
+              }
+            } catch {
+              // Entity not found - skip silently
+            }
+          }
+        }
+
+        const linkedText =
+          linkedEntities.length > 0
+            ? ` (linked to: ${linkedEntities.join(', ')})`
+            : '';
+
         return {
           content: [
             {
               type: 'text' as const,
-              text: `Added event: ${event.description} at ${event.occurred_at.toISOString()}`,
+              text: `Added event: ${event.description} at ${event.occurred_at.toISOString()}${linkedText}`,
             },
           ],
-          structuredContent: event,
+          structuredContent: { ...event, linkedEntities },
         };
       } catch (error) {
         return formatToolError(error, 'add_event');
@@ -322,14 +347,31 @@ function registerAddFactTool(
           validFrom,
           validTo,
         );
+
+        // Link fact to subject entity if specified (creates X_INVOLVES relationship)
+        let linkedEntity: string | undefined;
+        if (args.subject_entity) {
+          try {
+            const entity = await graphs.entity.getEntity(args.subject_entity);
+            if (entity) {
+              await graphs.temporal.linkFactToEntity(fact.uuid, entity.uuid);
+              linkedEntity = entity.name;
+            }
+          } catch {
+            // Entity not found - skip silently
+          }
+        }
+
+        const linkedText = linkedEntity ? ` (about: ${linkedEntity})` : '';
+
         return {
           content: [
             {
               type: 'text' as const,
-              text: `Added fact: ${fact.subject} ${fact.predicate} ${fact.object}`,
+              text: `Added fact: ${fact.subject} ${fact.predicate} ${fact.object}${linkedText}`,
             },
           ],
-          structuredContent: fact,
+          structuredContent: { ...fact, linkedEntity },
         };
       } catch (error) {
         return formatToolError(error, 'add_fact');
@@ -391,11 +433,60 @@ function registerAddCausalLinkTool(
           );
         }
 
+        // Link causal nodes to entities if specified (creates X_AFFECTS relationships)
+        const linkedEntities: string[] = [];
+        if (args.entities && Array.isArray(args.entities)) {
+          for (const entityRef of args.entities) {
+            try {
+              const entity = await graphs.entity.getEntity(entityRef);
+              if (entity) {
+                // Link both cause and effect nodes to the entity
+                await graphs.causal.linkToEntity(causeNode.uuid, entity.uuid);
+                await graphs.causal.linkToEntity(effectNode.uuid, entity.uuid);
+                linkedEntities.push(entity.name);
+              }
+            } catch {
+              // Entity not found - skip silently
+            }
+          }
+        }
+
+        // Link causal nodes to events if specified (creates X_REFERS_TO relationships)
+        const linkedEvents: string[] = [];
+        if (args.events && Array.isArray(args.events)) {
+          for (const eventRef of args.events) {
+            try {
+              const event = await graphs.temporal.getEvent(eventRef);
+              if (event) {
+                // Link both cause and effect nodes to the event
+                await graphs.causal.linkToEvent(causeNode.uuid, event.uuid);
+                await graphs.causal.linkToEvent(effectNode.uuid, event.uuid);
+                linkedEvents.push(
+                  event.description.length > 40
+                    ? `${event.description.slice(0, 40)}...`
+                    : event.description,
+                );
+              }
+            } catch {
+              // Event not found - skip silently
+            }
+          }
+        }
+
+        const linkedEntityText =
+          linkedEntities.length > 0
+            ? ` (affects: ${linkedEntities.join(', ')})`
+            : '';
+        const linkedEventText =
+          linkedEvents.length > 0
+            ? ` (refers to: ${linkedEvents.join(', ')})`
+            : '';
+
         return {
           content: [
             {
               type: 'text' as const,
-              text: `Added causal link: ${args.cause} -> ${args.effect}${args.confidence ? ` (confidence: ${args.confidence})` : ''}`,
+              text: `Added causal link: ${args.cause} -> ${args.effect}${args.confidence ? ` (confidence: ${args.confidence})` : ''}${linkedEntityText}${linkedEventText}`,
             },
           ],
         };
@@ -424,17 +515,40 @@ function registerAddConceptTool(
           args.name,
           args.description,
         );
+
+        // Link concept to entities if specified (creates X_REPRESENTS relationships)
+        const linkedEntities: string[] = [];
+        if (args.entities && Array.isArray(args.entities)) {
+          for (const entityRef of args.entities) {
+            try {
+              const entity = await graphs.entity.getEntity(entityRef);
+              if (entity) {
+                await graphs.semantic.linkToEntity(concept.uuid, entity.uuid);
+                linkedEntities.push(entity.name);
+              }
+            } catch {
+              // Entity not found - skip silently
+            }
+          }
+        }
+
+        const linkedText =
+          linkedEntities.length > 0
+            ? ` (linked to: ${linkedEntities.join(', ')})`
+            : '';
+
         return {
           content: [
             {
               type: 'text' as const,
-              text: `Added concept: ${concept.name}${concept.description ? ` - ${concept.description}` : ''}`,
+              text: `Added concept: ${concept.name}${concept.description ? ` - ${concept.description}` : ''}${linkedText}`,
             },
           ],
           structuredContent: {
             uuid: concept.uuid,
             name: concept.name,
             description: concept.description,
+            linkedEntities,
           },
         };
       } catch (error) {
@@ -456,7 +570,7 @@ function registerSemanticSearchTool(
     'semantic_search',
     {
       description:
-        'Find seed concepts via vector similarity search. Returns concept matches with scores that can be used for graph expansion.',
+        'Find seed concepts via vector similarity search. Returns concept matches with scores and linked entity IDs (via X_REPRESENTS) that can be used for graph expansion tools like entity_lookup, temporal_expand, and causal_expand.',
       inputSchema: SemanticSearchSchema,
     },
     async (args) => {
@@ -473,22 +587,67 @@ function registerSemanticSearchTool(
 
       try {
         const graphs = resources.orchestrator.getGraphs();
+        const db = resources.db;
         const results = await graphs.semantic.search(query, limit);
 
         // Filter by minimum score
         const filtered = results.filter((r) => r.score >= min_score);
 
+        // For each concept, fetch linked entity IDs via X_REPRESENTS
+        const matchesWithEntities = await Promise.all(
+          filtered.map(async (match) => {
+            const linkedEntities = await db.query(
+              `MATCH (c:S_Concept {uuid: $conceptId})-[:X_REPRESENTS]->(e:E_Entity)
+               RETURN e.uuid AS entityId, e.name AS entityName`,
+              { conceptId: match.concept.uuid },
+            );
+            const entityIds = linkedEntities.records.map(
+              (r) => r.entityId as string,
+            );
+            const entityNames = linkedEntities.records.map(
+              (r) => r.entityName as string,
+            );
+            return {
+              ...match,
+              linkedEntityIds: entityIds,
+              linkedEntityNames: entityNames,
+            };
+          }),
+        );
+
+        // Collect all unique entity IDs for convenience
+        const allEntityIds = [
+          ...new Set(matchesWithEntities.flatMap((m) => m.linkedEntityIds)),
+        ];
+
+        // Format response with entity IDs prominently at the top for the agent
+        const responseObj = {
+          // PUT ENTITY IDS FIRST so agent sees them even if response is truncated
+          seedEntityIds: allEntityIds,
+          seedEntityCount: allEntityIds.length,
+          instruction:
+            'Use seedEntityIds (not concept UUIDs) for entity_lookup, temporal_expand, and causal_expand tools',
+          matches: matchesWithEntities.map((m) => ({
+            conceptName: m.concept.name,
+            conceptUuid: m.concept.uuid,
+            score: m.score,
+            linkedEntityIds: m.linkedEntityIds,
+            linkedEntityNames: m.linkedEntityNames,
+          })),
+        };
+
         return {
           content: [
             {
               type: 'text' as const,
-              text: JSON.stringify(filtered, null, 2),
+              text: JSON.stringify(responseObj, null, 2),
             },
           ],
           structuredContent: {
-            matches: filtered,
+            matches: matchesWithEntities,
+            allEntityIds,
             query,
-            total: filtered.length,
+            total: matchesWithEntities.length,
           },
         };
       } catch (error) {
@@ -698,31 +857,65 @@ function registerCausalExpandTool(
 
       try {
         const graphs = resources.orchestrator.getGraphs();
+        const db = resources.db;
 
-        // Create entity mentions for causal traversal
-        const entityMentions = entity_ids.map((id) => ({
-          mention: id,
-          type: undefined,
-        }));
-
-        const causalLinks = await graphs.causal.traverse(
-          entityMentions,
-          direction,
-          depth,
+        // Find C_Node nodes linked to the given entities via X_AFFECTS
+        const causalNodeResult = await db.query(
+          `MATCH (c:C_Node)-[:X_AFFECTS]->(e:E_Entity)
+           WHERE e.uuid IN $entityIds
+           RETURN DISTINCT c.uuid AS nodeId, c.description AS description`,
+          { entityIds: entity_ids },
         );
+
+        // Traverse causal chains from each found C_Node
+        const allLinks: Array<{
+          cause: string;
+          effect: string;
+          confidence: number;
+          evidence?: string;
+        }> = [];
+
+        for (const record of causalNodeResult.records) {
+          const nodeId = record.nodeId as string;
+
+          if (direction === 'upstream' || direction === 'both') {
+            const upstream = await graphs.causal.getUpstreamCauses(
+              nodeId,
+              depth,
+            );
+            allLinks.push(...upstream);
+          }
+
+          if (direction === 'downstream' || direction === 'both') {
+            const downstream = await graphs.causal.getDownstreamEffects(
+              nodeId,
+              depth,
+            );
+            allLinks.push(...downstream);
+          }
+        }
+
+        // Deduplicate links
+        const seen = new Set<string>();
+        const uniqueLinks = allLinks.filter((link) => {
+          const key = `${link.cause}->${link.effect}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
 
         return {
           content: [
             {
               type: 'text' as const,
-              text: JSON.stringify(causalLinks, null, 2),
+              text: JSON.stringify(uniqueLinks, null, 2),
             },
           ],
           structuredContent: {
-            links: causalLinks,
+            links: uniqueLinks,
             direction,
             depth,
-            total: causalLinks.length,
+            total: uniqueLinks.length,
           },
         };
       } catch (error) {

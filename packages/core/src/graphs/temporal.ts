@@ -296,27 +296,65 @@ export class TemporalGraph {
   }
 
   /**
-   * Get an event by UUID
+   * Link a fact to an entity (cross-graph relationship)
+   * This creates a relationship from the fact to the entity it's about
    */
-  async getEvent(uuid: string): Promise<TemporalEvent | null> {
+  async linkFactToEntity(factId: string, entityId: string): Promise<void> {
     try {
-      const result = await this.db.query(
-        `MATCH (e:${EVENT_LABEL} {uuid: $uuid}) RETURN e`,
-        { uuid },
+      await this.db.query(
+        `MATCH (f:${FACT_LABEL} {uuid: $factId}), (entity {uuid: $entityId})
+         CREATE (f)-[:${INVOLVES_REL} {created_at: $createdAt}]->(entity)`,
+        {
+          factId,
+          entityId,
+          createdAt: new Date().toISOString(),
+        },
+      );
+    } catch (error) {
+      throw new RelationshipError(
+        'Failed to link fact to entity',
+        factId,
+        entityId,
+        INVOLVES_REL,
+        error instanceof Error ? error : undefined,
+      );
+    }
+  }
+
+  /**
+   * Get an event by UUID or description
+   * Tries UUID lookup first, then description lookup
+   */
+  async getEvent(uuidOrDescription: string): Promise<TemporalEvent | null> {
+    try {
+      // Try by UUID first
+      const byUuid = await this.db.query(
+        `MATCH (e:${EVENT_LABEL} {uuid: $id}) RETURN e`,
+        { id: uuidOrDescription },
       );
 
-      if (result.records.length === 0) {
-        return null;
+      if (byUuid.records.length > 0) {
+        return this.safeParseEvent(byUuid.records[0].e);
       }
 
-      return this.safeParseEvent(result.records[0].e);
+      // Try by description
+      const byDescription = await this.db.query(
+        `MATCH (e:${EVENT_LABEL} {description: $description}) RETURN e`,
+        { description: uuidOrDescription },
+      );
+
+      if (byDescription.records.length > 0) {
+        return this.safeParseEvent(byDescription.records[0].e);
+      }
+
+      return null;
     } catch (error) {
       if (error instanceof GraphParseError) {
         throw error;
       }
       throw wrapGraphError(
         error,
-        `Failed to get event: ${uuid}`,
+        `Failed to get event: ${uuidOrDescription}`,
         'Temporal',
         'getEvent',
       );

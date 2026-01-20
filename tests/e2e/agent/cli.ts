@@ -1,6 +1,11 @@
 #!/usr/bin/env node
 // CLI interface for the ReAct agent
 import * as readline from 'node:readline';
+import {
+  getAvailableDatasets,
+  getDataset,
+  listDatasets,
+} from '../datasets/index.js';
 import { MCPClient } from './mcp-client.js';
 import { ReActAgent } from './react-agent.js';
 import type { AgentConfig } from './types.js';
@@ -13,6 +18,7 @@ interface CLIOptions {
   verbose: boolean;
   interactive: boolean;
   query?: string;
+  dataset?: string;
 }
 
 function parseArgs(): CLIOptions {
@@ -56,6 +62,10 @@ function parseArgs(): CLIOptions {
       case '-q':
         options.query = args[++i];
         break;
+      case '--dataset':
+      case '-d':
+        options.dataset = args[++i];
+        break;
       case '--help':
       case '-h':
         printHelp();
@@ -67,6 +77,7 @@ function parseArgs(): CLIOptions {
 }
 
 function printHelp(): void {
+  const datasets = listDatasets();
   console.log(`
 polyg-mcp E2E Test Agent
 
@@ -80,7 +91,11 @@ Options:
   -v, --verbose           Show detailed reasoning steps
   -i, --interactive       Interactive mode (REPL)
   -q, --query <query>     Run a single query and exit
+  -d, --dataset <name>    Seed a dataset before starting
   -h, --help              Show this help message
+
+Available Datasets:
+${datasets.map((d) => `  ${d.name.padEnd(28)} ${d.description}`).join('\n')}
 
 Environment Variables:
   POLYG_SERVER_URL        MCP server URL
@@ -89,19 +104,22 @@ Environment Variables:
 
 Interactive Commands:
   tools                   List available MCP tools
+  datasets                List available test datasets
+  seed <name>             Seed a dataset (e.g., seed deployment-incident)
+  clear                   Clear all graph data
   reconnect               Reconnect with a fresh session
   verbose                 Toggle verbose reasoning output
   exit                    Exit the agent
 
 Examples:
-  # Interactive mode
-  tsx tests/e2e/agent/cli.ts -i -v
+  # Interactive mode with dataset
+  tsx tests/e2e/agent/cli.ts -i -v -d deployment-incident
 
   # Single query
   tsx tests/e2e/agent/cli.ts -q "What caused the auth service failure?"
 
-  # With custom server
-  tsx tests/e2e/agent/cli.ts -s http://localhost:3000 -i
+  # Seed and query
+  tsx tests/e2e/agent/cli.ts -d cloud-data-breach -q "Why was customer PII exposed?"
 `);
 }
 
@@ -133,11 +151,24 @@ function runInteractive(
         }
 
         // Handle commands (with or without leading slash)
-        const command = trimmed.startsWith('/') ? trimmed.slice(1) : trimmed;
+        const commandLine = trimmed.startsWith('/')
+          ? trimmed.slice(1)
+          : trimmed;
+        const [command, ...commandArgs] = commandLine.split(/\s+/);
+
+        // Check if it's a known command
         if (
-          ['tools', 'reconnect', 'verbose', 'exit', 'quit', 'help'].includes(
-            command,
-          )
+          [
+            'tools',
+            'datasets',
+            'seed',
+            'clear',
+            'reconnect',
+            'verbose',
+            'exit',
+            'quit',
+            'help',
+          ].includes(command)
         ) {
           switch (command) {
             case 'tools': {
@@ -151,6 +182,54 @@ function runInteractive(
                 console.log(`  - ${tool.name}: ${desc}`);
               }
               console.log('');
+              break;
+            }
+            case 'datasets': {
+              console.log('\nAvailable datasets:\n');
+              for (const ds of listDatasets()) {
+                console.log(`  ${ds.name}`);
+                console.log(`    ${ds.description}\n`);
+              }
+              break;
+            }
+            case 'seed': {
+              const datasetName = commandArgs[0];
+              if (!datasetName) {
+                console.log('Usage: seed <dataset-name>');
+                console.log(
+                  `Available: ${getAvailableDatasets().join(', ')}\n`,
+                );
+              } else {
+                const dataset = getDataset(datasetName);
+                if (!dataset) {
+                  console.log(`Unknown dataset: ${datasetName}`);
+                  console.log(
+                    `Available: ${getAvailableDatasets().join(', ')}\n`,
+                  );
+                } else {
+                  console.log(`\nSeeding ${dataset.name}...`);
+                  try {
+                    await dataset.seed(mcpClient);
+                    console.log('Done!\n');
+                  } catch (error) {
+                    console.error(
+                      `Error: ${error instanceof Error ? error.message : String(error)}\n`,
+                    );
+                  }
+                }
+              }
+              break;
+            }
+            case 'clear': {
+              console.log('Clearing all graph data...');
+              try {
+                await mcpClient.callTool('clear_graph', { graph: 'all' });
+                console.log('Done!\n');
+              } catch (error) {
+                console.error(
+                  `Error: ${error instanceof Error ? error.message : String(error)}\n`,
+                );
+              }
               break;
             }
             case 'reconnect':
@@ -178,10 +257,19 @@ function runInteractive(
               return;
             case 'help':
               console.log('\nCommands:');
-              console.log('  tools     - List available MCP tools');
-              console.log('  reconnect - Reconnect with a fresh session');
-              console.log('  verbose   - Toggle verbose reasoning output');
-              console.log('  exit      - Exit the agent\n');
+              console.log('  tools              - List available MCP tools');
+              console.log(
+                '  datasets           - List available test datasets',
+              );
+              console.log('  seed <name>        - Seed a dataset');
+              console.log('  clear              - Clear all graph data');
+              console.log(
+                '  reconnect          - Reconnect with a fresh session',
+              );
+              console.log(
+                '  verbose            - Toggle verbose reasoning output',
+              );
+              console.log('  exit               - Exit the agent\n');
               break;
           }
           prompt();
@@ -238,6 +326,19 @@ async function main(): Promise<void> {
     console.log(
       `Connected! Found ${mcpClient.getTools().length} tools available.`,
     );
+
+    // Seed dataset if specified
+    if (options.dataset) {
+      const dataset = getDataset(options.dataset);
+      if (!dataset) {
+        console.error(`Unknown dataset: ${options.dataset}`);
+        console.log(`Available: ${getAvailableDatasets().join(', ')}`);
+        process.exit(1);
+      }
+      console.log(`\nSeeding ${dataset.name}...`);
+      await dataset.seed(mcpClient);
+      console.log('Dataset seeded!\n');
+    }
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
     console.error(`Failed to connect to MCP server: ${errorMsg}`);
