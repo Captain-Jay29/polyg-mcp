@@ -27,6 +27,10 @@ export const LinkEntitiesSchema = z.object({
 export const AddEventSchema = z.object({
   description: z.string().describe('Event description'),
   occurred_at: z.string().describe('When it occurred (ISO format)'),
+  entities: z
+    .array(z.string())
+    .optional()
+    .describe('Entity names or UUIDs involved in this event'),
 });
 
 export const AddFactSchema = z.object({
@@ -35,6 +39,12 @@ export const AddFactSchema = z.object({
   object: z.string().describe('Fact object'),
   valid_from: z.string().describe('Valid from (ISO format)'),
   valid_to: z.string().optional().describe('Valid until (ISO format)'),
+  subject_entity: z
+    .string()
+    .optional()
+    .describe(
+      'Entity name or UUID that the fact subject refers to (creates X_INVOLVES link)',
+    ),
 });
 
 // Causal tools
@@ -42,12 +52,26 @@ export const AddCausalLinkSchema = z.object({
   cause: z.string().describe('Cause description or UUID'),
   effect: z.string().describe('Effect description or UUID'),
   confidence: z.number().min(0).max(1).optional().describe('Confidence score'),
+  entities: z
+    .array(z.string())
+    .optional()
+    .describe('Entity names or UUIDs affected by this causal relationship'),
+  events: z
+    .array(z.string())
+    .optional()
+    .describe(
+      'Event UUIDs or descriptions this causal link refers to (for temporal context)',
+    ),
 });
 
 // Semantic tools
 export const AddConceptSchema = z.object({
   name: z.string().describe('Concept name'),
   description: z.string().optional().describe('Concept description'),
+  entities: z
+    .array(z.string())
+    .optional()
+    .describe('Entity names or UUIDs this concept represents'),
 });
 
 // Management tools

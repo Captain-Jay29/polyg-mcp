@@ -94,6 +94,19 @@ export class MCPClient {
     try {
       const result = await this.client.callTool({ name, arguments: args });
 
+      // Check if tool returned an error
+      if (result.isError) {
+        const errorText = Array.isArray(result.content)
+          ? result.content
+              .filter(
+                (c): c is { type: 'text'; text: string } => c.type === 'text',
+              )
+              .map((c) => c.text)
+              .join('\n')
+          : JSON.stringify(result.content);
+        throw new Error(`Tool ${name} failed: ${errorText}`);
+      }
+
       // Extract text content from result
       if (Array.isArray(result.content)) {
         return result.content

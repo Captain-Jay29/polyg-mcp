@@ -28,7 +28,7 @@ tests/e2e/
 
 2. polyg-mcp server running:
    ```bash
-   cd packages/server && pnpm dev
+   cd packages/server && PORT=4000 POLYG_MODE=http pnpm dev
    ```
 
 3. OpenAI API key set:
@@ -54,7 +54,7 @@ CLI options:
 - `-i, --interactive` - Interactive REPL mode
 - `-v, --verbose` - Show reasoning steps
 - `-q, --query <query>` - Run single query
-- `-s, --server <url>` - MCP server URL (default: http://localhost:3000)
+- `-s, --server <url>` - MCP server URL (default: http://localhost:4000)
 - `-m, --model <model>` - OpenAI model (default: gpt-4o-mini)
 
 ### Seed Test Data
@@ -98,7 +98,7 @@ Simulates a production incident caused by a missing environment variable:
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `OPENAI_API_KEY` | OpenAI API key | (required) |
-| `POLYG_SERVER_URL` | MCP server URL | `http://localhost:3000` |
+| `POLYG_SERVER_URL` | MCP server URL | `http://localhost:4000` |
 | `POLYG_AGENT_MODEL` | LLM model | `gpt-4o-mini` |
 | `VERBOSE` | Show reasoning | `false` |
 
@@ -122,16 +122,40 @@ Simulates a production incident caused by a missing environment variable:
 
 ## How the Agent Works
 
-The ReAct agent follows this loop:
+The ReAct agent follows the MAGMA retrieval pattern:
 
-1. **Thought**: LLM reasons about what information is needed
-2. **Action**: LLM selects and calls MCP tools
-3. **Observation**: Agent executes tools and returns results
-4. **Repeat** until LLM has enough info to answer
-5. **Answer**: LLM synthesizes final response
+1. **Thought**: LLM reasons about which graphs to query
+2. **semantic_search**: Always start by finding seed concepts via vector similarity
+3. **Expand from seeds**: Based on query type:
+   - **causal_expand** for WHY questions (cause-effect chains)
+   - **entity_lookup** for WHO/WHAT questions (relationships)
+   - **temporal_expand** for WHEN questions (events in time)
+4. **Optionally merge**: Use `subgraph_merge` + `linearize_context` for complex queries
+5. **Answer**: LLM synthesizes final response from graph data
+
+### Available Tools (15 total)
+
+**Management (2):**
+- `get_statistics` - Graph metrics
+- `clear_graph` - Reset data
+
+**Write (7):**
+- `remember` - Store structured info
+- `add_entity`, `link_entities` - Entity graph
+- `add_event`, `add_fact` - Temporal graph
+- `add_causal_link` - Causal graph
+- `add_concept` - Semantic graph
+
+**MAGMA Retrieval (6):**
+- `semantic_search` - Find concepts by similarity
+- `entity_lookup` - Expand entity relationships
+- `temporal_expand` - Query events in time range
+- `causal_expand` - Traverse cause-effect chains
+- `subgraph_merge` - Combine graph views
+- `linearize_context` - Format for LLM
 
 This validates that:
-- Tool descriptions are clear enough for LLMs
-- Tool schemas are correct
-- Multi-step reasoning works
-- The memory system returns useful data
+- MAGMA retrieval flow works correctly
+- Tool descriptions guide LLMs to proper usage
+- Multi-graph queries return coherent results
+- Semantic concepts enable effective graph entry

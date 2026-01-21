@@ -282,9 +282,35 @@ describe('TemporalGraph', () => {
         metadata: [],
       });
 
-      const event = await graph.getEvent('event-uuid');
+      const event = await graph.getEvent('event-uuid-123');
 
       expect(event?.uuid).toBe('event-uuid-123');
+      expect(db.query).toHaveBeenCalledWith(
+        expect.stringContaining('uuid: $id'),
+        expect.objectContaining({ id: 'event-uuid-123' }),
+      );
+    });
+
+    it('should return event by description when UUID not found', async () => {
+      // First call (UUID lookup) returns empty, second call (description lookup) returns event
+      vi.mocked(db.query)
+        .mockResolvedValueOnce({ records: [], metadata: [] })
+        .mockResolvedValueOnce({
+          records: [{ e: mockEventNode() }],
+          metadata: [],
+        });
+
+      const event = await graph.getEvent('Test event occurred');
+
+      expect(event?.uuid).toBe('event-uuid-123');
+      expect(event?.description).toBe('Test event occurred');
+      // Should have made two queries: first by UUID, then by description
+      expect(db.query).toHaveBeenCalledTimes(2);
+      expect(db.query).toHaveBeenNthCalledWith(
+        2,
+        expect.stringContaining('description: $description'),
+        expect.objectContaining({ description: 'Test event occurred' }),
+      );
     });
 
     it('should return null for nonexistent event', async () => {
@@ -293,6 +319,19 @@ describe('TemporalGraph', () => {
       const event = await graph.getEvent('nonexistent');
 
       expect(event).toBeNull();
+    });
+
+    it('should prioritize UUID lookup over description', async () => {
+      // If UUID matches, should not try description lookup
+      vi.mocked(db.query).mockResolvedValueOnce({
+        records: [{ e: mockEventNode() }],
+        metadata: [],
+      });
+
+      await graph.getEvent('event-uuid-123');
+
+      // Should only have made one query (UUID lookup succeeded)
+      expect(db.query).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -366,6 +405,41 @@ describe('TemporalGraph', () => {
 
       await expect(graph.linkEventToEntity('event', 'entity')).rejects.toThrow(
         'Failed to link event to entity',
+      );
+    });
+  });
+
+  describe('linkFactToEntity', () => {
+    it('should create cross-graph relationship from fact to entity', async () => {
+      vi.mocked(db.query).mockResolvedValue({ records: [], metadata: [] });
+
+      await graph.linkFactToEntity('fact-uuid', 'entity-uuid');
+
+      expect(db.query).toHaveBeenCalledWith(
+        expect.stringContaining('X_INVOLVES'),
+        expect.objectContaining({
+          factId: 'fact-uuid',
+          entityId: 'entity-uuid',
+        }),
+      );
+    });
+
+    it('should include T_Fact label in query', async () => {
+      vi.mocked(db.query).mockResolvedValue({ records: [], metadata: [] });
+
+      await graph.linkFactToEntity('fact-uuid', 'entity-uuid');
+
+      expect(db.query).toHaveBeenCalledWith(
+        expect.stringContaining('T_Fact'),
+        expect.any(Object),
+      );
+    });
+
+    it('should throw RelationshipError on failure', async () => {
+      vi.mocked(db.query).mockRejectedValue(new Error('Link failed'));
+
+      await expect(graph.linkFactToEntity('fact', 'entity')).rejects.toThrow(
+        'Failed to link fact to entity',
       );
     });
   });

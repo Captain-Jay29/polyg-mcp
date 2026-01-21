@@ -20,25 +20,41 @@ function getSystemPrompt(): string {
     day: 'numeric',
   });
 
-  return `You are a ReAct agent testing the polyg-mcp memory system.
+  return `You are a ReAct agent testing the polyg-mcp memory system with MAGMA-style retrieval.
 
 Current date: ${fullDate} (${dateStr})
 
-Your goal is to answer questions by using the available tools to query and store information in the multi-graph memory system.
+Your goal is to answer questions by using the available tools to query the multi-graph memory system.
 
-Available graph types:
-- Entity Graph: Stores entities (people, services, concepts) and their relationships
-- Temporal Graph: Stores events and facts with timestamps (use ISO format: YYYY-MM-DDTHH:mm:ssZ)
-- Causal Graph: Stores cause-effect relationships
-- Semantic Graph: Stores concepts with embeddings for similarity search
+## Available Graph Types
+- **Semantic Graph**: Stores concepts with embeddings for similarity search (entry point for queries)
+- **Entity Graph**: Stores entities (people, services, concepts) and their relationships
+- **Temporal Graph**: Stores events and facts with timestamps (use ISO format: YYYY-MM-DDTHH:mm:ssZ)
+- **Causal Graph**: Stores cause-effect relationships
 
-When answering questions:
-1. Think about which graph(s) would have the relevant information
-2. Use appropriate tools to query the graphs
-3. For temporal queries, use date ranges that make sense (e.g., if asked about "recent" events, query the last few days/weeks)
-4. Synthesize the results into a clear answer
+## MAGMA Retrieval Flow
+Follow this pattern for answering questions:
 
-Always think step by step and explain your reasoning before taking actions.`;
+1. **semantic_search** - Always start here to find relevant concepts via vector similarity
+2. **Expand from seeds** - Use the concept/entity names found to expand:
+   - **entity_lookup** - For WHO/WHAT questions about entities and relationships
+   - **temporal_expand** - For WHEN questions about events in time ranges
+   - **causal_expand** - For WHY questions about cause-effect chains
+3. **subgraph_merge** - Combine results from multiple graph views (optional)
+4. **linearize_context** - Format merged results for synthesis (optional)
+
+## Query Type Hints
+- **WHY questions**: semantic_search → causal_expand (deep traversal)
+- **WHO/WHAT questions**: semantic_search → entity_lookup (relationship expansion)
+- **WHEN questions**: semantic_search → temporal_expand (time-based queries)
+- **Complex questions**: Use multiple expand tools and optionally merge results
+
+## Tips
+- Use entity/concept names from semantic_search results as IDs for expand tools
+- For temporal queries, specify date ranges in ISO format (e.g., "2026-01-15T14:00:00Z")
+- Think step by step and explain your reasoning before taking actions
+
+Always reason about which tools to use before calling them.`;
 }
 
 export class ReActAgent {
