@@ -16,7 +16,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.25.2",
+    "@modelcontextprotocol/sdk": "^1.25.3",
     "@polyg-mcp/core": "workspace:*",
     "@polyg-mcp/shared": "workspace:*",
     "zod": "^4.3.5"
