@@ -12,11 +12,11 @@
     "test:watch": "dotenv -e ../../.env -- vitest"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.25.2",
+    "@modelcontextprotocol/sdk": "^1.25.3",
     "openai": "^4.77.0"
   },
   "devDependencies": {
-    "@types/node": "^25.0.9",
+    "@types/node": "^25.0.10",
     "dotenv-cli": "^8.0.0",
     "tsx": "^4.16.0",
     "typescript": "^5.5.0",

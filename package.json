@@ -21,11 +21,11 @@
     "clean": "turbo run clean && rm -rf node_modules"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.3.11",
+    "@biomejs/biome": "^2.3.13",
     "dotenv-cli": "^8.0.0",
-    "@types/node": "^25.0.9",
+    "@types/node": "^25.0.10",
     "@vitest/coverage-v8": "^2.0.0",
-    "turbo": "^2.7.5",
+    "turbo": "^2.7.6",
     "typescript": "^5.5.0",
     "vitest": "^2.0.0"
   },
