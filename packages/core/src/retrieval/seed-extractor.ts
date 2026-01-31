@@ -41,6 +41,7 @@ export type SeedExtractionResult = z.infer<typeof SeedExtractionResultSchema>;
 
 /**
  * Validate semantic matches array
+ * @deprecated Internal helper for deprecated seedFromSemantic functions
  */
 function validateSemanticMatches(matches: SemanticMatch[]): SemanticMatch[] {
   if (!Array.isArray(matches)) {
@@ -96,7 +97,7 @@ function validateResult(result: SeedExtractionResult): SeedExtractionResult {
 /**
  * Extract entity seeds from semantic search results using X_REPRESENTS links.
  *
- * @deprecated Use SemanticGraph.searchWithEntities() instead.
+ * @deprecated Use extractSeedsFromEnrichedMatches() with SemanticGraph.searchWithEntities() instead.
  * This function performs separate CrossLinker lookups for each concept,
  * which adds unnecessary database round-trips. The new searchWithEntities()
  * method fetches entity IDs in the same query as the semantic search.
@@ -187,6 +188,10 @@ export async function seedFromSemantic(
 /**
  * Batch version of seed extraction for efficiency with large result sets.
  * Groups concepts and makes fewer database calls.
+ *
+ * @deprecated Use extractSeedsFromEnrichedMatches() with SemanticGraph.searchWithEntities() instead.
+ * The new approach fetches entity IDs in the same query as the semantic search,
+ * eliminating the need for batch CrossLinker lookups.
  *
  * @throws {RetrievalValidationError} If inputs are invalid
  * @throws {SeedExtractionError} If extraction fails
@@ -282,6 +287,9 @@ export async function seedFromSemanticBatch(
 
 /**
  * Get unique entity IDs from seeds (simple array for traversal)
+ *
+ * @deprecated Use seeds.map(s => s.entityId) directly instead.
+ * This wrapper adds minimal value and will be removed in a future version.
  */
 export function getEntityIds(seeds: SeedEntity[]): string[] {
   if (!Array.isArray(seeds)) {
@@ -296,6 +304,9 @@ export function getEntityIds(seeds: SeedEntity[]): string[] {
 
 /**
  * Filter seeds by minimum semantic score
+ *
+ * @deprecated Use extractSeedsFromEnrichedMatches() with minScore parameter instead.
+ * Filtering should be done at extraction time, not as a post-processing step.
  */
 export function filterSeedsByScore(
   seeds: SeedEntity[],
