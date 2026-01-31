@@ -1,9 +1,6 @@
 // Tests for MAGMAExecutor
 
-import type {
-  EnrichedSemanticMatch,
-  MAGMAIntent,
-} from '@polyg-mcp/shared';
+import type { EnrichedSemanticMatch, MAGMAIntent } from '@polyg-mcp/shared';
 import { describe, expect, it, vi } from 'vitest';
 import type { CausalGraph } from '../graphs/causal.js';
 import type { CrossLink, CrossLinker } from '../graphs/cross-linker.js';
@@ -56,10 +53,20 @@ function createMockGraphs(
     enrichedResults?: EnrichedSemanticMatch[];
     entityRelationships?: Record<
       string,
-      { source: { uuid: string; name: string; entity_type: string }; target: { uuid: string; name: string; entity_type: string }; relationshipType: string }[]
+      {
+        source: { uuid: string; name: string; entity_type: string };
+        target: { uuid: string; name: string; entity_type: string };
+        relationshipType: string;
+      }[]
     >;
-    temporalEvents?: Record<string, { uuid: string; description: string; occurred_at: Date }[]>;
-    causalNodes?: Record<string, { uuid: string; description: string; node_type: string }[]>;
+    temporalEvents?: Record<
+      string,
+      { uuid: string; description: string; occurred_at: Date }[]
+    >;
+    causalNodes?: Record<
+      string,
+      { uuid: string; description: string; node_type: string }[]
+    >;
     causalLinks?: { cause: string; effect: string; confidence: number }[];
   } = {},
 ): MAGMAGraphRegistry {
@@ -84,21 +91,29 @@ function createMockGraphs(
       getRelationshipsBatch: vi.fn(async (entityIds: string[]) => {
         const result = new Map<string, EntityRelationship[]>();
         for (const entityId of entityIds) {
-          result.set(entityId, (entityRelationships[entityId] || []) as EntityRelationship[]);
+          result.set(
+            entityId,
+            (entityRelationships[entityId] || []) as EntityRelationship[],
+          );
         }
         return result;
       }),
     } as unknown as EntityGraph,
 
     temporal: {
-      queryTimeline: vi.fn(async (_from: Date, _to: Date, entityId?: string) => {
-        if (entityId) {
-          return temporalEvents[entityId] || [];
-        }
-        return [];
-      }),
+      queryTimeline: vi.fn(
+        async (_from: Date, _to: Date, entityId?: string) => {
+          if (entityId) {
+            return temporalEvents[entityId] || [];
+          }
+          return [];
+        },
+      ),
       queryTimelineForEntities: vi.fn(async (entityIds: string[]) => {
-        const result = new Map<string, { uuid: string; description: string; occurred_at: Date }[]>();
+        const result = new Map<
+          string,
+          { uuid: string; description: string; occurred_at: Date }[]
+        >();
         for (const entityId of entityIds) {
           result.set(entityId, temporalEvents[entityId] || []);
         }
@@ -109,7 +124,10 @@ function createMockGraphs(
     causal: {
       traverse: vi.fn(async () => causalLinks),
       getNodesForEntities: vi.fn(async (entityIds: string[]) => {
-        const result = new Map<string, { uuid: string; description: string; node_type: string }[]>();
+        const result = new Map<
+          string,
+          { uuid: string; description: string; node_type: string }[]
+        >();
         for (const entityId of entityIds) {
           result.set(entityId, causalNodes[entityId] || []);
         }
@@ -267,22 +285,47 @@ describe('MAGMAExecutor', () => {
       it('should execute full MAGMA pipeline with all graphs', async () => {
         const graphs = createMockGraphs({
           enrichedResults: [
-            createEnrichedSemanticMatch('concept1', 0.9, ['entity1'], ['Entity 1']),
+            createEnrichedSemanticMatch(
+              'concept1',
+              0.9,
+              ['entity1'],
+              ['Entity 1'],
+            ),
           ],
           entityRelationships: {
             entity1: [
               {
-                source: { uuid: 'entity1', name: 'Entity 1', entity_type: 'type' },
-                target: { uuid: 'entity2', name: 'Entity 2', entity_type: 'type' },
+                source: {
+                  uuid: 'entity1',
+                  name: 'Entity 1',
+                  entity_type: 'type',
+                },
+                target: {
+                  uuid: 'entity2',
+                  name: 'Entity 2',
+                  entity_type: 'type',
+                },
                 relationshipType: 'RELATES',
               },
             ],
           },
           temporalEvents: {
-            entity1: [{ uuid: 'event1', description: 'Test event', occurred_at: new Date() }],
+            entity1: [
+              {
+                uuid: 'event1',
+                description: 'Test event',
+                occurred_at: new Date(),
+              },
+            ],
           },
           causalNodes: {
-            entity1: [{ uuid: 'causal1', description: 'Causal node', node_type: 'event' }],
+            entity1: [
+              {
+                uuid: 'causal1',
+                description: 'Causal node',
+                node_type: 'event',
+              },
+            ],
           },
           causalLinks: [
             { cause: 'cause1', effect: 'effect1', confidence: 0.85 },
@@ -320,8 +363,18 @@ describe('MAGMAExecutor', () => {
       it('should filter seeds by minSemanticScore', async () => {
         const graphs = createMockGraphs({
           enrichedResults: [
-            createEnrichedSemanticMatch('concept1', 0.9, ['entity1'], ['Entity 1']), // Above threshold
-            createEnrichedSemanticMatch('concept2', 0.3, ['entity2'], ['Entity 2']), // Below threshold
+            createEnrichedSemanticMatch(
+              'concept1',
+              0.9,
+              ['entity1'],
+              ['Entity 1'],
+            ), // Above threshold
+            createEnrichedSemanticMatch(
+              'concept2',
+              0.3,
+              ['entity2'],
+              ['Entity 2'],
+            ), // Below threshold
           ],
         });
 
@@ -354,20 +407,41 @@ describe('MAGMAExecutor', () => {
       it('should expand entity relationships at specified depth', async () => {
         const graphs = createMockGraphs({
           enrichedResults: [
-            createEnrichedSemanticMatch('concept1', 0.9, ['entity1'], ['Entity 1']),
+            createEnrichedSemanticMatch(
+              'concept1',
+              0.9,
+              ['entity1'],
+              ['Entity 1'],
+            ),
           ],
           entityRelationships: {
             entity1: [
               {
-                source: { uuid: 'entity1', name: 'Entity 1', entity_type: 'type' },
-                target: { uuid: 'entity2', name: 'Entity 2', entity_type: 'type' },
+                source: {
+                  uuid: 'entity1',
+                  name: 'Entity 1',
+                  entity_type: 'type',
+                },
+                target: {
+                  uuid: 'entity2',
+                  name: 'Entity 2',
+                  entity_type: 'type',
+                },
                 relationshipType: 'RELATES',
               },
             ],
             entity2: [
               {
-                source: { uuid: 'entity2', name: 'Entity 2', entity_type: 'type' },
-                target: { uuid: 'entity3', name: 'Entity 3', entity_type: 'type' },
+                source: {
+                  uuid: 'entity2',
+                  name: 'Entity 2',
+                  entity_type: 'type',
+                },
+                target: {
+                  uuid: 'entity3',
+                  name: 'Entity 3',
+                  entity_type: 'type',
+                },
                 relationshipType: 'RELATES',
               },
             ],
@@ -388,7 +462,12 @@ describe('MAGMAExecutor', () => {
       it('should handle entities with no relationships', async () => {
         const graphs = createMockGraphs({
           enrichedResults: [
-            createEnrichedSemanticMatch('concept1', 0.9, ['lonely-entity'], ['Lonely Entity']),
+            createEnrichedSemanticMatch(
+              'concept1',
+              0.9,
+              ['lonely-entity'],
+              ['Lonely Entity'],
+            ),
           ],
           entityRelationships: {}, // No relationships
         });
@@ -407,12 +486,25 @@ describe('MAGMAExecutor', () => {
       it('should find temporal events for seed entities', async () => {
         const graphs = createMockGraphs({
           enrichedResults: [
-            createEnrichedSemanticMatch('concept1', 0.9, ['entity1'], ['Entity 1']),
+            createEnrichedSemanticMatch(
+              'concept1',
+              0.9,
+              ['entity1'],
+              ['Entity 1'],
+            ),
           ],
           temporalEvents: {
             entity1: [
-              { uuid: 'event1', description: 'First event', occurred_at: new Date() },
-              { uuid: 'event2', description: 'Second event', occurred_at: new Date() },
+              {
+                uuid: 'event1',
+                description: 'First event',
+                occurred_at: new Date(),
+              },
+              {
+                uuid: 'event2',
+                description: 'Second event',
+                occurred_at: new Date(),
+              },
             ],
           },
         });
@@ -430,7 +522,12 @@ describe('MAGMAExecutor', () => {
       it('should handle entities with no temporal events', async () => {
         const graphs = createMockGraphs({
           enrichedResults: [
-            createEnrichedSemanticMatch('concept1', 0.9, ['entity1'], ['Entity 1']),
+            createEnrichedSemanticMatch(
+              'concept1',
+              0.9,
+              ['entity1'],
+              ['Entity 1'],
+            ),
           ],
           temporalEvents: {}, // No events
         });
@@ -448,10 +545,21 @@ describe('MAGMAExecutor', () => {
       it('should traverse causal chains', async () => {
         const graphs = createMockGraphs({
           enrichedResults: [
-            createEnrichedSemanticMatch('concept1', 0.9, ['entity1'], ['Entity 1']),
+            createEnrichedSemanticMatch(
+              'concept1',
+              0.9,
+              ['entity1'],
+              ['Entity 1'],
+            ),
           ],
           causalNodes: {
-            entity1: [{ uuid: 'causal1', description: 'Causal node', node_type: 'event' }],
+            entity1: [
+              {
+                uuid: 'causal1',
+                description: 'Causal node',
+                node_type: 'event',
+              },
+            ],
           },
           causalLinks: [
             {
@@ -480,7 +588,12 @@ describe('MAGMAExecutor', () => {
       it('should handle empty causal results', async () => {
         const graphs = createMockGraphs({
           enrichedResults: [
-            createEnrichedSemanticMatch('concept1', 0.9, ['entity1'], ['Entity 1']),
+            createEnrichedSemanticMatch(
+              'concept1',
+              0.9,
+              ['entity1'],
+              ['Entity 1'],
+            ),
           ],
           causalNodes: {}, // No causal nodes linked to entity
           causalLinks: [],

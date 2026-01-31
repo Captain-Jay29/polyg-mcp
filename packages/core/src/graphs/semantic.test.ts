@@ -488,7 +488,9 @@ describe('SemanticGraph', () => {
       vi.mocked(db.query).mockResolvedValue({
         records: [
           {
-            c: mockConceptNode({ embedding: JSON.stringify([0.5, 0.5, 0, 0, 0]) }),
+            c: mockConceptNode({
+              embedding: JSON.stringify([0.5, 0.5, 0, 0, 0]),
+            }),
             entityIds: [],
             entityNames: [],
           },

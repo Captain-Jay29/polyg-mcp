@@ -526,11 +526,7 @@ describe('TemporalGraph', () => {
       vi.mocked(db.query).mockRejectedValue(new Error('DB error'));
 
       await expect(
-        graph.queryTimelineForEntities(
-          ['entity1'],
-          new Date(),
-          new Date(),
-        ),
+        graph.queryTimelineForEntities(['entity1'], new Date(), new Date()),
       ).rejects.toThrow(TemporalError);
     });
   });

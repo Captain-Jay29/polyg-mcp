@@ -470,9 +470,9 @@ describe('EntityGraph', () => {
     it('should throw on database error', async () => {
       vi.mocked(db.query).mockRejectedValue(new Error('DB error'));
 
-      await expect(
-        graph.getRelationshipsBatch(['entity1']),
-      ).rejects.toThrow('Failed to get relationships batch');
+      await expect(graph.getRelationshipsBatch(['entity1'])).rejects.toThrow(
+        'Failed to get relationships batch',
+      );
     });
   });
 });

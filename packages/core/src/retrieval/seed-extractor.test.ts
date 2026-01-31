@@ -388,7 +388,12 @@ function createEnrichedMatch(
 describe('extractSeedsFromEnrichedMatches', () => {
   it('should extract entity seeds from enriched matches', () => {
     const matches = [
-      createEnrichedMatch('concept1', 0.9, ['entity1', 'entity2'], ['E1', 'E2']),
+      createEnrichedMatch(
+        'concept1',
+        0.9,
+        ['entity1', 'entity2'],
+        ['E1', 'E2'],
+      ),
       createEnrichedMatch('concept2', 0.8, ['entity3'], ['E3']),
     ];
 
