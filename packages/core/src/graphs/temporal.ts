@@ -213,6 +213,70 @@ export class TemporalGraph {
   }
 
   /**
+   * Query events for multiple entities in a single batch query.
+   * Returns a Map keyed by entity UUID with events as values.
+   *
+   * This is more efficient than calling queryTimeline() for each entity
+   * when expanding from multiple seed entities.
+   */
+  async queryTimelineForEntities(
+    entityIds: string[],
+    from: Date,
+    to: Date,
+  ): Promise<Map<string, TemporalEvent[]>> {
+    try {
+      if (entityIds.length === 0) {
+        return new Map();
+      }
+
+      // Single query to get all events linked to any of the entities
+      const result = await this.db.query(
+        `MATCH (e:${EVENT_LABEL})-[:${INVOLVES_REL}]->(entity)
+         WHERE entity.uuid IN $entityIds
+           AND e.occurred_at >= $from AND e.occurred_at <= $to
+         RETURN e, entity.uuid AS entityId
+         ORDER BY e.occurred_at ASC`,
+        {
+          entityIds,
+          from: from.toISOString(),
+          to: to.toISOString(),
+        },
+      );
+
+      // Group events by entity UUID
+      const eventMap = new Map<string, TemporalEvent[]>();
+
+      // Initialize empty arrays for all requested entities
+      for (const id of entityIds) {
+        eventMap.set(id, []);
+      }
+
+      for (const record of result.records) {
+        const event = this.safeParseEvent(record.e);
+        const entityId = record.entityId as string;
+
+        const entityEvents = eventMap.get(entityId) || [];
+        // Avoid duplicates within same entity
+        if (!entityEvents.some((ev) => ev.uuid === event.uuid)) {
+          entityEvents.push(event);
+          eventMap.set(entityId, entityEvents);
+        }
+      }
+
+      return eventMap;
+    } catch (error) {
+      if (error instanceof GraphParseError) {
+        throw error;
+      }
+      throw new TemporalError(
+        `Failed to query timeline for ${entityIds.length} entities`,
+        `${from.toISOString()} - ${to.toISOString()}`,
+        error instanceof Error ? error : undefined,
+      );
+    }
+  }
+
+  /**
    * Get facts valid at a specific point in time
    */
   async getFactsAt(pointInTime: Date): Promise<TemporalFact[]> {
