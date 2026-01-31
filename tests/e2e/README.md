@@ -55,7 +55,7 @@ CLI options:
 - `-v, --verbose` - Show reasoning steps
 - `-q, --query <query>` - Run single query
 - `-s, --server <url>` - MCP server URL (default: http://localhost:4000)
-- `-m, --model <model>` - OpenAI model (default: gpt-4o-mini)
+- `-m, --model <model>` - OpenAI model (default: `$LLM_MODEL` or gpt-4o-mini)
 
 ### Seed Test Data
 
@@ -99,7 +99,8 @@ Simulates a production incident caused by a missing environment variable:
 |----------|-------------|---------|
 | `OPENAI_API_KEY` | OpenAI API key | (required) |
 | `POLYG_SERVER_URL` | MCP server URL | `http://localhost:4000` |
-| `POLYG_AGENT_MODEL` | LLM model | `gpt-4o-mini` |
+| `POLYG_AGENT_MODEL` | LLM model | `$LLM_MODEL` or `gpt-4o-mini` |
+| `LLM_MODEL` | Fallback LLM model | `gpt-4o-mini` |
 | `VERBOSE` | Show reasoning | `false` |
 
 ## Adding New Datasets
