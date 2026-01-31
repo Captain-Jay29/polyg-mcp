@@ -150,22 +150,48 @@ export class MAGMAExecutor {
     const totalStart = Date.now();
 
     // Step 1: Semantic search with entities (single query for concepts + entity IDs)
+    let enrichedMatches: EnrichedSemanticMatch[];
     const semanticStart = Date.now();
-    const enrichedMatches = await this.withTimeout(
-      this.graphs.semantic.searchWithEntities(query, this.config.semanticTopK),
-    );
+    try {
+      enrichedMatches = await this.withTimeout(
+        this.graphs.semantic.searchWithEntities(
+          query,
+          this.config.semanticTopK,
+        ),
+      );
+    } catch (error) {
+      // Preserve ExecutorError (e.g., from timeout)
+      if (error instanceof ExecutorError) {
+        throw error;
+      }
+      throw new ExecutorError(
+        `Semantic search failed: ${error instanceof Error ? error.message : String(error)}`,
+        'semantic_search',
+        error instanceof Error ? error : undefined,
+      );
+    }
     const semanticMs = Date.now() - semanticStart;
 
     // Step 2: Extract entity IDs directly from enriched matches (no CrossLinker needed)
+    let seeds: SeedExtractionResult;
     const seedStart = Date.now();
-    const seeds = extractSeedsFromEnrichedMatches(
-      enrichedMatches,
-      this.config.minSemanticScore,
-    );
+    try {
+      seeds = extractSeedsFromEnrichedMatches(
+        enrichedMatches,
+        this.config.minSemanticScore,
+      );
+    } catch (error) {
+      throw new ExecutorError(
+        `Seed extraction failed: ${error instanceof Error ? error.message : String(error)}`,
+        'seed_extraction',
+        error instanceof Error ? error : undefined,
+      );
+    }
     const entityIds = seeds.entitySeeds.map((s) => s.entityId);
     const seedExtractionMs = Date.now() - seedStart;
 
     // Step 3: Parallel graph expansion from seeds using batch methods
+    // Note: expandFromSeeds has internal graceful error handling (returns partial results)
     const expansionStart = Date.now();
     const views = await this.expandFromSeeds(
       entityIds,
@@ -175,8 +201,17 @@ export class MAGMAExecutor {
     const expansionMs = Date.now() - expansionStart;
 
     // Step 4: Merge results with multi-view boosting
+    let merged: MergedSubgraph;
     const mergeStart = Date.now();
-    const merged = this.merger.merge(views);
+    try {
+      merged = this.merger.merge(views);
+    } catch (error) {
+      throw new ExecutorError(
+        `Subgraph merge failed: ${error instanceof Error ? error.message : String(error)}`,
+        'merge',
+        error instanceof Error ? error : undefined,
+      );
+    }
     const mergeMs = Date.now() - mergeStart;
 
     return {
