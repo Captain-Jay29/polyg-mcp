@@ -921,6 +921,168 @@ describe('MAGMAExecutor', () => {
 
       consoleSpy.mockRestore();
     });
+
+    it('should timeout slow entity expansion and continue with others', async () => {
+      const graphs = createMockGraphs({
+        enrichedResults: [
+          createEnrichedSemanticMatch('concept-1', 0.9, ['entity-1'], ['Entity 1']),
+        ],
+        temporalEvents: {
+          'entity-1': [
+            {
+              uuid: 'event-1',
+              description: 'Test event',
+              occurred_at: new Date('2024-06-15'),
+            },
+          ],
+        },
+      });
+
+      // Entity expansion takes too long (never resolves within timeout)
+      graphs.entity.getRelationshipsBatch = vi.fn(
+        async () => new Promise<Map<string, EntityRelationship[]>>((resolve) => setTimeout(() => resolve(new Map()), 10000)),
+      );
+
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      // Use short timeout
+      const executor = new MAGMAExecutor(graphs, { timeout: 100 });
+      const intent = createValidIntent();
+
+      const result = await executor.execute('test query', intent);
+
+      // Should still have semantic and temporal views
+      expect(result.merged).toBeDefined();
+      expect(result.merged.nodes.length).toBeGreaterThan(0);
+
+      // Should log timeout warning for entity expansion
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[MAGMAExecutor] entity expansion failed:'),
+        expect.stringContaining('timed out'),
+      );
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should timeout slow temporal expansion and continue with others', async () => {
+      const graphs = createMockGraphs({
+        enrichedResults: [
+          createEnrichedSemanticMatch('concept-1', 0.9, ['entity-1'], ['Entity 1']),
+        ],
+        entityRelationships: {
+          'entity-1': [
+            {
+              source: { uuid: 'entity-1', name: 'Entity 1', entity_type: 'person' },
+              target: { uuid: 'entity-2', name: 'Entity 2', entity_type: 'org' },
+              relationshipType: 'WORKS_FOR',
+            },
+          ],
+        },
+      });
+
+      // Temporal expansion takes too long (never resolves within timeout)
+      graphs.temporal.queryTimelineForEntities = vi.fn(
+        async () => new Promise<Map<string, { uuid: string; description: string; occurred_at: Date }[]>>((resolve) => setTimeout(() => resolve(new Map()), 10000)),
+      );
+
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      // Use short timeout
+      const executor = new MAGMAExecutor(graphs, { timeout: 100 });
+      const intent = createValidIntent();
+
+      const result = await executor.execute('test query', intent);
+
+      // Should still have semantic and entity views
+      expect(result.merged).toBeDefined();
+      expect(result.merged.nodes.length).toBeGreaterThan(0);
+
+      // Should log timeout warning for temporal expansion
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[MAGMAExecutor] temporal expansion failed:'),
+        expect.stringContaining('timed out'),
+      );
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should timeout slow causal expansion and continue with others', async () => {
+      const graphs = createMockGraphs({
+        enrichedResults: [
+          createEnrichedSemanticMatch('concept-1', 0.9, ['entity-1'], ['Entity 1']),
+        ],
+        entityRelationships: {
+          'entity-1': [
+            {
+              source: { uuid: 'entity-1', name: 'Entity 1', entity_type: 'person' },
+              target: { uuid: 'entity-2', name: 'Entity 2', entity_type: 'org' },
+              relationshipType: 'WORKS_FOR',
+            },
+          ],
+        },
+      });
+
+      // Causal expansion takes too long (never resolves within timeout)
+      graphs.causal.getNodesForEntities = vi.fn(
+        async () => new Promise<Map<string, { uuid: string; description: string; node_type: string }[]>>((resolve) => setTimeout(() => resolve(new Map()), 10000)),
+      );
+
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      // Use short timeout
+      const executor = new MAGMAExecutor(graphs, { timeout: 100 });
+      const intent = createValidIntent();
+
+      const result = await executor.execute('test query', intent);
+
+      // Should still have semantic and entity views
+      expect(result.merged).toBeDefined();
+      expect(result.merged.nodes.length).toBeGreaterThan(0);
+
+      // Should log timeout warning for causal expansion
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[MAGMAExecutor] causal expansion failed:'),
+        expect.stringContaining('timed out'),
+      );
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should return semantic-only when all expansions timeout', async () => {
+      const graphs = createMockGraphs({
+        enrichedResults: [
+          createEnrichedSemanticMatch('concept-1', 0.9, ['entity-1'], ['Entity 1']),
+        ],
+      });
+
+      // All expansions take too long (never resolve within timeout)
+      graphs.entity.getRelationshipsBatch = vi.fn(
+        async () => new Promise<Map<string, EntityRelationship[]>>((resolve) => setTimeout(() => resolve(new Map()), 10000)),
+      );
+      graphs.temporal.queryTimelineForEntities = vi.fn(
+        async () => new Promise<Map<string, { uuid: string; description: string; occurred_at: Date }[]>>((resolve) => setTimeout(() => resolve(new Map()), 10000)),
+      );
+      graphs.causal.getNodesForEntities = vi.fn(
+        async () => new Promise<Map<string, { uuid: string; description: string; node_type: string }[]>>((resolve) => setTimeout(() => resolve(new Map()), 10000)),
+      );
+
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      // Use short timeout
+      const executor = new MAGMAExecutor(graphs, { timeout: 100 });
+      const intent = createValidIntent();
+
+      const result = await executor.execute('test query', intent);
+
+      // Should still have semantic view
+      expect(result.merged).toBeDefined();
+      expect(result.merged.nodes.length).toBe(1); // Only semantic concept
+
+      // Should log timeout warnings for all three
+      expect(consoleSpy).toHaveBeenCalledTimes(3);
+
+      consoleSpy.mockRestore();
+    });
   });
 
   describe('getConfig', () => {

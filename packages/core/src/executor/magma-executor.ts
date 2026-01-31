@@ -255,10 +255,11 @@ export class MAGMAExecutor {
     // Parallel expansion from seeds with graceful degradation
     // Use Promise.allSettled to allow partial success - if one expansion fails,
     // others can still contribute results
+    // Each expansion is wrapped with timeout for protection against hanging queries
     const expansionResults = await Promise.allSettled([
-      this.expandEntityGraph(entityIds, depthHints.entity),
-      this.expandTemporalGraph(entityIds, depthHints.temporal),
-      this.expandCausalGraph(entityIds, depthHints.causal),
+      this.withTimeout(this.expandEntityGraph(entityIds, depthHints.entity)),
+      this.withTimeout(this.expandTemporalGraph(entityIds, depthHints.temporal)),
+      this.withTimeout(this.expandCausalGraph(entityIds, depthHints.causal)),
     ]);
 
     const expansionNames = ['entity', 'temporal', 'causal'] as const;
@@ -465,23 +466,28 @@ export class MAGMAExecutor {
 
   /**
    * Wrap promise with timeout
+   *
+   * Properly cleans up the timer when the promise resolves/rejects before timeout.
    */
-  private async withTimeout<T>(promise: Promise<T>): Promise<T> {
-    return Promise.race([
-      promise,
-      new Promise<never>((_, reject) =>
-        setTimeout(
-          () =>
-            reject(
-              new ExecutorError(
-                `Operation timed out after ${this.config.timeout}ms`,
-                'timeout',
-              ),
+  private withTimeout<T>(promise: Promise<T>): Promise<T> {
+    let timeoutId: ReturnType<typeof setTimeout>;
+
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(
+        () =>
+          reject(
+            new ExecutorError(
+              `Operation timed out after ${this.config.timeout}ms`,
+              'timeout',
             ),
-          this.config.timeout,
-        ),
-      ),
-    ]);
+          ),
+        this.config.timeout,
+      );
+    });
+
+    return Promise.race([promise, timeoutPromise]).finally(() => {
+      clearTimeout(timeoutId);
+    });
   }
 
   /**
