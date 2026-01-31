@@ -339,6 +339,12 @@ export const SemanticMatchSchema = z.object({
   score: z.number().min(0).max(1),
 });
 
+// Enriched semantic match - includes linked entity IDs for MAGMA pipeline
+export const EnrichedSemanticMatchSchema = SemanticMatchSchema.extend({
+  linkedEntityIds: z.array(z.string()).default([]),
+  linkedEntityNames: z.array(z.string()).default([]),
+});
+
 // Synthesizer reasoning
 export const SynthesizerReasoningSchema = z.object({
   causal_chain: z.array(CausalLinkSchema).optional(),
@@ -554,6 +560,7 @@ export type TemporalContext = z.infer<typeof TemporalContextSchema>;
 export type Entity = z.infer<typeof EntitySchema>;
 export type Concept = z.infer<typeof ConceptSchema>;
 export type SemanticMatch = z.infer<typeof SemanticMatchSchema>;
+export type EnrichedSemanticMatch = z.infer<typeof EnrichedSemanticMatchSchema>;
 export type SynthesizerReasoning = z.infer<typeof SynthesizerReasoningSchema>;
 export type SynthesizerOutput = z.infer<typeof SynthesizerOutputSchema>;
 
