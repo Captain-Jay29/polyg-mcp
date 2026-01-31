@@ -431,12 +431,14 @@ export class MAGMAExecutor {
     );
 
     // Extract nodes from causal links
+    // Use causeId/effectId (real UUIDs) for node identity, descriptions for display
     for (const link of causalLinks) {
-      // Add cause as a node
-      if (!seenIds.has(link.cause)) {
-        seenIds.add(link.cause);
+      // Add cause as a node (use UUID for deduplication and identity)
+      const causeId = link.causeId || link.cause; // Fallback to description if no UUID
+      if (!seenIds.has(causeId)) {
+        seenIds.add(causeId);
         nodes.push({
-          uuid: link.cause,
+          uuid: causeId,
           data: {
             description: link.cause,
             type: 'cause',
@@ -446,11 +448,12 @@ export class MAGMAExecutor {
         });
       }
 
-      // Add effect as a node
-      if (!seenIds.has(link.effect)) {
-        seenIds.add(link.effect);
+      // Add effect as a node (use UUID for deduplication and identity)
+      const effectId = link.effectId || link.effect; // Fallback to description if no UUID
+      if (!seenIds.has(effectId)) {
+        seenIds.add(effectId);
         nodes.push({
-          uuid: link.effect,
+          uuid: effectId,
           data: {
             description: link.effect,
             type: 'effect',

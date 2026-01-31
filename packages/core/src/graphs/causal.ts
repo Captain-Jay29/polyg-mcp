@@ -212,6 +212,8 @@ export class CausalGraph {
 
   /**
    * Get upstream causes (what caused this node)
+   *
+   * Returns CausalLink with both descriptions (for display) and UUIDs (for graph operations).
    */
   async getUpstreamCauses(nodeId: string, maxDepth = 3): Promise<CausalLink[]> {
     try {
@@ -223,12 +225,18 @@ export class CausalGraph {
         { nodeId },
       );
 
-      return result.records.map((record: Record<string, unknown>) => ({
-        cause: this.safeParseNode(record.c).description,
-        effect: this.safeParseNode(record.e).description,
-        confidence: safeNumber(record.confidence, 1.0),
-        evidence: record.evidence ? safeString(record.evidence) : undefined,
-      }));
+      return result.records.map((record: Record<string, unknown>) => {
+        const causeNode = this.safeParseNode(record.c);
+        const effectNode = this.safeParseNode(record.e);
+        return {
+          cause: causeNode.description,
+          effect: effectNode.description,
+          causeId: causeNode.uuid,
+          effectId: effectNode.uuid,
+          confidence: safeNumber(record.confidence, 1.0),
+          evidence: record.evidence ? safeString(record.evidence) : undefined,
+        };
+      });
     } catch (error) {
       if (error instanceof GraphParseError) {
         throw error;
@@ -244,6 +252,8 @@ export class CausalGraph {
 
   /**
    * Get downstream effects (what this node causes)
+   *
+   * Returns CausalLink with both descriptions (for display) and UUIDs (for graph operations).
    */
   async getDownstreamEffects(
     nodeId: string,
@@ -258,12 +268,18 @@ export class CausalGraph {
         { nodeId },
       );
 
-      return result.records.map((record: Record<string, unknown>) => ({
-        cause: this.safeParseNode(record.c).description,
-        effect: this.safeParseNode(record.e).description,
-        confidence: safeNumber(record.confidence, 1.0),
-        evidence: record.evidence ? safeString(record.evidence) : undefined,
-      }));
+      return result.records.map((record: Record<string, unknown>) => {
+        const causeNode = this.safeParseNode(record.c);
+        const effectNode = this.safeParseNode(record.e);
+        return {
+          cause: causeNode.description,
+          effect: effectNode.description,
+          causeId: causeNode.uuid,
+          effectId: effectNode.uuid,
+          confidence: safeNumber(record.confidence, 1.0),
+          evidence: record.evidence ? safeString(record.evidence) : undefined,
+        };
+      });
     } catch (error) {
       if (error instanceof GraphParseError) {
         throw error;

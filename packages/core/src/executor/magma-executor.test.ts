@@ -58,7 +58,7 @@ function createMockGraphs(
       string,
       { uuid: string; description: string; node_type: string }[]
     >;
-    causalLinks?: { cause: string; effect: string; confidence: number }[];
+    causalLinks?: { cause: string; effect: string; causeId?: string; effectId?: string; confidence: number }[];
   } = {},
 ): MAGMAGraphRegistry {
   const {
@@ -598,6 +598,116 @@ describe('MAGMAExecutor', () => {
         const result = await executor.execute('test query', intent);
 
         expect(result.merged.viewContributions.causal).toBe(0);
+      });
+
+      it('should use causeId/effectId UUIDs for node identity instead of descriptions', async () => {
+        const graphs = createMockGraphs({
+          enrichedResults: [
+            createEnrichedSemanticMatch(
+              'concept1',
+              0.9,
+              ['entity1'],
+              ['Entity 1'],
+            ),
+          ],
+          causalNodes: {
+            entity1: [
+              {
+                uuid: 'causal-node-1',
+                description: 'Root cause',
+                node_type: 'event',
+              },
+            ],
+          },
+          causalLinks: [
+            {
+              cause: 'Server misconfiguration',
+              effect: 'Service outage',
+              causeId: 'uuid-cause-1',
+              effectId: 'uuid-effect-1',
+              confidence: 0.95,
+            },
+            {
+              // Same descriptions but different UUIDs - should create separate nodes
+              cause: 'Server misconfiguration',
+              effect: 'Data corruption',
+              causeId: 'uuid-cause-2',
+              effectId: 'uuid-effect-2',
+              confidence: 0.85,
+            },
+          ],
+        });
+
+        const executor = new MAGMAExecutor(graphs);
+        const intent = createValidIntent('WHY', {
+          depthHints: { entity: 1, temporal: 1, causal: 3 },
+        });
+
+        const result = await executor.execute('why did the service fail?', intent);
+
+        // Should have 4 unique nodes (based on UUIDs, not descriptions)
+        // uuid-cause-1, uuid-effect-1, uuid-cause-2, uuid-effect-2
+        const causalNodes = result.merged.nodes.filter(
+          (n) => (n.data as Record<string, unknown>)?.type === 'cause' || (n.data as Record<string, unknown>)?.type === 'effect',
+        );
+
+        // Extract UUIDs from causal nodes
+        const causalUuids = causalNodes.map((n) => n.uuid);
+
+        // Verify UUIDs are the actual UUIDs, not descriptions
+        expect(causalUuids).toContain('uuid-cause-1');
+        expect(causalUuids).toContain('uuid-effect-1');
+        expect(causalUuids).toContain('uuid-cause-2');
+        expect(causalUuids).toContain('uuid-effect-2');
+
+        // Verify descriptions are NOT used as UUIDs
+        expect(causalUuids).not.toContain('Server misconfiguration');
+        expect(causalUuids).not.toContain('Service outage');
+        expect(causalUuids).not.toContain('Data corruption');
+      });
+
+      it('should fall back to description as UUID when causeId/effectId not provided', async () => {
+        const graphs = createMockGraphs({
+          enrichedResults: [
+            createEnrichedSemanticMatch(
+              'concept1',
+              0.9,
+              ['entity1'],
+              ['Entity 1'],
+            ),
+          ],
+          causalNodes: {
+            entity1: [
+              {
+                uuid: 'causal-node-1',
+                description: 'Root cause',
+                node_type: 'event',
+              },
+            ],
+          },
+          causalLinks: [
+            {
+              // No causeId/effectId - should fall back to description
+              cause: 'Network failure',
+              effect: 'Connection timeout',
+              confidence: 0.9,
+            },
+          ],
+        });
+
+        const executor = new MAGMAExecutor(graphs);
+        const intent = createValidIntent('WHY');
+
+        const result = await executor.execute('why did connection fail?', intent);
+
+        const causalNodes = result.merged.nodes.filter(
+          (n) => (n.data as Record<string, unknown>)?.type === 'cause' || (n.data as Record<string, unknown>)?.type === 'effect',
+        );
+
+        // Should fall back to descriptions as UUIDs
+        const causalUuids = causalNodes.map((n) => n.uuid);
+        expect(causalUuids).toContain('Network failure');
+        expect(causalUuids).toContain('Connection timeout');
       });
     });
 
