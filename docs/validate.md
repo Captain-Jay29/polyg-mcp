@@ -24,7 +24,7 @@ This document tracks validation of all process flows for gaps and edge cases.
 | 1.1.6 | LLM timeout during classification | [~] | Catches LLM errors but relies on provider timeout. No classifier-level timeout config |
 | 1.1.7 | Context parameter handling (empty vs long) | [x] | `intent-classifier.ts:33` - empty context becomes `""`. Long context: no limit (see 1.1.2) |
 | 1.1.8 | Depth hints validation (1-5 range) | [x] | `schemas.ts:100-104` - Zod enforces `min(1).max(5)`. Tested in `agents.test.ts` |
-| 1.1.9 | Intent type fallback (EXPLORE as default) | [!] | **GAP**: Invalid type throws error. No graceful fallback to EXPLORE |
+| 1.1.9 | Intent type fallback (EXPLORE as default) | [x] | **FIXED**: Invalid intent type (e.g., "EXPLAIN") now falls back to EXPLORE with warning log |
 
 ### 1.2 Semantic Search → Seed Extraction
 
@@ -330,13 +330,15 @@ This document tracks validation of all process flows for gaps and edge cases.
   - Updated all tests
 - **Note**: `SynthesizerOutput.confidence` remains - that's the user-facing confidence score
 
-##### 1.1.9 - Intent type fallback
-- **Issue**: If LLM returns invalid type (e.g., "EXPLAIN"), validation throws error
-- **Risk**: LLM occasionally hallucinates new intent types
-- **Recommendation**:
-  - Add pre-validation that maps unknown types to EXPLORE
-  - Or: Add retry logic with stricter prompt
-- **Priority**: Low (LLM rarely returns invalid types with good prompt)
+##### 1.1.9 - Intent type fallback ✅ FIXED
+- **Issue**: If LLM returns invalid type (e.g., "EXPLAIN"), validation threw error
+- **Risk**: LLM occasionally hallucinates new intent types like "EXPLAIN", "DESCRIBE", "FIND"
+- **Fix Applied**:
+  - Added fallback logic in `parseAndValidateMAGMA()`
+  - If only the type is invalid, replace with EXPLORE and re-validate
+  - Logs warning for monitoring: `[IntentClassifier] Invalid intent type "X", falling back to EXPLORE`
+  - If other fields are also invalid, still throws validation error
+- **Tests Added**: 3 new tests for fallback behavior
 
 **Test Coverage:**
 - Empty query: ✓ Tested

@@ -128,10 +128,37 @@ describe('IntentClassifier', () => {
       );
     });
 
-    it('should throw LLMResponseValidationError for invalid schema', async () => {
+    it('should fallback to EXPLORE for invalid intent type', async () => {
+      const invalidTypeResponse = JSON.stringify({
+        type: 'EXPLAIN', // Invalid type - LLM hallucination
+        entities: ['test'],
+        depthHints: { entity: 2, temporal: 2, causal: 2 },
+      });
+      vi.mocked(mockLLM.complete).mockResolvedValue(invalidTypeResponse);
+
+      // Should not throw - falls back to EXPLORE
+      const result = await classifier.classifyMAGMA({ query: 'test' });
+      expect(result.type).toBe('EXPLORE');
+      expect(result.entities).toEqual(['test']);
+    });
+
+    it('should throw LLMResponseValidationError for invalid schema (non-type errors)', async () => {
+      const invalidResponse = JSON.stringify({
+        type: 'WHY',
+        entities: 'not-an-array', // Invalid - should be array
+        depthHints: { entity: 1, temporal: 1, causal: 1 },
+      });
+      vi.mocked(mockLLM.complete).mockResolvedValue(invalidResponse);
+
+      await expect(classifier.classifyMAGMA({ query: 'test' })).rejects.toThrow(
+        LLMResponseValidationError,
+      );
+    });
+
+    it('should throw LLMResponseValidationError when fallback also fails', async () => {
       const invalidResponse = JSON.stringify({
         type: 'INVALID_TYPE',
-        entities: [],
+        entities: 'not-an-array', // Also invalid
         depthHints: { entity: 1, temporal: 1, causal: 1 },
       });
       vi.mocked(mockLLM.complete).mockResolvedValue(invalidResponse);

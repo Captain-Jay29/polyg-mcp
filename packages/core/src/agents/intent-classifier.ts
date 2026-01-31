@@ -87,6 +87,7 @@ export class IntentClassifier {
 
   /**
    * Parse and validate MAGMA-style LLM response
+   * Falls back to EXPLORE intent for invalid types to ensure graceful degradation
    */
   private parseAndValidateMAGMA(response: string): MAGMAIntent {
     // First, try to parse as JSON
@@ -101,17 +102,37 @@ export class IntentClassifier {
       );
     }
 
-    // Then validate against MAGMA schema
+    // Try to validate against MAGMA schema
     const result = MAGMAIntentSchema.safeParse(parsed);
 
-    if (!result.success) {
-      throw new LLMResponseValidationError(
-        `LLM response failed MAGMA schema validation:\n${result.error.issues.map((e: { path: PropertyKey[]; message: string }) => `  - ${e.path.join('.')}: ${e.message}`).join('\n')}`,
-        response,
-        result.error.issues,
-      );
+    if (result.success) {
+      return result.data;
     }
 
-    return result.data;
+    // Check if the only issue is an invalid intent type - if so, fallback to EXPLORE
+    const typeError = result.error.issues.find(
+      (issue) => issue.path.length === 1 && issue.path[0] === 'type',
+    );
+
+    if (typeError && typeof parsed === 'object' && parsed !== null) {
+      // Try to salvage the response with EXPLORE as fallback type
+      const fallbackParsed = { ...parsed, type: 'EXPLORE' } as unknown;
+      const fallbackResult = MAGMAIntentSchema.safeParse(fallbackParsed);
+
+      if (fallbackResult.success) {
+        // Log warning for monitoring (could be replaced with proper logger)
+        console.warn(
+          `[IntentClassifier] Invalid intent type "${(parsed as Record<string, unknown>).type}", falling back to EXPLORE`,
+        );
+        return fallbackResult.data;
+      }
+    }
+
+    // If we can't salvage, throw the original validation error
+    throw new LLMResponseValidationError(
+      `LLM response failed MAGMA schema validation:\n${result.error.issues.map((e: { path: PropertyKey[]; message: string }) => `  - ${e.path.join('.')}: ${e.message}`).join('\n')}`,
+      response,
+      result.error.issues,
+    );
   }
 }
