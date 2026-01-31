@@ -51,12 +51,12 @@ describe('IntentClassifier', () => {
 
     it('should throw ClassifierError for query exceeding max length', async () => {
       const longQuery = 'a'.repeat(9000); // Default max is 8000
-      await expect(classifier.classifyMAGMA({ query: longQuery })).rejects.toThrow(
-        ClassifierError,
-      );
-      await expect(classifier.classifyMAGMA({ query: longQuery })).rejects.toThrow(
-        /exceeds maximum length of 8000/,
-      );
+      await expect(
+        classifier.classifyMAGMA({ query: longQuery }),
+      ).rejects.toThrow(ClassifierError);
+      await expect(
+        classifier.classifyMAGMA({ query: longQuery }),
+      ).rejects.toThrow(/exceeds maximum length of 8000/);
     });
 
     it('should throw ClassifierError for context exceeding max length', async () => {
@@ -76,9 +76,9 @@ describe('IntentClassifier', () => {
       });
 
       const query101 = 'a'.repeat(101);
-      await expect(customClassifier.classifyMAGMA({ query: query101 })).rejects.toThrow(
-        /exceeds maximum length of 100/,
-      );
+      await expect(
+        customClassifier.classifyMAGMA({ query: query101 }),
+      ).rejects.toThrow(/exceeds maximum length of 100/);
 
       const context51 = 'b'.repeat(51);
       await expect(
@@ -104,7 +104,7 @@ describe('IntentClassifier', () => {
       const maxContext = 'b'.repeat(4000);
       const result2 = await classifier.classifyMAGMA({
         query: 'test',
-        context: maxContext
+        context: maxContext,
       });
       expect(result2.type).toBe('EXPLORE');
     });

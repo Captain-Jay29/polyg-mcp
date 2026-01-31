@@ -32,7 +32,8 @@ export class IntentClassifier {
     config?: ClassifierConfig,
   ) {
     this.maxQueryLength = config?.maxQueryLength ?? DEFAULT_MAX_QUERY_LENGTH;
-    this.maxContextLength = config?.maxContextLength ?? DEFAULT_MAX_CONTEXT_LENGTH;
+    this.maxContextLength =
+      config?.maxContextLength ?? DEFAULT_MAX_CONTEXT_LENGTH;
   }
 
   /**
