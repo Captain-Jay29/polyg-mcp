@@ -25,6 +25,7 @@ import type { SemanticGraph } from '../graphs/semantic.js';
 import type { TemporalGraph } from '../graphs/temporal.js';
 import {
   ExecutorError,
+  extractSeedsFromEnrichedMatches,
   RetrievalValidationError,
   type SeedExtractionResult,
   SubgraphMerger,
@@ -157,7 +158,7 @@ export class MAGMAExecutor {
 
     // Step 2: Extract entity IDs directly from enriched matches (no CrossLinker needed)
     const seedStart = Date.now();
-    const seeds = this.extractSeedsFromEnriched(
+    const seeds = extractSeedsFromEnrichedMatches(
       enrichedMatches,
       this.config.minSemanticScore,
     );
@@ -187,60 +188,6 @@ export class MAGMAExecutor {
         expansionMs,
         mergeMs,
         totalMs: Date.now() - totalStart,
-      },
-    };
-  }
-
-  /**
-   * Extract seed entities from enriched semantic matches.
-   * This replaces the seedFromSemantic() workaround that used CrossLinker.
-   */
-  private extractSeedsFromEnriched(
-    enrichedMatches: EnrichedSemanticMatch[],
-    minScore: number,
-  ): SeedExtractionResult {
-    const entitySeeds: Array<{
-      entityId: string;
-      sourceConceptId: string;
-      semanticScore: number;
-    }> = [];
-    const conceptIds: string[] = [];
-    const seenEntities = new Set<string>();
-    let conceptsWithoutLinks = 0;
-
-    for (const match of enrichedMatches) {
-      // Skip matches below minimum score threshold
-      if (match.score < minScore) {
-        continue;
-      }
-
-      const conceptId = match.concept.uuid;
-      conceptIds.push(conceptId);
-
-      if (match.linkedEntityIds.length === 0) {
-        conceptsWithoutLinks++;
-        continue;
-      }
-
-      for (const entityId of match.linkedEntityIds) {
-        if (!seenEntities.has(entityId)) {
-          seenEntities.add(entityId);
-          entitySeeds.push({
-            entityId,
-            sourceConceptId: conceptId,
-            semanticScore: match.score,
-          });
-        }
-      }
-    }
-
-    return {
-      entitySeeds,
-      conceptIds,
-      stats: {
-        conceptsSearched: enrichedMatches.length,
-        entitiesFound: entitySeeds.length,
-        conceptsWithoutLinks,
       },
     };
   }
