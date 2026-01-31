@@ -691,47 +691,86 @@ function registerEntityLookupTool(
           relationships: unknown[];
         }> = [];
 
+        // Resolve entity IDs (could be UUIDs or names)
+        const resolvedEntities: Array<{ uuid: string; name: string }> = [];
         for (const entityId of entity_ids) {
-          // getEntity accepts both UUID and name
           const entity = await graphs.entity.getEntity(entityId);
-
           if (entity) {
-            const relationships = await graphs.entity.getRelationships(
-              entity.uuid,
-            );
+            resolvedEntities.push({ uuid: entity.uuid, name: entity.name });
+          }
+        }
 
-            // For depth > 1, recursively get related entities
-            const allRelationships = [...relationships];
-            if (depth > 1) {
-              const seenIds = new Set([entity.uuid]);
-              let currentLevel = relationships;
+        if (resolvedEntities.length === 0) {
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: JSON.stringify([], null, 2),
+              },
+            ],
+            structuredContent: {
+              entities: [],
+              depth,
+              total: 0,
+            },
+          };
+        }
 
-              for (let d = 1; d < depth && currentLevel.length > 0; d++) {
-                const nextLevel: typeof relationships = [];
-                for (const rel of currentLevel) {
-                  for (const relatedId of [rel.source.uuid, rel.target.uuid]) {
-                    if (!seenIds.has(relatedId)) {
-                      seenIds.add(relatedId);
-                      try {
-                        const relatedRels =
-                          await graphs.entity.getRelationships(relatedId);
-                        nextLevel.push(...relatedRels);
-                        allRelationships.push(...relatedRels);
-                      } catch {
-                        // Entity not found - skip
-                      }
-                    }
-                  }
-                }
-                currentLevel = nextLevel;
-              }
+        // Use batch method for efficient relationship fetching
+        const seenIds = new Set<string>();
+        let currentLevelIds = resolvedEntities.map((e) => e.uuid);
+        const allRelationshipsByEntity = new Map<
+          string,
+          Array<{ source: unknown; target: unknown; relationshipType: string }>
+        >();
+
+        // Initialize with empty arrays
+        for (const entity of resolvedEntities) {
+          allRelationshipsByEntity.set(entity.uuid, []);
+        }
+
+        // BFS expansion up to depth using batch queries
+        for (let d = 0; d < depth && currentLevelIds.length > 0; d++) {
+          const relationshipMap =
+            await graphs.entity.getRelationshipsBatch(currentLevelIds);
+          const nextLevelIds: string[] = [];
+
+          for (const entityId of currentLevelIds) {
+            if (seenIds.has(entityId)) continue;
+            seenIds.add(entityId);
+
+            const relationships = relationshipMap.get(entityId) || [];
+
+            // Add to primary entity's relationships if it's one of our seeds
+            if (allRelationshipsByEntity.has(entityId)) {
+              const existing = allRelationshipsByEntity.get(entityId) || [];
+              existing.push(...relationships);
+              allRelationshipsByEntity.set(entityId, existing);
             }
 
+            // Collect next level IDs
+            for (const rel of relationships) {
+              if (!seenIds.has(rel.source.uuid)) {
+                nextLevelIds.push(rel.source.uuid);
+              }
+              if (!seenIds.has(rel.target.uuid)) {
+                nextLevelIds.push(rel.target.uuid);
+              }
+            }
+          }
+
+          currentLevelIds = [...new Set(nextLevelIds)];
+        }
+
+        // Build results
+        for (const entity of resolvedEntities) {
+          const fullEntity = await graphs.entity.getEntity(entity.uuid);
+          if (fullEntity) {
             results.push({
               entity: include_properties
-                ? entity
-                : { uuid: entity.uuid, name: entity.name },
-              relationships: allRelationships,
+                ? fullEntity
+                : { uuid: fullEntity.uuid, name: fullEntity.name },
+              relationships: allRelationshipsByEntity.get(entity.uuid) || [],
             });
           }
         }
@@ -791,25 +830,25 @@ function registerTemporalExpandTool(
           ? safeParseDate(to, 'to')
           : new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
 
-        const allEvents: unknown[] = [];
+        // Use batch method for efficient event fetching
+        const eventMap = await graphs.temporal.queryTimelineForEntities(
+          entity_ids,
+          fromDate,
+          toDate,
+        );
 
-        for (const entityId of entity_ids) {
-          const events = await graphs.temporal.queryTimeline(
-            fromDate,
-            toDate,
-            entityId,
-          );
-          allEvents.push(...events);
-        }
-
-        // Deduplicate by UUID
+        // Deduplicate events across all entities
         const seen = new Set<string>();
-        const uniqueEvents = allEvents.filter((e) => {
-          const event = e as { uuid: string };
-          if (seen.has(event.uuid)) return false;
-          seen.add(event.uuid);
-          return true;
-        });
+        const uniqueEvents: unknown[] = [];
+
+        for (const events of eventMap.values()) {
+          for (const event of events) {
+            if (!seen.has(event.uuid)) {
+              seen.add(event.uuid);
+              uniqueEvents.push(event);
+            }
+          }
+        }
 
         return {
           content: [
@@ -857,52 +896,46 @@ function registerCausalExpandTool(
 
       try {
         const graphs = resources.orchestrator.getGraphs();
-        const db = resources.db;
 
-        // Find C_Node nodes linked to the given entities via X_AFFECTS
-        const causalNodeResult = await db.query(
-          `MATCH (c:C_Node)-[:X_AFFECTS]->(e:E_Entity)
-           WHERE e.uuid IN $entityIds
-           RETURN DISTINCT c.uuid AS nodeId, c.description AS description`,
-          { entityIds: entity_ids },
-        );
+        // Use batch method to find C_Node nodes linked to entities via X_AFFECTS
+        const nodeMap = await graphs.causal.getNodesForEntities(entity_ids);
 
-        // Traverse causal chains from each found C_Node
-        const allLinks: Array<{
-          cause: string;
-          effect: string;
-          confidence: number;
-          evidence?: string;
-        }> = [];
+        // Collect unique causal node IDs
+        const causalNodeIds: string[] = [];
+        const seenNodeIds = new Set<string>();
 
-        for (const record of causalNodeResult.records) {
-          const nodeId = record.nodeId as string;
-
-          if (direction === 'upstream' || direction === 'both') {
-            const upstream = await graphs.causal.getUpstreamCauses(
-              nodeId,
-              depth,
-            );
-            allLinks.push(...upstream);
-          }
-
-          if (direction === 'downstream' || direction === 'both') {
-            const downstream = await graphs.causal.getDownstreamEffects(
-              nodeId,
-              depth,
-            );
-            allLinks.push(...downstream);
+        for (const nodes of nodeMap.values()) {
+          for (const node of nodes) {
+            if (!seenNodeIds.has(node.uuid)) {
+              seenNodeIds.add(node.uuid);
+              causalNodeIds.push(node.uuid);
+            }
           }
         }
 
-        // Deduplicate links
-        const seen = new Set<string>();
-        const uniqueLinks = allLinks.filter((link) => {
-          const key = `${link.cause}->${link.effect}`;
-          if (seen.has(key)) return false;
-          seen.add(key);
-          return true;
-        });
+        if (causalNodeIds.length === 0) {
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: JSON.stringify([], null, 2),
+              },
+            ],
+            structuredContent: {
+              links: [],
+              direction,
+              depth,
+              total: 0,
+            },
+          };
+        }
+
+        // Use traverseFromNodeIds for efficient traversal
+        const uniqueLinks = await graphs.causal.traverseFromNodeIds(
+          causalNodeIds,
+          direction,
+          depth,
+        );
 
         return {
           content: [
