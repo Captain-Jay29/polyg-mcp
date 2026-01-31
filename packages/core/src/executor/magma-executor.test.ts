@@ -3,7 +3,7 @@
 import type { EnrichedSemanticMatch, MAGMAIntent } from '@polyg-mcp/shared';
 import { describe, expect, it, vi } from 'vitest';
 import type { CausalGraph } from '../graphs/causal.js';
-import type { CrossLink, CrossLinker } from '../graphs/cross-linker.js';
+import type { CrossLinker } from '../graphs/cross-linker.js';
 import type { EntityGraph, EntityRelationship } from '../graphs/entity.js';
 import type { SemanticGraph } from '../graphs/semantic.js';
 import type { TemporalGraph } from '../graphs/temporal.js';
@@ -23,14 +23,6 @@ function createEnrichedSemanticMatch(
     linkedEntityIds,
     linkedEntityNames,
   };
-}
-
-function createCrossLink(
-  sourceId: string,
-  targetId: string,
-  linkType: CrossLink['linkType'] = 'X_REPRESENTS',
-): CrossLink {
-  return { sourceId, targetId, linkType };
 }
 
 function createValidIntent(
