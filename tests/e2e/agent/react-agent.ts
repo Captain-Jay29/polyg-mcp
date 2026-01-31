@@ -112,7 +112,10 @@ export class ReActAgent {
         messages,
         tools: tools.length > 0 ? tools : undefined,
         tool_choice: tools.length > 0 ? 'auto' : undefined,
-        temperature: this.config.temperature ?? 0.1,
+        // Only pass temperature if explicitly configured (some models don't support it)
+        ...(this.config.temperature !== undefined && {
+          temperature: this.config.temperature,
+        }),
       });
 
       const message = response.choices[0]?.message;
