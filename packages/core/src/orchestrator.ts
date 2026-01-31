@@ -33,6 +33,8 @@ const OrchestratorConfigSchema = z.object({
   minSemanticScore: z.number().min(0).max(1).optional(),
   timeout: z.number().int().min(100).max(60000).optional(),
   maxContextTokens: z.number().int().min(100).max(100000).optional(),
+  maxQueryLength: z.number().int().min(100).max(100000).optional(),
+  maxContextLength: z.number().int().min(100).max(100000).optional(),
 });
 
 export interface OrchestratorConfig {
@@ -44,6 +46,10 @@ export interface OrchestratorConfig {
   timeout?: number;
   /** Context linearizer max tokens (default: 4000) */
   maxContextTokens?: number;
+  /** Maximum query length in characters (default: 8000) */
+  maxQueryLength?: number;
+  /** Maximum context length in characters (default: 4000) */
+  maxContextLength?: number;
 }
 
 const DEFAULT_CONFIG: Required<OrchestratorConfig> = {
@@ -51,6 +57,8 @@ const DEFAULT_CONFIG: Required<OrchestratorConfig> = {
   minSemanticScore: 0.5,
   timeout: 5000,
   maxContextTokens: 4000,
+  maxQueryLength: 8000,
+  maxContextLength: 4000,
 };
 
 /**
@@ -111,7 +119,10 @@ export class Orchestrator {
     this.crossLinker = new CrossLinker(db);
 
     // Initialize LLM agents
-    this.classifier = new IntentClassifier(llm);
+    this.classifier = new IntentClassifier(llm, {
+      maxQueryLength: validatedConfig.maxQueryLength,
+      maxContextLength: validatedConfig.maxContextLength,
+    });
     this.synthesizer = new Synthesizer(llm);
 
     // Initialize MAGMA executor with all graphs including crossLinker

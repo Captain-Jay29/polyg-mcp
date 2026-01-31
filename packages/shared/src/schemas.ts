@@ -109,7 +109,6 @@ export const MAGMAIntentSchema = z.object({
   entities: z.array(z.string()).default([]),
   temporalHints: z.array(z.string()).optional(),
   depthHints: DepthHintsSchema,
-  confidence: z.number().min(0).max(1).default(0.5),
 });
 
 // Graph view source types
@@ -275,6 +274,10 @@ export const MAGMAConfigSchema = z.object({
 
   // Multi-view scoring
   multiViewBoost: z.number().min(1).default(1.5),
+
+  // Input length limits (to prevent exceeding LLM context window)
+  maxQueryLength: z.number().int().min(100).max(100000).default(8000),
+  maxContextLength: z.number().int().min(100).max(100000).default(4000),
 });
 
 // Timeframe for temporal queries

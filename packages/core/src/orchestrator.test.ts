@@ -45,7 +45,6 @@ function mockMAGMAIntent(overrides: Partial<MAGMAIntent> = {}): MAGMAIntent {
   return {
     type: 'WHO',
     entities: ['test entity'],
-    confidence: 0.9,
     depthHints: {
       entity: 3,
       temporal: 1,

@@ -12,19 +12,55 @@ import {
 } from './errors.js';
 import { MAGMA_CLASSIFIER_PROMPT } from './prompts.js';
 
+// Default input length limits (can be overridden via config)
+const DEFAULT_MAX_QUERY_LENGTH = 8000;
+const DEFAULT_MAX_CONTEXT_LENGTH = 4000;
+
+export interface ClassifierConfig {
+  /** Maximum query length in characters (default: 8000) */
+  maxQueryLength?: number;
+  /** Maximum context length in characters (default: 4000) */
+  maxContextLength?: number;
+}
+
 export class IntentClassifier {
-  constructor(private llm: LLMProvider) {}
+  private readonly maxQueryLength: number;
+  private readonly maxContextLength: number;
+
+  constructor(
+    private llm: LLMProvider,
+    config?: ClassifierConfig,
+  ) {
+    this.maxQueryLength = config?.maxQueryLength ?? DEFAULT_MAX_QUERY_LENGTH;
+    this.maxContextLength =
+      config?.maxContextLength ?? DEFAULT_MAX_CONTEXT_LENGTH;
+  }
 
   /**
    * Classify using MAGMA-style question-centric intents
    * Returns MAGMAIntent with WHY/WHEN/WHO/WHAT/EXPLORE type and depth hints
-   * @throws {ClassifierError} When classification fails
+   * @throws {ClassifierError} When classification fails (empty/too long input)
    * @throws {LLMResponseParseError} When LLM response is not valid JSON
    * @throws {LLMResponseValidationError} When LLM response fails schema validation
    */
   async classifyMAGMA(input: ClassifierInput): Promise<MAGMAIntent> {
+    // Validate query is not empty
     if (!input.query || input.query.trim().length === 0) {
       throw new ClassifierError('Query cannot be empty');
+    }
+
+    // Validate query length
+    if (input.query.length > this.maxQueryLength) {
+      throw new ClassifierError(
+        `Query exceeds maximum length of ${this.maxQueryLength} characters (got ${input.query.length}). Please shorten your query.`,
+      );
+    }
+
+    // Validate context length if provided
+    if (input.context && input.context.length > this.maxContextLength) {
+      throw new ClassifierError(
+        `Context exceeds maximum length of ${this.maxContextLength} characters (got ${input.context.length}). Please shorten the context.`,
+      );
     }
 
     const prompt = MAGMA_CLASSIFIER_PROMPT.replace(
@@ -51,6 +87,7 @@ export class IntentClassifier {
 
   /**
    * Parse and validate MAGMA-style LLM response
+   * Falls back to EXPLORE intent for invalid types to ensure graceful degradation
    */
   private parseAndValidateMAGMA(response: string): MAGMAIntent {
     // First, try to parse as JSON
@@ -65,17 +102,37 @@ export class IntentClassifier {
       );
     }
 
-    // Then validate against MAGMA schema
+    // Try to validate against MAGMA schema
     const result = MAGMAIntentSchema.safeParse(parsed);
 
-    if (!result.success) {
-      throw new LLMResponseValidationError(
-        `LLM response failed MAGMA schema validation:\n${result.error.issues.map((e: { path: PropertyKey[]; message: string }) => `  - ${e.path.join('.')}: ${e.message}`).join('\n')}`,
-        response,
-        result.error.issues,
-      );
+    if (result.success) {
+      return result.data;
     }
 
-    return result.data;
+    // Check if the only issue is an invalid intent type - if so, fallback to EXPLORE
+    const typeError = result.error.issues.find(
+      (issue) => issue.path.length === 1 && issue.path[0] === 'type',
+    );
+
+    if (typeError && typeof parsed === 'object' && parsed !== null) {
+      // Try to salvage the response with EXPLORE as fallback type
+      const fallbackParsed = { ...parsed, type: 'EXPLORE' } as unknown;
+      const fallbackResult = MAGMAIntentSchema.safeParse(fallbackParsed);
+
+      if (fallbackResult.success) {
+        // Log warning for monitoring (could be replaced with proper logger)
+        console.warn(
+          `[IntentClassifier] Invalid intent type "${(parsed as Record<string, unknown>).type}", falling back to EXPLORE`,
+        );
+        return fallbackResult.data;
+      }
+    }
+
+    // If we can't salvage, throw the original validation error
+    throw new LLMResponseValidationError(
+      `LLM response failed MAGMA schema validation:\n${result.error.issues.map((e: { path: PropertyKey[]; message: string }) => `  - ${e.path.join('.')}: ${e.message}`).join('\n')}`,
+      response,
+      result.error.issues,
+    );
   }
 }
