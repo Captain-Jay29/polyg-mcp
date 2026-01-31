@@ -2,6 +2,7 @@
 import type {
   Concept,
   EmbeddingProvider,
+  EnrichedSemanticMatch,
   SemanticMatch,
 } from '@polyg-mcp/shared';
 import type { FalkorDBAdapter } from '../storage/falkordb.js';
@@ -143,6 +144,84 @@ export class SemanticGraph {
         `Failed to search concepts: ${query}`,
         'Semantic',
         'search',
+      );
+    }
+  }
+
+  /**
+   * Search for concepts and include linked entity IDs in a single query.
+   * Returns EnrichedSemanticMatch with linkedEntityIds and linkedEntityNames.
+   *
+   * This eliminates the need for separate CrossLinker lookups by fetching
+   * X_REPRESENTS links alongside the concept search.
+   */
+  async searchWithEntities(
+    query: string,
+    limit = 10,
+  ): Promise<EnrichedSemanticMatch[]> {
+    try {
+      // Generate embedding for the query
+      let queryEmbedding: number[];
+
+      try {
+        queryEmbedding = await this.embeddings.embed(query);
+      } catch (error) {
+        throw new EmbeddingGenerationError(
+          'Failed to generate embedding for search query',
+          query,
+          error instanceof Error ? error : undefined,
+        );
+      }
+
+      // Get all concepts with their linked entities in a single query
+      const result = await this.db.query(
+        `MATCH (c:${CONCEPT_LABEL})
+         OPTIONAL MATCH (c)-[:${REPRESENTS_REL}]->(e:E_Entity)
+         RETURN c, collect(e.uuid) AS entityIds, collect(e.name) AS entityNames`,
+        {},
+      );
+
+      const matches: EnrichedSemanticMatch[] = [];
+
+      for (const record of result.records) {
+        const concept = this.safeParseConcept(record.c);
+        if (concept.embedding) {
+          const score = this.cosineSimilarity(
+            queryEmbedding,
+            concept.embedding,
+          );
+
+          // Filter out null values from collect() results
+          const entityIds = (record.entityIds as (string | null)[]).filter(
+            (id): id is string => id !== null,
+          );
+          const entityNames = (record.entityNames as (string | null)[]).filter(
+            (name): name is string => name !== null,
+          );
+
+          matches.push({
+            concept,
+            score,
+            linkedEntityIds: entityIds,
+            linkedEntityNames: entityNames,
+          });
+        }
+      }
+
+      // Sort by score descending and limit
+      return matches.sort((a, b) => b.score - a.score).slice(0, limit);
+    } catch (error) {
+      if (
+        error instanceof EmbeddingGenerationError ||
+        error instanceof GraphParseError
+      ) {
+        throw error;
+      }
+      throw wrapGraphError(
+        error,
+        `Failed to search concepts with entities: ${query}`,
+        'Semantic',
+        'searchWithEntities',
       );
     }
   }

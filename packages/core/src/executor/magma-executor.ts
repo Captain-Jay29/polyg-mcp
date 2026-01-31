@@ -2,15 +2,15 @@
  * MAGMAExecutor - MAGMA-style cascading graph retrieval
  *
  * Flow:
- * 1. Semantic search → get seed concepts
- * 2. Extract entity IDs from seeds via X_REPRESENTS
- * 3. Parallel expansion: entity, temporal, causal (depth by intent)
- * 4. Merge results with multi-view boosting
+ * 1. Semantic search with entities → get seed concepts WITH linked entity IDs
+ * 2. Parallel expansion: entity, temporal, causal (depth by intent)
+ * 3. Merge results with multi-view boosting
  *
  * "Vectors locate. Graphs explain. Policies decide how to think."
  */
 import {
   type DepthHints,
+  type EnrichedSemanticMatch,
   type GraphView,
   type MAGMAConfig,
   type MAGMAIntent,
@@ -25,12 +25,9 @@ import type { SemanticGraph } from '../graphs/semantic.js';
 import type { TemporalGraph } from '../graphs/temporal.js';
 import {
   ExecutorError,
-  filterSeedsByScore,
-  getEntityIds,
   RetrievalValidationError,
   type SeedExtractionResult,
   SubgraphMerger,
-  seedFromSemantic,
 } from '../retrieval/index.js';
 
 export interface MAGMAGraphRegistry {
@@ -151,32 +148,28 @@ export class MAGMAExecutor {
 
     const totalStart = Date.now();
 
-    // Step 1: Semantic search for seed concepts
+    // Step 1: Semantic search with entities (single query for concepts + entity IDs)
     const semanticStart = Date.now();
-    const semanticMatches = await this.withTimeout(
-      this.graphs.semantic.search(query, this.config.semanticTopK),
+    const enrichedMatches = await this.withTimeout(
+      this.graphs.semantic.searchWithEntities(query, this.config.semanticTopK),
     );
     const semanticMs = Date.now() - semanticStart;
 
-    // Step 2: Extract entity IDs from semantic matches via X_REPRESENTS
+    // Step 2: Extract entity IDs directly from enriched matches (no CrossLinker needed)
     const seedStart = Date.now();
-    const seeds = await seedFromSemantic(
-      semanticMatches,
-      this.graphs.crossLinker,
-    );
-    const filteredSeeds = filterSeedsByScore(
-      seeds.entitySeeds,
+    const seeds = this.extractSeedsFromEnriched(
+      enrichedMatches,
       this.config.minSemanticScore,
     );
-    const entityIds = getEntityIds(filteredSeeds);
+    const entityIds = seeds.entitySeeds.map((s) => s.entityId);
     const seedExtractionMs = Date.now() - seedStart;
 
-    // Step 3: Parallel graph expansion from seeds
+    // Step 3: Parallel graph expansion from seeds using batch methods
     const expansionStart = Date.now();
     const views = await this.expandFromSeeds(
       entityIds,
       intent.depthHints,
-      semanticMatches,
+      enrichedMatches,
     );
     const expansionMs = Date.now() - expansionStart;
 
@@ -199,19 +192,73 @@ export class MAGMAExecutor {
   }
 
   /**
+   * Extract seed entities from enriched semantic matches.
+   * This replaces the seedFromSemantic() workaround that used CrossLinker.
+   */
+  private extractSeedsFromEnriched(
+    enrichedMatches: EnrichedSemanticMatch[],
+    minScore: number,
+  ): SeedExtractionResult {
+    const entitySeeds: Array<{
+      entityId: string;
+      sourceConceptId: string;
+      semanticScore: number;
+    }> = [];
+    const conceptIds: string[] = [];
+    const seenEntities = new Set<string>();
+    let conceptsWithoutLinks = 0;
+
+    for (const match of enrichedMatches) {
+      // Skip matches below minimum score threshold
+      if (match.score < minScore) {
+        continue;
+      }
+
+      const conceptId = match.concept.uuid;
+      conceptIds.push(conceptId);
+
+      if (match.linkedEntityIds.length === 0) {
+        conceptsWithoutLinks++;
+        continue;
+      }
+
+      for (const entityId of match.linkedEntityIds) {
+        if (!seenEntities.has(entityId)) {
+          seenEntities.add(entityId);
+          entitySeeds.push({
+            entityId,
+            sourceConceptId: conceptId,
+            semanticScore: match.score,
+          });
+        }
+      }
+    }
+
+    return {
+      entitySeeds,
+      conceptIds,
+      stats: {
+        conceptsSearched: enrichedMatches.length,
+        entitiesFound: entitySeeds.length,
+        conceptsWithoutLinks,
+      },
+    };
+  }
+
+  /**
    * Expand from seed entities in parallel across all graph types
    */
   private async expandFromSeeds(
     entityIds: string[],
     depthHints: DepthHints,
-    semanticMatches: Awaited<ReturnType<SemanticGraph['search']>>,
+    enrichedMatches: EnrichedSemanticMatch[],
   ): Promise<GraphView[]> {
     const views: GraphView[] = [];
 
     // Always include semantic view from initial search
     views.push({
       source: 'semantic',
-      nodes: semanticMatches.map((m) => ({
+      nodes: enrichedMatches.map((m) => ({
         uuid: m.concept.uuid,
         data: m.concept,
         score: m.score,
@@ -238,7 +285,7 @@ export class MAGMAExecutor {
   }
 
   /**
-   * Expand entity relationships from seed entities
+   * Expand entity relationships from seed entities using batch method
    */
   private async expandEntityGraph(
     entityIds: string[],
@@ -247,19 +294,22 @@ export class MAGMAExecutor {
     const nodes: GraphView['nodes'] = [];
     const seenIds = new Set<string>();
 
-    // BFS expansion up to depth
+    // BFS expansion up to depth using batch queries
     let currentLevel = entityIds;
 
     for (let d = 0; d < depth && currentLevel.length > 0; d++) {
       const nextLevel: string[] = [];
 
-      for (const entityId of currentLevel) {
-        if (seenIds.has(entityId)) continue;
-        seenIds.add(entityId);
+      try {
+        // Batch fetch relationships for all entities at current level
+        const relationshipMap =
+          await this.graphs.entity.getRelationshipsBatch(currentLevel);
 
-        try {
-          const relationships =
-            await this.graphs.entity.getRelationships(entityId);
+        for (const entityId of currentLevel) {
+          if (seenIds.has(entityId)) continue;
+          seenIds.add(entityId);
+
+          const relationships = relationshipMap.get(entityId) || [];
 
           for (const rel of relationships) {
             // Add source entity
@@ -282,9 +332,9 @@ export class MAGMAExecutor {
               nextLevel.push(rel.target.uuid);
             }
           }
-        } catch {
-          // Entity not found or error - continue with others
         }
+      } catch {
+        // Batch query failed - continue with next depth level
       }
 
       currentLevel = nextLevel;
@@ -294,7 +344,7 @@ export class MAGMAExecutor {
   }
 
   /**
-   * Expand temporal events involving seed entities
+   * Expand temporal events involving seed entities using batch method
    */
   private async expandTemporalGraph(
     entityIds: string[],
@@ -303,20 +353,20 @@ export class MAGMAExecutor {
     const nodes: GraphView['nodes'] = [];
     const seenIds = new Set<string>();
 
-    // Query timeline for events involving each entity
     // Use a wide time range (last year to now + 1 year)
     const now = new Date();
     const from = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
     const to = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
 
-    for (const entityId of entityIds) {
-      try {
-        const events = await this.graphs.temporal.queryTimeline(
-          from,
-          to,
-          entityId,
-        );
+    try {
+      // Single batch query for all entities
+      const eventMap = await this.graphs.temporal.queryTimelineForEntities(
+        entityIds,
+        from,
+        to,
+      );
 
+      for (const events of eventMap.values()) {
         for (const event of events) {
           if (!seenIds.has(event.uuid)) {
             seenIds.add(event.uuid);
@@ -327,9 +377,9 @@ export class MAGMAExecutor {
             });
           }
         }
-      } catch {
-        // Entity has no temporal events - continue
       }
+    } catch {
+      // Batch query failed - return empty
     }
 
     // TODO: For depth > 1, could follow T_BEFORE/T_AFTER relationships
@@ -339,7 +389,7 @@ export class MAGMAExecutor {
   }
 
   /**
-   * Expand causal chains from seed entities
+   * Expand causal chains from seed entities using batch methods
    */
   private async expandCausalGraph(
     entityIds: string[],
@@ -348,25 +398,39 @@ export class MAGMAExecutor {
     const nodes: GraphView['nodes'] = [];
     const seenIds = new Set<string>();
 
-    // Create entity mentions for causal traversal
-    const entityMentions = entityIds.map((id) => ({
-      mention: id,
-      type: undefined,
-    }));
-
-    if (entityMentions.length === 0) {
+    if (entityIds.length === 0) {
       return { source: 'causal', nodes };
     }
 
     try {
-      const causalLinks = await this.graphs.causal.traverse(
-        entityMentions,
+      // Step 1: Get causal nodes linked to entities via X_AFFECTS (batch)
+      const nodeMap = await this.graphs.causal.getNodesForEntities(entityIds);
+
+      // Collect all unique causal node IDs
+      const causalNodeIds: string[] = [];
+      const seenNodeIds = new Set<string>();
+
+      for (const causalNodes of nodeMap.values()) {
+        for (const node of causalNodes) {
+          if (!seenNodeIds.has(node.uuid)) {
+            seenNodeIds.add(node.uuid);
+            causalNodeIds.push(node.uuid);
+          }
+        }
+      }
+
+      if (causalNodeIds.length === 0) {
+        return { source: 'causal', nodes };
+      }
+
+      // Step 2: Traverse from causal node UUIDs directly
+      const causalLinks = await this.graphs.causal.traverseFromNodeIds(
+        causalNodeIds,
         'both', // Traverse both upstream and downstream
         depth,
       );
 
       // Extract nodes from causal links
-      // Each CausalLink has cause and effect as strings
       for (const link of causalLinks) {
         // Add cause as a node
         if (!seenIds.has(link.cause)) {

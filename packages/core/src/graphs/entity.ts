@@ -294,6 +294,77 @@ export class EntityGraph {
   }
 
   /**
+   * Get relationships for multiple entities in a single batch query.
+   * Returns a Map keyed by entity UUID with relationships as values.
+   *
+   * This is more efficient than calling getRelationships() for each entity
+   * when expanding from multiple seed entities.
+   */
+  async getRelationshipsBatch(
+    entityIds: string[],
+  ): Promise<Map<string, EntityRelationship[]>> {
+    try {
+      if (entityIds.length === 0) {
+        return new Map();
+      }
+
+      // Single query to get all relationships for all entities
+      const result = await this.db.query(
+        `MATCH (s:${ENTITY_LABEL})-[r:${RELATIONSHIP_TYPE}]->(t:${ENTITY_LABEL})
+         WHERE s.uuid IN $entityIds OR t.uuid IN $entityIds
+         RETURN s, r.relationship_type as relType, t`,
+        { entityIds },
+      );
+
+      // Group relationships by entity UUID
+      const relationshipMap = new Map<string, EntityRelationship[]>();
+
+      // Initialize empty arrays for all requested entities
+      for (const id of entityIds) {
+        relationshipMap.set(id, []);
+      }
+
+      for (const record of result.records) {
+        const source = this.safeParseEntity(record.s);
+        const target = this.safeParseEntity(record.t);
+        const relType = safeString(record.relType);
+
+        const relationship: EntityRelationship = {
+          source,
+          target,
+          relationshipType: relType,
+        };
+
+        // Add relationship to source entity's list if it's in our query
+        if (entityIds.includes(source.uuid)) {
+          const sourceRels = relationshipMap.get(source.uuid) || [];
+          sourceRels.push(relationship);
+          relationshipMap.set(source.uuid, sourceRels);
+        }
+
+        // Add relationship to target entity's list if it's in our query
+        if (entityIds.includes(target.uuid)) {
+          const targetRels = relationshipMap.get(target.uuid) || [];
+          targetRels.push(relationship);
+          relationshipMap.set(target.uuid, targetRels);
+        }
+      }
+
+      return relationshipMap;
+    } catch (error) {
+      if (error instanceof GraphParseError) {
+        throw error;
+      }
+      throw wrapGraphError(
+        error,
+        `Failed to get relationships batch for ${entityIds.length} entities`,
+        'Entity',
+        'getRelationshipsBatch',
+      );
+    }
+  }
+
+  /**
    * Resolve entity mentions to actual entities (fuzzy matching)
    */
   async resolve(

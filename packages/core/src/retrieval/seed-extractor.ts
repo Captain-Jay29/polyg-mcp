@@ -3,8 +3,16 @@
  *
  * Part of MAGMA retrieval: uses X_REPRESENTS cross-links to find entity IDs
  * from semantic concept matches, providing seeds for graph traversal.
+ *
+ * NOTE: The seedFromSemantic() function is deprecated.
+ * Use SemanticGraph.searchWithEntities() instead, which returns EnrichedSemanticMatch
+ * with linkedEntityIds already populated (eliminates CrossLinker round-trips).
  */
-import { type SemanticMatch, SemanticMatchSchema } from '@polyg-mcp/shared';
+import {
+  type EnrichedSemanticMatch,
+  type SemanticMatch,
+  SemanticMatchSchema,
+} from '@polyg-mcp/shared';
 import { z } from 'zod';
 import type { CrossLinker } from '../graphs/cross-linker.js';
 import { RetrievalValidationError, SeedExtractionError } from './errors.js';
@@ -87,6 +95,11 @@ function validateResult(result: SeedExtractionResult): SeedExtractionResult {
 
 /**
  * Extract entity seeds from semantic search results using X_REPRESENTS links.
+ *
+ * @deprecated Use SemanticGraph.searchWithEntities() instead.
+ * This function performs separate CrossLinker lookups for each concept,
+ * which adds unnecessary database round-trips. The new searchWithEntities()
+ * method fetches entity IDs in the same query as the semantic search.
  *
  * Flow:
  * 1. Semantic search returns Concept nodes with similarity scores
@@ -303,4 +316,78 @@ export function filterSeedsByScore(
     );
   }
   return seeds.filter((s) => s.semanticScore >= minScore);
+}
+
+/**
+ * Extract entity seeds from enriched semantic matches.
+ *
+ * This is the recommended approach for seed extraction. Use with
+ * SemanticGraph.searchWithEntities() which returns EnrichedSemanticMatch
+ * objects with linkedEntityIds already populated.
+ *
+ * @param enrichedMatches - Results from SemanticGraph.searchWithEntities()
+ * @param minScore - Minimum semantic score threshold (0-1)
+ * @returns Entity seeds for graph traversal
+ * @throws {RetrievalValidationError} If inputs are invalid
+ */
+export function extractSeedsFromEnrichedMatches(
+  enrichedMatches: EnrichedSemanticMatch[],
+  minScore = 0,
+): SeedExtractionResult {
+  if (!Array.isArray(enrichedMatches)) {
+    throw new RetrievalValidationError(
+      'Enriched matches must be an array',
+      'SeedExtractor',
+      [`Expected array, got ${typeof enrichedMatches}`],
+    );
+  }
+
+  if (minScore < 0 || minScore > 1) {
+    throw new RetrievalValidationError(
+      'minScore must be between 0 and 1',
+      'SeedExtractor',
+      [`Expected 0 <= minScore <= 1, got ${minScore}`],
+    );
+  }
+
+  const entitySeeds: SeedEntity[] = [];
+  const conceptIds: string[] = [];
+  const seenEntities = new Set<string>();
+  let conceptsWithoutLinks = 0;
+
+  for (const match of enrichedMatches) {
+    // Skip matches below minimum score threshold
+    if (match.score < minScore) {
+      continue;
+    }
+
+    const conceptId = match.concept.uuid;
+    conceptIds.push(conceptId);
+
+    if (match.linkedEntityIds.length === 0) {
+      conceptsWithoutLinks++;
+      continue;
+    }
+
+    for (const entityId of match.linkedEntityIds) {
+      if (!seenEntities.has(entityId)) {
+        seenEntities.add(entityId);
+        entitySeeds.push({
+          entityId,
+          sourceConceptId: conceptId,
+          semanticScore: match.score,
+        });
+      }
+    }
+  }
+
+  return {
+    entitySeeds,
+    conceptIds,
+    stats: {
+      conceptsSearched: enrichedMatches.length,
+      entitiesFound: entitySeeds.length,
+      conceptsWithoutLinks,
+    },
+  };
 }

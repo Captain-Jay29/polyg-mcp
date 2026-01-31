@@ -278,6 +278,114 @@ export class CausalGraph {
   }
 
   /**
+   * Get causal nodes linked to multiple entities in a single batch query.
+   * Returns a Map keyed by entity UUID with CausalNode arrays as values.
+   *
+   * This finds C_Node nodes connected via X_AFFECTS relationships.
+   */
+  async getNodesForEntities(
+    entityIds: string[],
+  ): Promise<Map<string, CausalNode[]>> {
+    try {
+      if (entityIds.length === 0) {
+        return new Map();
+      }
+
+      // Single query to find all causal nodes linked to any of the entities
+      const result = await this.db.query(
+        `MATCH (c:${NODE_LABEL})-[:${AFFECTS_REL}]->(e)
+         WHERE e.uuid IN $entityIds
+         RETURN c, e.uuid AS entityId`,
+        { entityIds },
+      );
+
+      // Group nodes by entity UUID
+      const nodeMap = new Map<string, CausalNode[]>();
+
+      // Initialize empty arrays for all requested entities
+      for (const id of entityIds) {
+        nodeMap.set(id, []);
+      }
+
+      for (const record of result.records) {
+        const node = this.safeParseNode(record.c);
+        const entityId = record.entityId as string;
+
+        const entityNodes = nodeMap.get(entityId) || [];
+        // Avoid duplicates within same entity
+        if (!entityNodes.some((n) => n.uuid === node.uuid)) {
+          entityNodes.push(node);
+          nodeMap.set(entityId, entityNodes);
+        }
+      }
+
+      return nodeMap;
+    } catch (error) {
+      if (error instanceof GraphParseError) {
+        throw error;
+      }
+      throw wrapGraphError(
+        error,
+        `Failed to get causal nodes for ${entityIds.length} entities`,
+        'Causal',
+        'getNodesForEntities',
+      );
+    }
+  }
+
+  /**
+   * Traverse causal chains from node UUIDs directly.
+   * This is more efficient than traverse() as it uses UUIDs instead of description matching.
+   */
+  async traverseFromNodeIds(
+    nodeIds: string[],
+    direction: 'upstream' | 'downstream' | 'both',
+    maxDepth = 3,
+  ): Promise<CausalLink[]> {
+    try {
+      if (nodeIds.length === 0) {
+        return [];
+      }
+
+      const links: CausalLink[] = [];
+
+      for (const nodeId of nodeIds) {
+        if (direction === 'upstream' || direction === 'both') {
+          const upstream = await this.getUpstreamCauses(nodeId, maxDepth);
+          links.push(...upstream);
+        }
+
+        if (direction === 'downstream' || direction === 'both') {
+          const downstream = await this.getDownstreamEffects(nodeId, maxDepth);
+          links.push(...downstream);
+        }
+      }
+
+      // Deduplicate links
+      const seen = new Set<string>();
+      return links.filter((link) => {
+        const key = `${link.cause}->${link.effect}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    } catch (error) {
+      if (
+        error instanceof GraphParseError ||
+        error instanceof CausalTraversalError
+      ) {
+        throw error;
+      }
+      throw new CausalTraversalError(
+        `Failed to traverse from ${nodeIds.length} node IDs`,
+        direction,
+        maxDepth,
+        error instanceof Error ? error : undefined,
+      );
+    }
+  }
+
+  /**
    * Find causal explanation for an event description
    */
   async explainWhy(eventDescription: string): Promise<CausalLink[]> {

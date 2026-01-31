@@ -21,6 +21,7 @@ export {
   wrapRetrievalError,
 } from './errors.js';
 export {
+  extractSeedsFromEnrichedMatches,
   filterSeedsByScore,
   getEntityIds,
   type SeedEntity,
