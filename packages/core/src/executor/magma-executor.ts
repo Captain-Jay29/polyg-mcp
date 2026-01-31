@@ -252,22 +252,41 @@ export class MAGMAExecutor {
       return views;
     }
 
-    // Parallel expansion from seeds
-    const [entityView, temporalView, causalView] = await Promise.all([
+    // Parallel expansion from seeds with graceful degradation
+    // Use Promise.allSettled to allow partial success - if one expansion fails,
+    // others can still contribute results
+    const expansionResults = await Promise.allSettled([
       this.expandEntityGraph(entityIds, depthHints.entity),
       this.expandTemporalGraph(entityIds, depthHints.temporal),
       this.expandCausalGraph(entityIds, depthHints.causal),
     ]);
 
-    if (entityView.nodes.length > 0) views.push(entityView);
-    if (temporalView.nodes.length > 0) views.push(temporalView);
-    if (causalView.nodes.length > 0) views.push(causalView);
+    const expansionNames = ['entity', 'temporal', 'causal'] as const;
+
+    for (let i = 0; i < expansionResults.length; i++) {
+      const result = expansionResults[i];
+      if (result.status === 'fulfilled') {
+        if (result.value.nodes.length > 0) {
+          views.push(result.value);
+        }
+      } else {
+        // Log failed expansion for observability but continue with others
+        console.warn(
+          `[MAGMAExecutor] ${expansionNames[i]} expansion failed:`,
+          result.reason instanceof Error
+            ? result.reason.message
+            : String(result.reason),
+        );
+      }
+    }
 
     return views;
   }
 
   /**
    * Expand entity relationships from seed entities using batch method
+   *
+   * Errors propagate to caller (expandFromSeeds) for graceful degradation via Promise.allSettled.
    */
   private async expandEntityGraph(
     entityIds: string[],
@@ -282,41 +301,38 @@ export class MAGMAExecutor {
     for (let d = 0; d < depth && currentLevel.length > 0; d++) {
       const nextLevel: string[] = [];
 
-      try {
-        // Batch fetch relationships for all entities at current level
-        const relationshipMap =
-          await this.graphs.entity.getRelationshipsBatch(currentLevel);
+      // Batch fetch relationships for all entities at current level
+      // Errors propagate up for graceful degradation at Promise.allSettled level
+      const relationshipMap =
+        await this.graphs.entity.getRelationshipsBatch(currentLevel);
 
-        for (const entityId of currentLevel) {
-          if (seenIds.has(entityId)) continue;
-          seenIds.add(entityId);
+      for (const entityId of currentLevel) {
+        if (seenIds.has(entityId)) continue;
+        seenIds.add(entityId);
 
-          const relationships = relationshipMap.get(entityId) || [];
+        const relationships = relationshipMap.get(entityId) || [];
 
-          for (const rel of relationships) {
-            // Add source entity
-            if (!seenIds.has(rel.source.uuid)) {
-              nodes.push({
-                uuid: rel.source.uuid,
-                data: rel.source,
-                score: 1.0 / (d + 1), // Score decreases with depth
-              });
-              nextLevel.push(rel.source.uuid);
-            }
+        for (const rel of relationships) {
+          // Add source entity
+          if (!seenIds.has(rel.source.uuid)) {
+            nodes.push({
+              uuid: rel.source.uuid,
+              data: rel.source,
+              score: 1.0 / (d + 1), // Score decreases with depth
+            });
+            nextLevel.push(rel.source.uuid);
+          }
 
-            // Add target entity
-            if (!seenIds.has(rel.target.uuid)) {
-              nodes.push({
-                uuid: rel.target.uuid,
-                data: rel.target,
-                score: 1.0 / (d + 1),
-              });
-              nextLevel.push(rel.target.uuid);
-            }
+          // Add target entity
+          if (!seenIds.has(rel.target.uuid)) {
+            nodes.push({
+              uuid: rel.target.uuid,
+              data: rel.target,
+              score: 1.0 / (d + 1),
+            });
+            nextLevel.push(rel.target.uuid);
           }
         }
-      } catch {
-        // Batch query failed - continue with next depth level
       }
 
       currentLevel = nextLevel;
@@ -327,6 +343,8 @@ export class MAGMAExecutor {
 
   /**
    * Expand temporal events involving seed entities using batch method
+   *
+   * Errors propagate to caller (expandFromSeeds) for graceful degradation via Promise.allSettled.
    */
   private async expandTemporalGraph(
     entityIds: string[],
@@ -340,28 +358,25 @@ export class MAGMAExecutor {
     const from = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
     const to = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
 
-    try {
-      // Single batch query for all entities
-      const eventMap = await this.graphs.temporal.queryTimelineForEntities(
-        entityIds,
-        from,
-        to,
-      );
+    // Single batch query for all entities
+    // Errors propagate up for graceful degradation at Promise.allSettled level
+    const eventMap = await this.graphs.temporal.queryTimelineForEntities(
+      entityIds,
+      from,
+      to,
+    );
 
-      for (const events of eventMap.values()) {
-        for (const event of events) {
-          if (!seenIds.has(event.uuid)) {
-            seenIds.add(event.uuid);
-            nodes.push({
-              uuid: event.uuid,
-              data: event,
-              score: 1.0, // Temporal events get full score
-            });
-          }
+    for (const events of eventMap.values()) {
+      for (const event of events) {
+        if (!seenIds.has(event.uuid)) {
+          seenIds.add(event.uuid);
+          nodes.push({
+            uuid: event.uuid,
+            data: event,
+            score: 1.0, // Temporal events get full score
+          });
         }
       }
-    } catch {
-      // Batch query failed - return empty
     }
 
     // TODO: For depth > 1, could follow T_BEFORE/T_AFTER relationships
@@ -372,6 +387,8 @@ export class MAGMAExecutor {
 
   /**
    * Expand causal chains from seed entities using batch methods
+   *
+   * Errors propagate to caller (expandFromSeeds) for graceful degradation via Promise.allSettled.
    */
   private async expandCausalGraph(
     entityIds: string[],
@@ -384,66 +401,63 @@ export class MAGMAExecutor {
       return { source: 'causal', nodes };
     }
 
-    try {
-      // Step 1: Get causal nodes linked to entities via X_AFFECTS (batch)
-      const nodeMap = await this.graphs.causal.getNodesForEntities(entityIds);
+    // Step 1: Get causal nodes linked to entities via X_AFFECTS (batch)
+    // Errors propagate up for graceful degradation at Promise.allSettled level
+    const nodeMap = await this.graphs.causal.getNodesForEntities(entityIds);
 
-      // Collect all unique causal node IDs
-      const causalNodeIds: string[] = [];
-      const seenNodeIds = new Set<string>();
+    // Collect all unique causal node IDs
+    const causalNodeIds: string[] = [];
+    const seenNodeIds = new Set<string>();
 
-      for (const causalNodes of nodeMap.values()) {
-        for (const node of causalNodes) {
-          if (!seenNodeIds.has(node.uuid)) {
-            seenNodeIds.add(node.uuid);
-            causalNodeIds.push(node.uuid);
-          }
+    for (const causalNodes of nodeMap.values()) {
+      for (const node of causalNodes) {
+        if (!seenNodeIds.has(node.uuid)) {
+          seenNodeIds.add(node.uuid);
+          causalNodeIds.push(node.uuid);
         }
       }
+    }
 
-      if (causalNodeIds.length === 0) {
-        return { source: 'causal', nodes };
+    if (causalNodeIds.length === 0) {
+      return { source: 'causal', nodes };
+    }
+
+    // Step 2: Traverse from causal node UUIDs directly
+    const causalLinks = await this.graphs.causal.traverseFromNodeIds(
+      causalNodeIds,
+      'both', // Traverse both upstream and downstream
+      depth,
+    );
+
+    // Extract nodes from causal links
+    for (const link of causalLinks) {
+      // Add cause as a node
+      if (!seenIds.has(link.cause)) {
+        seenIds.add(link.cause);
+        nodes.push({
+          uuid: link.cause,
+          data: {
+            description: link.cause,
+            type: 'cause',
+            confidence: link.confidence,
+          },
+          score: link.confidence,
+        });
       }
 
-      // Step 2: Traverse from causal node UUIDs directly
-      const causalLinks = await this.graphs.causal.traverseFromNodeIds(
-        causalNodeIds,
-        'both', // Traverse both upstream and downstream
-        depth,
-      );
-
-      // Extract nodes from causal links
-      for (const link of causalLinks) {
-        // Add cause as a node
-        if (!seenIds.has(link.cause)) {
-          seenIds.add(link.cause);
-          nodes.push({
-            uuid: link.cause,
-            data: {
-              description: link.cause,
-              type: 'cause',
-              confidence: link.confidence,
-            },
-            score: link.confidence,
-          });
-        }
-
-        // Add effect as a node
-        if (!seenIds.has(link.effect)) {
-          seenIds.add(link.effect);
-          nodes.push({
-            uuid: link.effect,
-            data: {
-              description: link.effect,
-              type: 'effect',
-              confidence: link.confidence,
-            },
-            score: link.confidence,
-          });
-        }
+      // Add effect as a node
+      if (!seenIds.has(link.effect)) {
+        seenIds.add(link.effect);
+        nodes.push({
+          uuid: link.effect,
+          data: {
+            description: link.effect,
+            type: 'effect',
+            confidence: link.confidence,
+          },
+          score: link.confidence,
+        });
       }
-    } catch {
-      // Causal traversal failed - return empty
     }
 
     return { source: 'causal', nodes };

@@ -740,6 +740,189 @@ describe('MAGMAExecutor', () => {
     });
   });
 
+  describe('graceful degradation', () => {
+    it('should return partial results when entity expansion fails', async () => {
+      const graphs = createMockGraphs({
+        enrichedResults: [
+          createEnrichedSemanticMatch('concept-1', 0.9, ['entity-1'], ['Entity 1']),
+        ],
+        temporalEvents: {
+          'entity-1': [
+            {
+              uuid: 'event-1',
+              description: 'Test event',
+              occurred_at: new Date('2024-06-15'),
+            },
+          ],
+        },
+      });
+
+      // Entity expansion throws an error
+      graphs.entity.getRelationshipsBatch = vi.fn(async () => {
+        throw new Error('Entity graph connection failed');
+      });
+
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const executor = new MAGMAExecutor(graphs);
+      const intent = createValidIntent();
+
+      const result = await executor.execute('test query', intent);
+
+      // Should still have semantic and temporal views
+      expect(result.merged).toBeDefined();
+      expect(result.merged.nodes.length).toBeGreaterThan(0);
+
+      // Should log warning about failed expansion
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[MAGMAExecutor] entity expansion failed:'),
+        expect.any(String),
+      );
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should return partial results when temporal expansion fails', async () => {
+      const graphs = createMockGraphs({
+        enrichedResults: [
+          createEnrichedSemanticMatch('concept-1', 0.9, ['entity-1'], ['Entity 1']),
+        ],
+        entityRelationships: {
+          'entity-1': [
+            {
+              source: { uuid: 'entity-1', name: 'Entity 1', entity_type: 'person' },
+              target: { uuid: 'entity-2', name: 'Entity 2', entity_type: 'org' },
+              relationshipType: 'WORKS_FOR',
+            },
+          ],
+        },
+      });
+
+      // Temporal expansion throws an error
+      graphs.temporal.queryTimelineForEntities = vi.fn(async () => {
+        throw new Error('Temporal graph timeout');
+      });
+
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const executor = new MAGMAExecutor(graphs);
+      const intent = createValidIntent();
+
+      const result = await executor.execute('test query', intent);
+
+      // Should still have semantic and entity views
+      expect(result.merged).toBeDefined();
+      expect(result.merged.nodes.length).toBeGreaterThan(0);
+
+      // Should log warning about failed expansion
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[MAGMAExecutor] temporal expansion failed:'),
+        expect.any(String),
+      );
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should return partial results when causal expansion fails', async () => {
+      const graphs = createMockGraphs({
+        enrichedResults: [
+          createEnrichedSemanticMatch('concept-1', 0.9, ['entity-1'], ['Entity 1']),
+        ],
+        entityRelationships: {
+          'entity-1': [
+            {
+              source: { uuid: 'entity-1', name: 'Entity 1', entity_type: 'person' },
+              target: { uuid: 'entity-2', name: 'Entity 2', entity_type: 'org' },
+              relationshipType: 'WORKS_FOR',
+            },
+          ],
+        },
+      });
+
+      // Causal expansion throws an error
+      graphs.causal.getNodesForEntities = vi.fn(async () => {
+        throw new Error('Causal traversal error');
+      });
+
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const executor = new MAGMAExecutor(graphs);
+      const intent = createValidIntent();
+
+      const result = await executor.execute('test query', intent);
+
+      // Should still have semantic and entity views
+      expect(result.merged).toBeDefined();
+      expect(result.merged.nodes.length).toBeGreaterThan(0);
+
+      // Should log warning about failed expansion
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[MAGMAExecutor] causal expansion failed:'),
+        expect.any(String),
+      );
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should return semantic-only results when all expansions fail', async () => {
+      const graphs = createMockGraphs({
+        enrichedResults: [
+          createEnrichedSemanticMatch('concept-1', 0.9, ['entity-1'], ['Entity 1']),
+        ],
+      });
+
+      // All expansions throw errors
+      graphs.entity.getRelationshipsBatch = vi.fn(async () => {
+        throw new Error('Entity failure');
+      });
+      graphs.temporal.queryTimelineForEntities = vi.fn(async () => {
+        throw new Error('Temporal failure');
+      });
+      graphs.causal.getNodesForEntities = vi.fn(async () => {
+        throw new Error('Causal failure');
+      });
+
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const executor = new MAGMAExecutor(graphs);
+      const intent = createValidIntent();
+
+      const result = await executor.execute('test query', intent);
+
+      // Should still have semantic view at minimum
+      expect(result.merged).toBeDefined();
+      expect(result.merged.nodes.length).toBe(1); // Only the semantic concept
+
+      // Should log warnings for all three failures
+      expect(consoleSpy).toHaveBeenCalledTimes(3);
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should handle non-Error rejection reasons', async () => {
+      const graphs = createMockGraphs({
+        enrichedResults: [
+          createEnrichedSemanticMatch('concept-1', 0.9, ['entity-1'], ['Entity 1']),
+        ],
+      });
+
+      // Expansion rejects with a string instead of Error
+      graphs.entity.getRelationshipsBatch = vi.fn(async () => {
+        throw 'String error message';
+      });
+
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const executor = new MAGMAExecutor(graphs);
+      const intent = createValidIntent();
+
+      const result = await executor.execute('test query', intent);
+
+      expect(result.merged).toBeDefined();
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[MAGMAExecutor] entity expansion failed:'),
+        'String error message',
+      );
+
+      consoleSpy.mockRestore();
+    });
+  });
+
   describe('getConfig', () => {
     it('should return a copy of config', () => {
       const graphs = createMockGraphs();
