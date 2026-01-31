@@ -645,6 +645,99 @@ describe('MAGMAExecutor', () => {
         );
       });
     });
+
+    describe('error wrapping', () => {
+      it('should wrap semantic search errors in ExecutorError with step', async () => {
+        const graphs = createMockGraphs();
+        graphs.semantic.searchWithEntities = vi.fn(async () => {
+          throw new Error('Embedding API failed');
+        });
+
+        const executor = new MAGMAExecutor(graphs);
+        const intent = createValidIntent();
+
+        await expect(executor.execute('test query', intent)).rejects.toThrow(
+          ExecutorError,
+        );
+
+        try {
+          await executor.execute('test query', intent);
+        } catch (error) {
+          expect(error).toBeInstanceOf(ExecutorError);
+          expect((error as ExecutorError).step).toBe('semantic_search');
+          expect((error as ExecutorError).message).toContain(
+            'Semantic search failed',
+          );
+          expect((error as ExecutorError).message).toContain(
+            'Embedding API failed',
+          );
+        }
+      });
+
+      it('should preserve ExecutorError from timeout without double-wrapping', async () => {
+        const graphs = createMockGraphs();
+        graphs.semantic.searchWithEntities = vi.fn(
+          async (): Promise<EnrichedSemanticMatch[]> =>
+            new Promise((resolve) => setTimeout(() => resolve([]), 10000)),
+        );
+
+        const executor = new MAGMAExecutor(graphs, { timeout: 100 }); // Min timeout is 100ms
+        const intent = createValidIntent();
+
+        try {
+          await executor.execute('test query', intent);
+        } catch (error) {
+          expect(error).toBeInstanceOf(ExecutorError);
+          // Should be timeout error, not wrapped in semantic_search
+          expect((error as ExecutorError).step).toBe('timeout');
+          expect((error as ExecutorError).message).toContain('timed out');
+        }
+      });
+
+      it('should wrap seed extraction errors in ExecutorError with step', async () => {
+        const graphs = createMockGraphs({
+          enrichedResults: [
+            // Invalid match that will cause extraction to fail
+            { concept: null, score: 0.9 } as unknown as EnrichedSemanticMatch,
+          ],
+        });
+
+        const executor = new MAGMAExecutor(graphs);
+        const intent = createValidIntent();
+
+        await expect(executor.execute('test query', intent)).rejects.toThrow(
+          ExecutorError,
+        );
+
+        try {
+          await executor.execute('test query', intent);
+        } catch (error) {
+          expect(error).toBeInstanceOf(ExecutorError);
+          expect((error as ExecutorError).step).toBe('seed_extraction');
+          expect((error as ExecutorError).message).toContain(
+            'Seed extraction failed',
+          );
+        }
+      });
+
+      it('should include original error as cause', async () => {
+        const originalError = new Error('Database connection lost');
+        const graphs = createMockGraphs();
+        graphs.semantic.searchWithEntities = vi.fn(async () => {
+          throw originalError;
+        });
+
+        const executor = new MAGMAExecutor(graphs);
+        const intent = createValidIntent();
+
+        try {
+          await executor.execute('test query', intent);
+        } catch (error) {
+          expect(error).toBeInstanceOf(ExecutorError);
+          expect((error as ExecutorError).cause).toBe(originalError);
+        }
+      });
+    });
   });
 
   describe('getConfig', () => {
