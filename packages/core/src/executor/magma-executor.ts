@@ -154,7 +154,10 @@ export class MAGMAExecutor {
     const semanticStart = Date.now();
     try {
       enrichedMatches = await this.withTimeout(
-        this.graphs.semantic.searchWithEntities(query, this.config.semanticTopK),
+        this.graphs.semantic.searchWithEntities(
+          query,
+          this.config.semanticTopK,
+        ),
       );
     } catch (error) {
       // Preserve ExecutorError (e.g., from timeout)
