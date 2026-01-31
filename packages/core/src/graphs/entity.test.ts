@@ -404,4 +404,75 @@ describe('EntityGraph', () => {
       await expect(graph.getEntity('uuid')).rejects.toThrow(GraphParseError);
     });
   });
+
+  describe('getRelationshipsBatch', () => {
+    it('should return relationships for multiple entities', async () => {
+      vi.mocked(db.query).mockResolvedValue({
+        records: [
+          {
+            s: mockNode({ uuid: 'entity1', name: 'Entity 1' }),
+            t: mockNode({ uuid: 'entity2', name: 'Entity 2' }),
+            relType: 'WORKS_WITH',
+          },
+          {
+            s: mockNode({ uuid: 'entity2', name: 'Entity 2' }),
+            t: mockNode({ uuid: 'entity3', name: 'Entity 3' }),
+            relType: 'MANAGES',
+          },
+        ],
+        metadata: [],
+      });
+
+      const result = await graph.getRelationshipsBatch(['entity1', 'entity2']);
+
+      expect(result.size).toBe(2);
+      expect(result.get('entity1')).toBeDefined();
+      expect(result.get('entity2')).toBeDefined();
+    });
+
+    it('should return empty map for empty input', async () => {
+      const result = await graph.getRelationshipsBatch([]);
+
+      expect(result.size).toBe(0);
+      expect(db.query).not.toHaveBeenCalled();
+    });
+
+    it('should initialize empty arrays for entities without relationships', async () => {
+      vi.mocked(db.query).mockResolvedValue({
+        records: [],
+        metadata: [],
+      });
+
+      const result = await graph.getRelationshipsBatch(['entity1', 'entity2']);
+
+      expect(result.get('entity1')).toEqual([]);
+      expect(result.get('entity2')).toEqual([]);
+    });
+
+    it('should add relationship to both source and target if both are in query', async () => {
+      vi.mocked(db.query).mockResolvedValue({
+        records: [
+          {
+            s: mockNode({ uuid: 'entity1', name: 'Entity 1' }),
+            t: mockNode({ uuid: 'entity2', name: 'Entity 2' }),
+            relType: 'RELATES',
+          },
+        ],
+        metadata: [],
+      });
+
+      const result = await graph.getRelationshipsBatch(['entity1', 'entity2']);
+
+      expect(result.get('entity1')?.length).toBe(1);
+      expect(result.get('entity2')?.length).toBe(1);
+    });
+
+    it('should throw on database error', async () => {
+      vi.mocked(db.query).mockRejectedValue(new Error('DB error'));
+
+      await expect(
+        graph.getRelationshipsBatch(['entity1']),
+      ).rejects.toThrow('Failed to get relationships batch');
+    });
+  });
 });

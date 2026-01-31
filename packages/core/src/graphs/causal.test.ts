@@ -469,4 +469,144 @@ describe('CausalGraph', () => {
       await expect(graph.getNode('uuid')).rejects.toThrow(GraphParseError);
     });
   });
+
+  describe('getNodesForEntities', () => {
+    it('should return causal nodes for multiple entities', async () => {
+      vi.mocked(db.query).mockResolvedValue({
+        records: [
+          { c: mockCausalNode({ uuid: 'node1' }), entityId: 'entity1' },
+          { c: mockCausalNode({ uuid: 'node2' }), entityId: 'entity1' },
+          { c: mockCausalNode({ uuid: 'node3' }), entityId: 'entity2' },
+        ],
+        metadata: [],
+      });
+
+      const result = await graph.getNodesForEntities(['entity1', 'entity2']);
+
+      expect(result.size).toBe(2);
+      expect(result.get('entity1')?.length).toBe(2);
+      expect(result.get('entity2')?.length).toBe(1);
+    });
+
+    it('should return empty map for empty input', async () => {
+      const result = await graph.getNodesForEntities([]);
+
+      expect(result.size).toBe(0);
+      expect(db.query).not.toHaveBeenCalled();
+    });
+
+    it('should initialize empty arrays for entities without nodes', async () => {
+      vi.mocked(db.query).mockResolvedValue({
+        records: [],
+        metadata: [],
+      });
+
+      const result = await graph.getNodesForEntities(['entity1', 'entity2']);
+
+      expect(result.get('entity1')).toEqual([]);
+      expect(result.get('entity2')).toEqual([]);
+    });
+
+    it('should deduplicate nodes within same entity', async () => {
+      vi.mocked(db.query).mockResolvedValue({
+        records: [
+          { c: mockCausalNode({ uuid: 'node1' }), entityId: 'entity1' },
+          { c: mockCausalNode({ uuid: 'node1' }), entityId: 'entity1' }, // Duplicate
+        ],
+        metadata: [],
+      });
+
+      const result = await graph.getNodesForEntities(['entity1']);
+
+      expect(result.get('entity1')?.length).toBe(1);
+    });
+  });
+
+  describe('traverseFromNodeIds', () => {
+    it('should traverse from node UUIDs directly', async () => {
+      // Mock getUpstreamCauses and getDownstreamEffects
+      vi.mocked(db.query)
+        .mockResolvedValueOnce({
+          // getUpstreamCauses for node1
+          records: [
+            {
+              c: mockCausalNode({ description: 'cause1' }),
+              e: mockCausalNode({ description: 'effect1' }),
+              confidence: 0.9,
+            },
+          ],
+          metadata: [],
+        })
+        .mockResolvedValueOnce({
+          // getDownstreamEffects for node1
+          records: [
+            {
+              c: mockCausalNode({ description: 'cause2' }),
+              e: mockCausalNode({ description: 'effect2' }),
+              confidence: 0.85,
+            },
+          ],
+          metadata: [],
+        });
+
+      const result = await graph.traverseFromNodeIds(['node1'], 'both', 2);
+
+      expect(result.length).toBeGreaterThan(0);
+    });
+
+    it('should return empty array for empty input', async () => {
+      const result = await graph.traverseFromNodeIds([], 'both', 2);
+
+      expect(result).toEqual([]);
+    });
+
+    it('should traverse upstream only when direction is upstream', async () => {
+      vi.mocked(db.query).mockResolvedValue({
+        records: [
+          {
+            c: mockCausalNode({ description: 'cause' }),
+            e: mockCausalNode({ description: 'effect' }),
+            confidence: 0.9,
+          },
+        ],
+        metadata: [],
+      });
+
+      await graph.traverseFromNodeIds(['node1'], 'upstream', 2);
+
+      // Should only call getUpstreamCauses, not getDownstreamEffects
+      expect(db.query).toHaveBeenCalledTimes(1);
+    });
+
+    it('should deduplicate links', async () => {
+      vi.mocked(db.query).mockResolvedValue({
+        records: [
+          {
+            c: mockCausalNode({ description: 'same-cause' }),
+            e: mockCausalNode({ description: 'same-effect' }),
+            confidence: 0.9,
+          },
+          {
+            c: mockCausalNode({ description: 'same-cause' }),
+            e: mockCausalNode({ description: 'same-effect' }),
+            confidence: 0.9,
+          },
+        ],
+        metadata: [],
+      });
+
+      const result = await graph.traverseFromNodeIds(['node1'], 'upstream', 2);
+
+      // Should be deduplicated
+      expect(result.length).toBe(1);
+    });
+
+    it('should throw CausalTraversalError on failure', async () => {
+      vi.mocked(db.query).mockRejectedValue(new Error('DB error'));
+
+      await expect(
+        graph.traverseFromNodeIds(['node1'], 'both', 2),
+      ).rejects.toThrow(CausalTraversalError);
+    });
+  });
 });

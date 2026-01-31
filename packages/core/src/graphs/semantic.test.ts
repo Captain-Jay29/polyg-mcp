@@ -419,6 +419,102 @@ describe('SemanticGraph', () => {
     });
   });
 
+  describe('searchWithEntities', () => {
+    it('should return enriched matches with linked entity IDs', async () => {
+      vi.mocked(embeddings.embed).mockResolvedValue([0.1, 0.2, 0.3, 0.4, 0.5]);
+      vi.mocked(db.query).mockResolvedValue({
+        records: [
+          {
+            c: mockConceptNode({ name: 'Concept 1' }),
+            entityIds: ['entity-uuid-1', 'entity-uuid-2'],
+            entityNames: ['Entity 1', 'Entity 2'],
+          },
+          {
+            c: mockConceptNode({ name: 'Concept 2' }),
+            entityIds: [],
+            entityNames: [],
+          },
+        ],
+        metadata: [],
+      });
+
+      const results = await graph.searchWithEntities('test query');
+
+      expect(embeddings.embed).toHaveBeenCalledWith('test query');
+      expect(results.length).toBeGreaterThan(0);
+      expect(results[0]).toHaveProperty('linkedEntityIds');
+      expect(results[0]).toHaveProperty('linkedEntityNames');
+    });
+
+    it('should filter out null values from entity collections', async () => {
+      vi.mocked(embeddings.embed).mockResolvedValue([0.1, 0.2, 0.3, 0.4, 0.5]);
+      vi.mocked(db.query).mockResolvedValue({
+        records: [
+          {
+            c: mockConceptNode(),
+            entityIds: ['entity-1', null, 'entity-2'],
+            entityNames: ['Entity 1', null, 'Entity 2'],
+          },
+        ],
+        metadata: [],
+      });
+
+      const results = await graph.searchWithEntities('query');
+
+      expect(results[0].linkedEntityIds).toEqual(['entity-1', 'entity-2']);
+      expect(results[0].linkedEntityNames).toEqual(['Entity 1', 'Entity 2']);
+    });
+
+    it('should respect limit parameter', async () => {
+      vi.mocked(embeddings.embed).mockResolvedValue([0.1, 0.2, 0.3, 0.4, 0.5]);
+      vi.mocked(db.query).mockResolvedValue({
+        records: Array(20)
+          .fill(null)
+          .map(() => ({
+            c: mockConceptNode(),
+            entityIds: [],
+            entityNames: [],
+          })),
+        metadata: [],
+      });
+
+      const results = await graph.searchWithEntities('query', 5);
+
+      expect(results).toHaveLength(5);
+    });
+
+    it('should sort by score descending', async () => {
+      vi.mocked(embeddings.embed).mockResolvedValue([1, 0, 0, 0, 0]);
+      vi.mocked(db.query).mockResolvedValue({
+        records: [
+          {
+            c: mockConceptNode({ embedding: JSON.stringify([0.5, 0.5, 0, 0, 0]) }),
+            entityIds: [],
+            entityNames: [],
+          },
+          {
+            c: mockConceptNode({ embedding: JSON.stringify([1, 0, 0, 0, 0]) }),
+            entityIds: [],
+            entityNames: [],
+          },
+        ],
+        metadata: [],
+      });
+
+      const results = await graph.searchWithEntities('query');
+
+      expect(results[0].score).toBeGreaterThanOrEqual(results[1].score);
+    });
+
+    it('should throw EmbeddingGenerationError on embedding failure', async () => {
+      vi.mocked(embeddings.embed).mockRejectedValue(new Error('API error'));
+
+      await expect(graph.searchWithEntities('query')).rejects.toThrow(
+        EmbeddingGenerationError,
+      );
+    });
+  });
+
   describe('cosineSimilarity', () => {
     it('should return 1 for identical vectors', async () => {
       vi.mocked(embeddings.embed).mockResolvedValue([1, 0, 0]);

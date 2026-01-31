@@ -454,4 +454,84 @@ describe('TemporalGraph', () => {
       await expect(graph.getEvent('uuid')).rejects.toThrow(GraphParseError);
     });
   });
+
+  describe('queryTimelineForEntities', () => {
+    it('should return events for multiple entities', async () => {
+      vi.mocked(db.query).mockResolvedValue({
+        records: [
+          { e: mockEventNode({ uuid: 'event1' }), entityId: 'entity1' },
+          { e: mockEventNode({ uuid: 'event2' }), entityId: 'entity1' },
+          { e: mockEventNode({ uuid: 'event3' }), entityId: 'entity2' },
+        ],
+        metadata: [],
+      });
+
+      const result = await graph.queryTimelineForEntities(
+        ['entity1', 'entity2'],
+        new Date('2024-01-01'),
+        new Date('2024-12-31'),
+      );
+
+      expect(result.size).toBe(2);
+      expect(result.get('entity1')?.length).toBe(2);
+      expect(result.get('entity2')?.length).toBe(1);
+    });
+
+    it('should return empty map for empty input', async () => {
+      const result = await graph.queryTimelineForEntities(
+        [],
+        new Date(),
+        new Date(),
+      );
+
+      expect(result.size).toBe(0);
+      expect(db.query).not.toHaveBeenCalled();
+    });
+
+    it('should initialize empty arrays for entities without events', async () => {
+      vi.mocked(db.query).mockResolvedValue({
+        records: [],
+        metadata: [],
+      });
+
+      const result = await graph.queryTimelineForEntities(
+        ['entity1', 'entity2'],
+        new Date(),
+        new Date(),
+      );
+
+      expect(result.get('entity1')).toEqual([]);
+      expect(result.get('entity2')).toEqual([]);
+    });
+
+    it('should deduplicate events within same entity', async () => {
+      vi.mocked(db.query).mockResolvedValue({
+        records: [
+          { e: mockEventNode({ uuid: 'event1' }), entityId: 'entity1' },
+          { e: mockEventNode({ uuid: 'event1' }), entityId: 'entity1' }, // Duplicate
+        ],
+        metadata: [],
+      });
+
+      const result = await graph.queryTimelineForEntities(
+        ['entity1'],
+        new Date(),
+        new Date(),
+      );
+
+      expect(result.get('entity1')?.length).toBe(1);
+    });
+
+    it('should throw TemporalError on database failure', async () => {
+      vi.mocked(db.query).mockRejectedValue(new Error('DB error'));
+
+      await expect(
+        graph.queryTimelineForEntities(
+          ['entity1'],
+          new Date(),
+          new Date(),
+        ),
+      ).rejects.toThrow(TemporalError);
+    });
+  });
 });
