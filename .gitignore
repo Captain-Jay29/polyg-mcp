@@ -48,3 +48,4 @@ benchmarks/results/*.yaml
 # Documentation (local only)
 docs/*.md
 !docs/MAGMA_IMPLEMENTATION.md
+!docs/validate.md

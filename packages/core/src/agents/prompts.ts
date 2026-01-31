@@ -42,8 +42,7 @@ Respond in JSON format:
     "entity": 1-5,
     "temporal": 1-5,
     "causal": 1-5
-  },
-  "confidence": 0.0-1.0
+  }
 }
 
 Examples:

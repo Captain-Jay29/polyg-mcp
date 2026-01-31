@@ -28,7 +28,6 @@ describe('IntentClassifier', () => {
         entities: ['server', 'deployment'],
         temporalHints: [],
         depthHints: { entity: 1, temporal: 1, causal: 3 },
-        confidence: 0.9,
       });
       vi.mocked(mockLLM.complete).mockResolvedValue(validResponse);
 
@@ -39,7 +38,6 @@ describe('IntentClassifier', () => {
       expect(result.type).toBe('WHY');
       expect(result.entities).toEqual(['server', 'deployment']);
       expect(result.depthHints.causal).toBe(3);
-      expect(result.confidence).toBe(0.9);
     });
 
     it('should throw ClassifierError for empty query', async () => {
@@ -49,6 +47,66 @@ describe('IntentClassifier', () => {
       await expect(classifier.classifyMAGMA({ query: '   ' })).rejects.toThrow(
         'Query cannot be empty',
       );
+    });
+
+    it('should throw ClassifierError for query exceeding max length', async () => {
+      const longQuery = 'a'.repeat(9000); // Default max is 8000
+      await expect(classifier.classifyMAGMA({ query: longQuery })).rejects.toThrow(
+        ClassifierError,
+      );
+      await expect(classifier.classifyMAGMA({ query: longQuery })).rejects.toThrow(
+        /exceeds maximum length of 8000/,
+      );
+    });
+
+    it('should throw ClassifierError for context exceeding max length', async () => {
+      const longContext = 'b'.repeat(5000); // Default max is 4000
+      await expect(
+        classifier.classifyMAGMA({ query: 'test', context: longContext }),
+      ).rejects.toThrow(ClassifierError);
+      await expect(
+        classifier.classifyMAGMA({ query: 'test', context: longContext }),
+      ).rejects.toThrow(/exceeds maximum length of 4000/);
+    });
+
+    it('should respect custom length limits from config', async () => {
+      const customClassifier = new IntentClassifier(mockLLM, {
+        maxQueryLength: 100,
+        maxContextLength: 50,
+      });
+
+      const query101 = 'a'.repeat(101);
+      await expect(customClassifier.classifyMAGMA({ query: query101 })).rejects.toThrow(
+        /exceeds maximum length of 100/,
+      );
+
+      const context51 = 'b'.repeat(51);
+      await expect(
+        customClassifier.classifyMAGMA({ query: 'test', context: context51 }),
+      ).rejects.toThrow(/exceeds maximum length of 50/);
+    });
+
+    it('should allow queries and context within limits', async () => {
+      const validResponse = JSON.stringify({
+        type: 'EXPLORE',
+        entities: [],
+        temporalHints: [],
+        depthHints: { entity: 2, temporal: 2, causal: 2 },
+      });
+      vi.mocked(mockLLM.complete).mockResolvedValue(validResponse);
+
+      // Query at exactly max length should work
+      const maxQuery = 'a'.repeat(8000);
+      const result = await classifier.classifyMAGMA({ query: maxQuery });
+      expect(result.type).toBe('EXPLORE');
+
+      // Context at exactly max length should work
+      const maxContext = 'b'.repeat(4000);
+      const result2 = await classifier.classifyMAGMA({
+        query: 'test',
+        context: maxContext
+      });
+      expect(result2.type).toBe('EXPLORE');
     });
 
     it('should throw ClassifierError when LLM fails', async () => {
@@ -75,21 +133,6 @@ describe('IntentClassifier', () => {
         type: 'INVALID_TYPE',
         entities: [],
         depthHints: { entity: 1, temporal: 1, causal: 1 },
-        confidence: 0.9,
-      });
-      vi.mocked(mockLLM.complete).mockResolvedValue(invalidResponse);
-
-      await expect(classifier.classifyMAGMA({ query: 'test' })).rejects.toThrow(
-        LLMResponseValidationError,
-      );
-    });
-
-    it('should throw LLMResponseValidationError for confidence out of range', async () => {
-      const invalidResponse = JSON.stringify({
-        type: 'WHY',
-        entities: [],
-        depthHints: { entity: 1, temporal: 1, causal: 1 },
-        confidence: 1.5, // Invalid - must be 0-1
       });
       vi.mocked(mockLLM.complete).mockResolvedValue(invalidResponse);
 
@@ -107,7 +150,6 @@ describe('IntentClassifier', () => {
           entities: ['test'],
           temporalHints: [],
           depthHints: { entity: 2, temporal: 2, causal: 2 },
-          confidence: 0.8,
         });
         vi.mocked(mockLLM.complete).mockResolvedValue(validResponse);
 

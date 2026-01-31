@@ -9,7 +9,7 @@
     "dev": "dotenv -e .env -- turbo run dev",
     "mcp": "dotenv -e .env -- pnpm --filter @polyg-mcp/server dev",
     "agent": "dotenv -e .env -- pnpm --filter @polyg-mcp/e2e agent:interactive",
-    "test": "turbo run test",
+    "test": "turbo run test --filter=!@polyg-mcp/e2e",
     "test:unit": "turbo run test:unit",
     "test:integration": "turbo run test:integration",
     "test:e2e": "turbo run test:e2e",

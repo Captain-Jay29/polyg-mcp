@@ -269,6 +269,9 @@ function buildMAGMAConfigFromEnv(): unknown {
     minNodesPerView: parseEnvInt(process.env.MAGMA_MIN_NODES_PER_VIEW, 3),
     maxNodesPerView: parseEnvInt(process.env.MAGMA_MAX_NODES_PER_VIEW, 50),
     multiViewBoost: parseEnvFloat(process.env.MAGMA_MULTI_VIEW_BOOST, 1.5),
+    // Input length limits
+    maxQueryLength: parseEnvInt(process.env.MAGMA_MAX_QUERY_LENGTH, 8000),
+    maxContextLength: parseEnvInt(process.env.MAGMA_MAX_CONTEXT_LENGTH, 4000),
   };
 }
 

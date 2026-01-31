@@ -34,7 +34,6 @@ function createValidIntent(
     entities: ['test-entity'],
     temporalHints: [],
     depthHints: { entity: 1, temporal: 1, causal: 1 },
-    confidence: 0.9,
     ...overrides,
   };
 }
@@ -206,6 +205,8 @@ describe('MAGMAExecutor', () => {
         minNodesPerView: 3,
         maxNodesPerView: 50,
         multiViewBoost: 1.5,
+        maxQueryLength: 8000,
+        maxContextLength: 4000,
       };
 
       const executor = MAGMAExecutor.fromConfig(graphs, magmaConfig);
