@@ -53,7 +53,8 @@ services:
     ports:
       - "${FALKORDB_EXTERNAL_PORT:-6379}:6379"
     environment:
-      - FALKORDB_ARGS=--requirepass ${FALKORDB_PASSWORD:-}
+      # Only set FALKORDB_ARGS if password is provided (empty = no auth)
+      - FALKORDB_ARGS=${FALKORDB_PASSWORD:+--requirepass ${FALKORDB_PASSWORD}}
     volumes:
       - falkordb_data:/data
     healthcheck:

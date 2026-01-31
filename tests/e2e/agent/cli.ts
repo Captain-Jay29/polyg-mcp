@@ -25,7 +25,7 @@ function parseArgs(): CLIOptions {
   const args = process.argv.slice(2);
   const options: CLIOptions = {
     serverUrl: process.env.POLYG_SERVER_URL ?? 'http://localhost:4000',
-    model: process.env.POLYG_AGENT_MODEL ?? 'gpt-4o-mini',
+    model: process.env.POLYG_AGENT_MODEL ?? process.env.LLM_MODEL ?? 'gpt-4o-mini',
     apiKey: process.env.OPENAI_API_KEY ?? '',
     maxSteps: 10,
     verbose: false,
@@ -85,7 +85,7 @@ Usage: tsx tests/e2e/agent/cli.ts [options]
 
 Options:
   -s, --server <url>      MCP server URL (default: http://localhost:4000)
-  -m, --model <model>     OpenAI model to use (default: gpt-4o-mini)
+  -m, --model <model>     OpenAI model to use (default: $LLM_MODEL or gpt-4o-mini)
   -k, --api-key <key>     OpenAI API key (or set OPENAI_API_KEY env var)
   --max-steps <n>         Maximum reasoning steps (default: 10)
   -v, --verbose           Show detailed reasoning steps

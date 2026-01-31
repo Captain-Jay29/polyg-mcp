@@ -34,7 +34,7 @@ describe.skipIf(!OPENAI_API_KEY)(
         throw new Error('OPENAI_API_KEY is required');
       }
       const config: AgentConfig = {
-        model: process.env.POLYG_AGENT_MODEL ?? 'gpt-4o-mini',
+        model: process.env.POLYG_AGENT_MODEL ?? process.env.LLM_MODEL ?? 'gpt-4o-mini',
         apiKey: OPENAI_API_KEY,
         maxSteps: 10,
         verbose: process.env.VERBOSE === 'true',
