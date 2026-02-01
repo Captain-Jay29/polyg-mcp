@@ -14,12 +14,3 @@ export const ClearGraphInputSchema = z.object({
 });
 
 export type ClearGraphInput = z.infer<typeof ClearGraphInputSchema>;
-
-/**
- * Schema for export_graph tool input (to be implemented)
- */
-export const ExportGraphInputSchema = z.object({
-  format: z.enum(['cypher', 'json']).describe('Export format'),
-});
-
-export type ExportGraphInput = z.infer<typeof ExportGraphInputSchema>;

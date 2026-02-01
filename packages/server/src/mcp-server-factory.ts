@@ -665,7 +665,8 @@ function registerSemanticSearchTool(
         const filtered = results.filter((r) => r.score >= min_score);
 
         // For each concept, fetch linked entity IDs via X_REPRESENTS
-        const matchesWithEntities = await Promise.all(
+        // Use Promise.allSettled for graceful degradation - one failure shouldn't kill all results
+        const settledResults = await Promise.allSettled(
           filtered.map(async (match) => {
             const linkedEntities = await db.query(
               `MATCH (c:S_Concept {uuid: $conceptId})-[:X_REPRESENTS]->(e:E_Entity)
@@ -685,6 +686,31 @@ function registerSemanticSearchTool(
             };
           }),
         );
+
+        // Extract successful results, log failures
+        const matchesWithEntities = settledResults
+          .filter(
+            (
+              result,
+            ): result is PromiseFulfilledResult<{
+              concept: { uuid: string; name: string; description?: string };
+              score: number;
+              linkedEntityIds: string[];
+              linkedEntityNames: string[];
+            }> => {
+              if (result.status === 'rejected') {
+                console.warn(
+                  '[semantic_search] Failed to fetch entity links for concept:',
+                  result.reason instanceof Error
+                    ? result.reason.message
+                    : String(result.reason),
+                );
+                return false;
+              }
+              return true;
+            },
+          )
+          .map((result) => result.value);
 
         // Collect all unique entity IDs for convenience
         const allEntityIds = [
