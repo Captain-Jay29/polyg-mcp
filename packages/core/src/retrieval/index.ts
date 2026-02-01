@@ -22,11 +22,7 @@ export {
 } from './errors.js';
 export {
   extractSeedsFromEnrichedMatches,
-  filterSeedsByScore,
-  getEntityIds,
   type SeedEntity,
   type SeedExtractionResult,
-  seedFromSemantic,
-  seedFromSemanticBatch,
 } from './seed-extractor.js';
 export { type MergerOptions, SubgraphMerger } from './subgraph-merger.js';

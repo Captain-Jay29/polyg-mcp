@@ -772,18 +772,22 @@ function registerEntityLookupTool(
         }
 
         if (resolvedEntities.length === 0) {
+          const emptyResponse = {
+            entities: [],
+            depth,
+            total: 0,
+            hint: 'No entities found matching the provided IDs. Verify entity IDs are correct UUIDs or exact entity names.',
+            instruction:
+              'Use entity IDs from semantic_search seedEntityIds, or add entities first with add_entity tool.',
+          };
           return {
             content: [
               {
                 type: 'text' as const,
-                text: JSON.stringify([], null, 2),
+                text: JSON.stringify(emptyResponse, null, 2),
               },
             ],
-            structuredContent: {
-              entities: [],
-              depth,
-              total: 0,
-            },
+            structuredContent: emptyResponse,
           };
         }
 
@@ -846,11 +850,19 @@ function registerEntityLookupTool(
           }
         }
 
+        const responseObj = {
+          instruction:
+            'Use entity UUIDs from these results for temporal_expand and causal_expand tools.',
+          entities: results,
+          depth,
+          total: results.length,
+        };
+
         return {
           content: [
             {
               type: 'text' as const,
-              text: JSON.stringify(results, null, 2),
+              text: JSON.stringify(responseObj, null, 2),
             },
           ],
           structuredContent: {
@@ -921,11 +933,32 @@ function registerTemporalExpandTool(
           }
         }
 
+        // Build response with instruction and hint for empty results
+        const responseObj =
+          uniqueEvents.length === 0
+            ? {
+                events: [],
+                from: fromDate.toISOString(),
+                to: toDate.toISOString(),
+                total: 0,
+                hint: 'No temporal events found for the specified entities in this time range. The entities may not have linked events, or try expanding the date range.',
+                instruction:
+                  'Use add_event tool to create events and link them to entities, or try different entity IDs.',
+              }
+            : {
+                instruction:
+                  'These events are linked to the queried entities. Use event UUIDs for detailed lookups or causal linking.',
+                events: uniqueEvents,
+                from: fromDate.toISOString(),
+                to: toDate.toISOString(),
+                total: uniqueEvents.length,
+              };
+
         return {
           content: [
             {
               type: 'text' as const,
-              text: JSON.stringify(uniqueEvents, null, 2),
+              text: JSON.stringify(responseObj, null, 2),
             },
           ],
           structuredContent: {
@@ -985,19 +1018,23 @@ function registerCausalExpandTool(
         }
 
         if (causalNodeIds.length === 0) {
+          const emptyResponse = {
+            links: [],
+            direction,
+            depth,
+            total: 0,
+            hint: 'No causal nodes found linked to the specified entities. The entities may not have causal relationships defined.',
+            instruction:
+              'Use add_causal_link tool to create causal relationships and link them to entities via the entities parameter.',
+          };
           return {
             content: [
               {
                 type: 'text' as const,
-                text: JSON.stringify([], null, 2),
+                text: JSON.stringify(emptyResponse, null, 2),
               },
             ],
-            structuredContent: {
-              links: [],
-              direction,
-              depth,
-              total: 0,
-            },
+            structuredContent: emptyResponse,
           };
         }
 
@@ -1008,11 +1045,20 @@ function registerCausalExpandTool(
           depth,
         );
 
+        const responseObj = {
+          instruction:
+            'These causal links show cause-effect relationships. Use for reasoning about why things happened.',
+          links: uniqueLinks,
+          direction,
+          depth,
+          total: uniqueLinks.length,
+        };
+
         return {
           content: [
             {
               type: 'text' as const,
-              text: JSON.stringify(uniqueLinks, null, 2),
+              text: JSON.stringify(responseObj, null, 2),
             },
           ],
           structuredContent: {
