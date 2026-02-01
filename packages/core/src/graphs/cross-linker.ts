@@ -24,28 +24,92 @@ export interface CrossLink {
  * - Causal nodes to events (X_REFERS_TO)
  * - Causal nodes to entities (X_AFFECTS)
  */
+// Maps link types to expected source and target node labels
+const LINK_TYPE_CONSTRAINTS: Record<
+  CrossLinkType,
+  { sourceLabels: string[]; targetLabels: string[] }
+> = {
+  X_REPRESENTS: { sourceLabels: ['S_Concept'], targetLabels: ['E_Entity'] },
+  X_INVOLVES: {
+    sourceLabels: ['T_Event', 'T_Fact'],
+    targetLabels: ['E_Entity'],
+  },
+  X_AFFECTS: { sourceLabels: ['C_Node'], targetLabels: ['E_Entity'] },
+  X_REFERS_TO: { sourceLabels: ['C_Node'], targetLabels: ['T_Event'] },
+};
+
 export class CrossLinker {
   constructor(private db: FalkorDBAdapter) {}
 
   /**
-   * Create a cross-graph relationship
+   * Create a cross-graph relationship.
+   * - Uses MERGE for idempotency (prevents duplicates)
+   * - Validates that source/target nodes have correct labels for the link type
    */
   async createLink(
     sourceId: string,
     targetId: string,
     linkType: CrossLinkType,
   ): Promise<void> {
+    // Validate node types match the link type constraints
+    const constraints = LINK_TYPE_CONSTRAINTS[linkType];
+    const sourceLabelsClause = constraints.sourceLabels
+      .map((l) => `'${l}'`)
+      .join(', ');
+    const targetLabelsClause = constraints.targetLabels
+      .map((l) => `'${l}'`)
+      .join(', ');
+
     try {
-      await this.db.query(
+      // Use MERGE for idempotency - won't create duplicate links
+      // Also validate node labels match the expected types for this link
+      const result = await this.db.query(
         `MATCH (s {uuid: $sourceId}), (t {uuid: $targetId})
-         CREATE (s)-[:${linkType} {created_at: $createdAt}]->(t)`,
+         WHERE any(label IN labels(s) WHERE label IN [${sourceLabelsClause}])
+           AND any(label IN labels(t) WHERE label IN [${targetLabelsClause}])
+         MERGE (s)-[r:${linkType}]->(t)
+         ON CREATE SET r.created_at = $createdAt
+         RETURN s.uuid as sourceUuid`,
         {
           sourceId,
           targetId,
           createdAt: new Date().toISOString(),
         },
       );
+
+      // If no records returned, either nodes don't exist or have wrong labels
+      if (result.records.length === 0) {
+        // Check if nodes exist at all
+        const existsResult = await this.db.query(
+          `MATCH (s {uuid: $sourceId}), (t {uuid: $targetId})
+           RETURN labels(s) as sourceLabels, labels(t) as targetLabels`,
+          { sourceId, targetId },
+        );
+
+        if (existsResult.records.length === 0) {
+          throw new RelationshipError(
+            'Source or target node not found',
+            sourceId,
+            targetId,
+            linkType,
+          );
+        }
+
+        // Nodes exist but have wrong labels
+        const sourceLabels = existsResult.records[0]?.sourceLabels || [];
+        const targetLabels = existsResult.records[0]?.targetLabels || [];
+        throw new RelationshipError(
+          `Invalid node types for ${linkType}: source has labels [${sourceLabels}], expected one of [${sourceLabelsClause}]; target has labels [${targetLabels}], expected one of [${targetLabelsClause}]`,
+          sourceId,
+          targetId,
+          linkType,
+        );
+      }
     } catch (error) {
+      // Re-throw RelationshipError as-is
+      if (error instanceof RelationshipError) {
+        throw error;
+      }
       throw new RelationshipError(
         'Failed to create cross-graph link',
         sourceId,
