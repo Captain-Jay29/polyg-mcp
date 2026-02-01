@@ -103,6 +103,7 @@ function buildRawConfig(): unknown {
     embeddings: {
       provider: 'openai',
       model: process.env.EMBEDDING_MODEL || 'text-embedding-3-small',
+      apiKey: process.env.OPENAI_API_KEY,
       dimensions: 1536,
     },
     execution: {

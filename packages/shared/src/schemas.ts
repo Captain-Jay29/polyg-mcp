@@ -391,6 +391,7 @@ export const LLMConfigSchema = z.object({
 export const EmbeddingsConfigSchema = z.object({
   provider: z.literal('openai'),
   model: z.string().min(1),
+  apiKey: z.string().optional(),
   dimensions: z.number().int().positive(),
 });
 

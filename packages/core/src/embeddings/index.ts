@@ -25,7 +25,6 @@ export { OpenAIEmbeddings } from './openai.js';
  */
 export function createEmbeddingProvider(
   config: EmbeddingsConfig,
-  apiKey?: string,
 ): EmbeddingProvider {
   if (config.provider !== 'openai') {
     throw new EmbeddingConfigError(
@@ -33,9 +32,9 @@ export function createEmbeddingProvider(
     );
   }
 
-  if (!apiKey) {
+  if (!config.apiKey) {
     throw new EmbeddingAuthError('OpenAI API key required for embeddings');
   }
 
-  return new OpenAIEmbeddings(apiKey, config.model);
+  return new OpenAIEmbeddings(config.apiKey, config.model);
 }
