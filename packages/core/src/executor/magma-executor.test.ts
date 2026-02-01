@@ -58,7 +58,13 @@ function createMockGraphs(
       string,
       { uuid: string; description: string; node_type: string }[]
     >;
-    causalLinks?: { cause: string; effect: string; confidence: number }[];
+    causalLinks?: {
+      cause: string;
+      effect: string;
+      causeId?: string;
+      effectId?: string;
+      confidence: number;
+    }[];
   } = {},
 ): MAGMAGraphRegistry {
   const {
@@ -599,6 +605,186 @@ describe('MAGMAExecutor', () => {
 
         expect(result.merged.viewContributions.causal).toBe(0);
       });
+
+      it('should use causeId/effectId UUIDs for node identity instead of descriptions', async () => {
+        const graphs = createMockGraphs({
+          enrichedResults: [
+            createEnrichedSemanticMatch(
+              'concept1',
+              0.9,
+              ['entity1'],
+              ['Entity 1'],
+            ),
+          ],
+          causalNodes: {
+            entity1: [
+              {
+                uuid: 'causal-node-1',
+                description: 'Root cause',
+                node_type: 'event',
+              },
+            ],
+          },
+          causalLinks: [
+            {
+              cause: 'Server misconfiguration',
+              effect: 'Service outage',
+              causeId: 'uuid-cause-1',
+              effectId: 'uuid-effect-1',
+              confidence: 0.95,
+            },
+            {
+              // Same descriptions but different UUIDs - should create separate nodes
+              cause: 'Server misconfiguration',
+              effect: 'Data corruption',
+              causeId: 'uuid-cause-2',
+              effectId: 'uuid-effect-2',
+              confidence: 0.85,
+            },
+          ],
+        });
+
+        const executor = new MAGMAExecutor(graphs);
+        const intent = createValidIntent('WHY', {
+          depthHints: { entity: 1, temporal: 1, causal: 3 },
+        });
+
+        const result = await executor.execute(
+          'why did the service fail?',
+          intent,
+        );
+
+        // Should have 4 unique nodes (based on UUIDs, not descriptions)
+        // uuid-cause-1, uuid-effect-1, uuid-cause-2, uuid-effect-2
+        const causalNodes = result.merged.nodes.filter(
+          (n) =>
+            (n.data as Record<string, unknown>)?.type === 'cause' ||
+            (n.data as Record<string, unknown>)?.type === 'effect',
+        );
+
+        // Extract UUIDs from causal nodes
+        const causalUuids = causalNodes.map((n) => n.uuid);
+
+        // Verify UUIDs are the actual UUIDs, not descriptions
+        expect(causalUuids).toContain('uuid-cause-1');
+        expect(causalUuids).toContain('uuid-effect-1');
+        expect(causalUuids).toContain('uuid-cause-2');
+        expect(causalUuids).toContain('uuid-effect-2');
+
+        // Verify descriptions are NOT used as UUIDs
+        expect(causalUuids).not.toContain('Server misconfiguration');
+        expect(causalUuids).not.toContain('Service outage');
+        expect(causalUuids).not.toContain('Data corruption');
+      });
+
+      it('should deduplicate causal nodes with same UUID appearing multiple times', async () => {
+        const graphs = createMockGraphs({
+          enrichedResults: [
+            createEnrichedSemanticMatch(
+              'concept1',
+              0.9,
+              ['entity1'],
+              ['Entity 1'],
+            ),
+          ],
+          causalNodes: {
+            entity1: [
+              {
+                uuid: 'causal-node-1',
+                description: 'Root cause',
+                node_type: 'event',
+              },
+            ],
+          },
+          causalLinks: [
+            {
+              cause: 'Root cause A',
+              effect: 'Effect B',
+              causeId: 'uuid-shared', // Same UUID
+              effectId: 'uuid-effect-1',
+              confidence: 0.9,
+            },
+            {
+              cause: 'Root cause A again', // Different description
+              effect: 'Effect C',
+              causeId: 'uuid-shared', // Same UUID - should be skipped
+              effectId: 'uuid-effect-2',
+              confidence: 0.85,
+            },
+          ],
+        });
+
+        const executor = new MAGMAExecutor(graphs);
+        const intent = createValidIntent('WHY', {
+          depthHints: { entity: 1, temporal: 1, causal: 3 },
+        });
+
+        const result = await executor.execute('test', intent);
+
+        const causalNodes = result.merged.nodes.filter(
+          (n) =>
+            (n.data as Record<string, unknown>)?.type === 'cause' ||
+            (n.data as Record<string, unknown>)?.type === 'effect',
+        );
+
+        // uuid-shared should appear only once (deduplicated)
+        const sharedCount = causalNodes.filter(
+          (n) => n.uuid === 'uuid-shared',
+        ).length;
+        expect(sharedCount).toBe(1);
+
+        // Should have 3 unique nodes: uuid-shared, uuid-effect-1, uuid-effect-2
+        expect(causalNodes.length).toBe(3);
+      });
+
+      it('should fall back to description as UUID when causeId/effectId not provided', async () => {
+        const graphs = createMockGraphs({
+          enrichedResults: [
+            createEnrichedSemanticMatch(
+              'concept1',
+              0.9,
+              ['entity1'],
+              ['Entity 1'],
+            ),
+          ],
+          causalNodes: {
+            entity1: [
+              {
+                uuid: 'causal-node-1',
+                description: 'Root cause',
+                node_type: 'event',
+              },
+            ],
+          },
+          causalLinks: [
+            {
+              // No causeId/effectId - should fall back to description
+              cause: 'Network failure',
+              effect: 'Connection timeout',
+              confidence: 0.9,
+            },
+          ],
+        });
+
+        const executor = new MAGMAExecutor(graphs);
+        const intent = createValidIntent('WHY');
+
+        const result = await executor.execute(
+          'why did connection fail?',
+          intent,
+        );
+
+        const causalNodes = result.merged.nodes.filter(
+          (n) =>
+            (n.data as Record<string, unknown>)?.type === 'cause' ||
+            (n.data as Record<string, unknown>)?.type === 'effect',
+        );
+
+        // Should fall back to descriptions as UUIDs
+        const causalUuids = causalNodes.map((n) => n.uuid);
+        expect(causalUuids).toContain('Network failure');
+        expect(causalUuids).toContain('Connection timeout');
+      });
     });
 
     describe('timing', () => {
@@ -737,6 +923,493 @@ describe('MAGMAExecutor', () => {
           expect((error as ExecutorError).cause).toBe(originalError);
         }
       });
+    });
+  });
+
+  describe('graceful degradation', () => {
+    it('should not add views with zero nodes to merged result', async () => {
+      // This tests line 272: if (result.value.nodes.length > 0)
+      const graphs = createMockGraphs({
+        enrichedResults: [
+          createEnrichedSemanticMatch(
+            'concept-1',
+            0.9,
+            ['entity-1'],
+            ['Entity 1'],
+          ),
+        ],
+        // Entity has no relationships - returns empty nodes array
+        entityRelationships: {},
+        // Temporal has no events - returns empty nodes array
+        temporalEvents: {},
+        // Causal has no links - returns empty nodes array
+        causalNodes: {},
+        causalLinks: [],
+      });
+
+      const executor = new MAGMAExecutor(graphs);
+      const intent = createValidIntent();
+
+      const result = await executor.execute('test query', intent);
+
+      // Should only have semantic view (the others succeed but return 0 nodes)
+      expect(result.merged.viewContributions.semantic).toBeGreaterThan(0);
+      expect(result.merged.viewContributions.entity).toBe(0);
+      expect(result.merged.viewContributions.temporal).toBe(0);
+      expect(result.merged.viewContributions.causal).toBe(0);
+
+      // Total nodes should just be semantic concepts
+      expect(result.merged.nodes.length).toBe(1);
+    });
+
+    it('should return partial results when entity expansion fails', async () => {
+      const graphs = createMockGraphs({
+        enrichedResults: [
+          createEnrichedSemanticMatch(
+            'concept-1',
+            0.9,
+            ['entity-1'],
+            ['Entity 1'],
+          ),
+        ],
+        temporalEvents: {
+          'entity-1': [
+            {
+              uuid: 'event-1',
+              description: 'Test event',
+              occurred_at: new Date('2024-06-15'),
+            },
+          ],
+        },
+      });
+
+      // Entity expansion throws an error
+      graphs.entity.getRelationshipsBatch = vi.fn(async () => {
+        throw new Error('Entity graph connection failed');
+      });
+
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const executor = new MAGMAExecutor(graphs);
+      const intent = createValidIntent();
+
+      const result = await executor.execute('test query', intent);
+
+      // Should still have semantic and temporal views
+      expect(result.merged).toBeDefined();
+      expect(result.merged.nodes.length).toBeGreaterThan(0);
+
+      // Should log warning about failed expansion
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[MAGMAExecutor] entity expansion failed:'),
+        expect.any(String),
+      );
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should return partial results when temporal expansion fails', async () => {
+      const graphs = createMockGraphs({
+        enrichedResults: [
+          createEnrichedSemanticMatch(
+            'concept-1',
+            0.9,
+            ['entity-1'],
+            ['Entity 1'],
+          ),
+        ],
+        entityRelationships: {
+          'entity-1': [
+            {
+              source: {
+                uuid: 'entity-1',
+                name: 'Entity 1',
+                entity_type: 'person',
+              },
+              target: {
+                uuid: 'entity-2',
+                name: 'Entity 2',
+                entity_type: 'org',
+              },
+              relationshipType: 'WORKS_FOR',
+            },
+          ],
+        },
+      });
+
+      // Temporal expansion throws an error
+      graphs.temporal.queryTimelineForEntities = vi.fn(async () => {
+        throw new Error('Temporal graph timeout');
+      });
+
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const executor = new MAGMAExecutor(graphs);
+      const intent = createValidIntent();
+
+      const result = await executor.execute('test query', intent);
+
+      // Should still have semantic and entity views
+      expect(result.merged).toBeDefined();
+      expect(result.merged.nodes.length).toBeGreaterThan(0);
+
+      // Should log warning about failed expansion
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[MAGMAExecutor] temporal expansion failed:'),
+        expect.any(String),
+      );
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should return partial results when causal expansion fails', async () => {
+      const graphs = createMockGraphs({
+        enrichedResults: [
+          createEnrichedSemanticMatch(
+            'concept-1',
+            0.9,
+            ['entity-1'],
+            ['Entity 1'],
+          ),
+        ],
+        entityRelationships: {
+          'entity-1': [
+            {
+              source: {
+                uuid: 'entity-1',
+                name: 'Entity 1',
+                entity_type: 'person',
+              },
+              target: {
+                uuid: 'entity-2',
+                name: 'Entity 2',
+                entity_type: 'org',
+              },
+              relationshipType: 'WORKS_FOR',
+            },
+          ],
+        },
+      });
+
+      // Causal expansion throws an error
+      graphs.causal.getNodesForEntities = vi.fn(async () => {
+        throw new Error('Causal traversal error');
+      });
+
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const executor = new MAGMAExecutor(graphs);
+      const intent = createValidIntent();
+
+      const result = await executor.execute('test query', intent);
+
+      // Should still have semantic and entity views
+      expect(result.merged).toBeDefined();
+      expect(result.merged.nodes.length).toBeGreaterThan(0);
+
+      // Should log warning about failed expansion
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[MAGMAExecutor] causal expansion failed:'),
+        expect.any(String),
+      );
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should return semantic-only results when all expansions fail', async () => {
+      const graphs = createMockGraphs({
+        enrichedResults: [
+          createEnrichedSemanticMatch(
+            'concept-1',
+            0.9,
+            ['entity-1'],
+            ['Entity 1'],
+          ),
+        ],
+      });
+
+      // All expansions throw errors
+      graphs.entity.getRelationshipsBatch = vi.fn(async () => {
+        throw new Error('Entity failure');
+      });
+      graphs.temporal.queryTimelineForEntities = vi.fn(async () => {
+        throw new Error('Temporal failure');
+      });
+      graphs.causal.getNodesForEntities = vi.fn(async () => {
+        throw new Error('Causal failure');
+      });
+
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const executor = new MAGMAExecutor(graphs);
+      const intent = createValidIntent();
+
+      const result = await executor.execute('test query', intent);
+
+      // Should still have semantic view at minimum
+      expect(result.merged).toBeDefined();
+      expect(result.merged.nodes.length).toBe(1); // Only the semantic concept
+
+      // Should log warnings for all three failures
+      expect(consoleSpy).toHaveBeenCalledTimes(3);
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should handle non-Error rejection reasons', async () => {
+      const graphs = createMockGraphs({
+        enrichedResults: [
+          createEnrichedSemanticMatch(
+            'concept-1',
+            0.9,
+            ['entity-1'],
+            ['Entity 1'],
+          ),
+        ],
+      });
+
+      // Expansion rejects with a string instead of Error
+      graphs.entity.getRelationshipsBatch = vi.fn(async () => {
+        throw 'String error message';
+      });
+
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const executor = new MAGMAExecutor(graphs);
+      const intent = createValidIntent();
+
+      const result = await executor.execute('test query', intent);
+
+      expect(result.merged).toBeDefined();
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[MAGMAExecutor] entity expansion failed:'),
+        'String error message',
+      );
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should timeout slow entity expansion and continue with others', async () => {
+      const graphs = createMockGraphs({
+        enrichedResults: [
+          createEnrichedSemanticMatch(
+            'concept-1',
+            0.9,
+            ['entity-1'],
+            ['Entity 1'],
+          ),
+        ],
+        temporalEvents: {
+          'entity-1': [
+            {
+              uuid: 'event-1',
+              description: 'Test event',
+              occurred_at: new Date('2024-06-15'),
+            },
+          ],
+        },
+      });
+
+      // Entity expansion takes too long (never resolves within timeout)
+      graphs.entity.getRelationshipsBatch = vi.fn(
+        async () =>
+          new Promise<Map<string, EntityRelationship[]>>((resolve) =>
+            setTimeout(() => resolve(new Map()), 10000),
+          ),
+      );
+
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      // Use short timeout
+      const executor = new MAGMAExecutor(graphs, { timeout: 100 });
+      const intent = createValidIntent();
+
+      const result = await executor.execute('test query', intent);
+
+      // Should still have semantic and temporal views
+      expect(result.merged).toBeDefined();
+      expect(result.merged.nodes.length).toBeGreaterThan(0);
+
+      // Should log timeout warning for entity expansion
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[MAGMAExecutor] entity expansion failed:'),
+        expect.stringContaining('timed out'),
+      );
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should timeout slow temporal expansion and continue with others', async () => {
+      const graphs = createMockGraphs({
+        enrichedResults: [
+          createEnrichedSemanticMatch(
+            'concept-1',
+            0.9,
+            ['entity-1'],
+            ['Entity 1'],
+          ),
+        ],
+        entityRelationships: {
+          'entity-1': [
+            {
+              source: {
+                uuid: 'entity-1',
+                name: 'Entity 1',
+                entity_type: 'person',
+              },
+              target: {
+                uuid: 'entity-2',
+                name: 'Entity 2',
+                entity_type: 'org',
+              },
+              relationshipType: 'WORKS_FOR',
+            },
+          ],
+        },
+      });
+
+      // Temporal expansion takes too long (never resolves within timeout)
+      graphs.temporal.queryTimelineForEntities = vi.fn(
+        async () =>
+          new Promise<
+            Map<
+              string,
+              { uuid: string; description: string; occurred_at: Date }[]
+            >
+          >((resolve) => setTimeout(() => resolve(new Map()), 10000)),
+      );
+
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      // Use short timeout
+      const executor = new MAGMAExecutor(graphs, { timeout: 100 });
+      const intent = createValidIntent();
+
+      const result = await executor.execute('test query', intent);
+
+      // Should still have semantic and entity views
+      expect(result.merged).toBeDefined();
+      expect(result.merged.nodes.length).toBeGreaterThan(0);
+
+      // Should log timeout warning for temporal expansion
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[MAGMAExecutor] temporal expansion failed:'),
+        expect.stringContaining('timed out'),
+      );
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should timeout slow causal expansion and continue with others', async () => {
+      const graphs = createMockGraphs({
+        enrichedResults: [
+          createEnrichedSemanticMatch(
+            'concept-1',
+            0.9,
+            ['entity-1'],
+            ['Entity 1'],
+          ),
+        ],
+        entityRelationships: {
+          'entity-1': [
+            {
+              source: {
+                uuid: 'entity-1',
+                name: 'Entity 1',
+                entity_type: 'person',
+              },
+              target: {
+                uuid: 'entity-2',
+                name: 'Entity 2',
+                entity_type: 'org',
+              },
+              relationshipType: 'WORKS_FOR',
+            },
+          ],
+        },
+      });
+
+      // Causal expansion takes too long (never resolves within timeout)
+      graphs.causal.getNodesForEntities = vi.fn(
+        async () =>
+          new Promise<
+            Map<
+              string,
+              { uuid: string; description: string; node_type: string }[]
+            >
+          >((resolve) => setTimeout(() => resolve(new Map()), 10000)),
+      );
+
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      // Use short timeout
+      const executor = new MAGMAExecutor(graphs, { timeout: 100 });
+      const intent = createValidIntent();
+
+      const result = await executor.execute('test query', intent);
+
+      // Should still have semantic and entity views
+      expect(result.merged).toBeDefined();
+      expect(result.merged.nodes.length).toBeGreaterThan(0);
+
+      // Should log timeout warning for causal expansion
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[MAGMAExecutor] causal expansion failed:'),
+        expect.stringContaining('timed out'),
+      );
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should return semantic-only when all expansions timeout', async () => {
+      const graphs = createMockGraphs({
+        enrichedResults: [
+          createEnrichedSemanticMatch(
+            'concept-1',
+            0.9,
+            ['entity-1'],
+            ['Entity 1'],
+          ),
+        ],
+      });
+
+      // All expansions take too long (never resolve within timeout)
+      graphs.entity.getRelationshipsBatch = vi.fn(
+        async () =>
+          new Promise<Map<string, EntityRelationship[]>>((resolve) =>
+            setTimeout(() => resolve(new Map()), 10000),
+          ),
+      );
+      graphs.temporal.queryTimelineForEntities = vi.fn(
+        async () =>
+          new Promise<
+            Map<
+              string,
+              { uuid: string; description: string; occurred_at: Date }[]
+            >
+          >((resolve) => setTimeout(() => resolve(new Map()), 10000)),
+      );
+      graphs.causal.getNodesForEntities = vi.fn(
+        async () =>
+          new Promise<
+            Map<
+              string,
+              { uuid: string; description: string; node_type: string }[]
+            >
+          >((resolve) => setTimeout(() => resolve(new Map()), 10000)),
+      );
+
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      // Use short timeout
+      const executor = new MAGMAExecutor(graphs, { timeout: 100 });
+      const intent = createValidIntent();
+
+      const result = await executor.execute('test query', intent);
+
+      // Should still have semantic view
+      expect(result.merged).toBeDefined();
+      expect(result.merged.nodes.length).toBe(1); // Only semantic concept
+
+      // Should log timeout warnings for all three
+      expect(consoleSpy).toHaveBeenCalledTimes(3);
+
+      consoleSpy.mockRestore();
     });
   });
 

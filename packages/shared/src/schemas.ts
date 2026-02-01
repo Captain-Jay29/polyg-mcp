@@ -287,10 +287,14 @@ export const TimeframeSchema = z.object({
   end: z.string().optional(),
 });
 
-// Causal link for synthesizer reasoning
+// Causal link for synthesizer reasoning and graph traversal
+// cause/effect are human-readable descriptions for display
+// causeId/effectId are optional UUIDs for graph operations (deduplication, lookups)
 export const CausalLinkSchema = z.object({
   cause: z.string(),
   effect: z.string(),
+  causeId: z.string().optional(),
+  effectId: z.string().optional(),
   confidence: z.number().min(0).max(1),
   evidence: z.string().optional(),
 });
