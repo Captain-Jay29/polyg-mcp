@@ -80,19 +80,6 @@ export class NotFoundError extends StorageError {
 }
 
 /**
- * Thrown when operation times out
- */
-export class TimeoutError extends StorageError {
-  constructor(
-    message: string,
-    public readonly timeoutMs?: number,
-  ) {
-    super(message);
-    this.name = 'TimeoutError';
-  }
-}
-
-/**
  * Check if an error is a StorageError or subclass
  */
 export function isStorageError(error: unknown): error is StorageError {
