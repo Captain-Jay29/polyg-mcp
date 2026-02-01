@@ -11,6 +11,7 @@ import {
   LLMResponseValidationError,
 } from './errors.js';
 import { MAGMA_CLASSIFIER_PROMPT } from './prompts.js';
+import { type RetryConfig, withRetry } from './retry.js';
 
 // Default input length limits (can be overridden via config)
 const DEFAULT_MAX_QUERY_LENGTH = 8000;
@@ -22,14 +23,17 @@ export interface ClassifierConfig {
   maxQueryLength?: number;
   /** Maximum context length in characters (default: 4000) */
   maxContextLength?: number;
-  /** Maximum tokens for LLM response (default: 500) */
+  /** Maximum tokens for LLM response (default: 1000) */
   maxTokens?: number;
+  /** Retry configuration for rate limit handling */
+  retry?: RetryConfig;
 }
 
 export class IntentClassifier {
   private readonly maxQueryLength: number;
   private readonly maxContextLength: number;
   private readonly maxTokens: number;
+  private readonly retryConfig: RetryConfig;
 
   constructor(
     private llm: LLMProvider,
@@ -39,6 +43,7 @@ export class IntentClassifier {
     this.maxContextLength =
       config?.maxContextLength ?? DEFAULT_MAX_CONTEXT_LENGTH;
     this.maxTokens = config?.maxTokens ?? DEFAULT_MAX_TOKENS;
+    this.retryConfig = config?.retry ?? {};
   }
 
   /**
@@ -75,11 +80,15 @@ export class IntentClassifier {
 
     let response: string;
     try {
-      response = await this.llm.complete({
-        prompt,
-        responseFormat: 'json',
-        maxTokens: this.maxTokens,
-      });
+      response = await withRetry(
+        () =>
+          this.llm.complete({
+            prompt,
+            responseFormat: 'json',
+            maxTokens: this.maxTokens,
+          }),
+        this.retryConfig,
+      );
     } catch (error) {
       throw new ClassifierError(
         'Failed to get LLM response for MAGMA classification',

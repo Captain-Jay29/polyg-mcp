@@ -11,22 +11,27 @@ import {
   SynthesizerError,
 } from './errors.js';
 import { SYNTHESIZER_PROMPT } from './prompts.js';
+import { type RetryConfig, withRetry } from './retry.js';
 
 const DEFAULT_MAX_TOKENS = 2000;
 
 export interface SynthesizerConfig {
   /** Maximum tokens for LLM response (default: 2000) */
   maxTokens?: number;
+  /** Retry configuration for rate limit handling */
+  retry?: RetryConfig;
 }
 
 export class Synthesizer {
   private readonly maxTokens: number;
+  private readonly retryConfig: RetryConfig;
 
   constructor(
     private llm: LLMProvider,
     config?: SynthesizerConfig,
   ) {
     this.maxTokens = config?.maxTokens ?? DEFAULT_MAX_TOKENS;
+    this.retryConfig = config?.retry ?? {};
   }
 
   /**
@@ -47,11 +52,15 @@ export class Synthesizer {
 
     let response: string;
     try {
-      response = await this.llm.complete({
-        prompt,
-        responseFormat: 'json',
-        maxTokens: this.maxTokens,
-      });
+      response = await withRetry(
+        () =>
+          this.llm.complete({
+            prompt,
+            responseFormat: 'json',
+            maxTokens: this.maxTokens,
+          }),
+        this.retryConfig,
+      );
     } catch (error) {
       throw new SynthesizerError(
         'Failed to get LLM response for synthesis',
