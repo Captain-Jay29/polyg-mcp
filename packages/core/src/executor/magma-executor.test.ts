@@ -677,6 +677,66 @@ describe('MAGMAExecutor', () => {
         expect(causalUuids).not.toContain('Data corruption');
       });
 
+      it('should deduplicate causal nodes with same UUID appearing multiple times', async () => {
+        const graphs = createMockGraphs({
+          enrichedResults: [
+            createEnrichedSemanticMatch(
+              'concept1',
+              0.9,
+              ['entity1'],
+              ['Entity 1'],
+            ),
+          ],
+          causalNodes: {
+            entity1: [
+              {
+                uuid: 'causal-node-1',
+                description: 'Root cause',
+                node_type: 'event',
+              },
+            ],
+          },
+          causalLinks: [
+            {
+              cause: 'Root cause A',
+              effect: 'Effect B',
+              causeId: 'uuid-shared', // Same UUID
+              effectId: 'uuid-effect-1',
+              confidence: 0.9,
+            },
+            {
+              cause: 'Root cause A again', // Different description
+              effect: 'Effect C',
+              causeId: 'uuid-shared', // Same UUID - should be skipped
+              effectId: 'uuid-effect-2',
+              confidence: 0.85,
+            },
+          ],
+        });
+
+        const executor = new MAGMAExecutor(graphs);
+        const intent = createValidIntent('WHY', {
+          depthHints: { entity: 1, temporal: 1, causal: 3 },
+        });
+
+        const result = await executor.execute('test', intent);
+
+        const causalNodes = result.merged.nodes.filter(
+          (n) =>
+            (n.data as Record<string, unknown>)?.type === 'cause' ||
+            (n.data as Record<string, unknown>)?.type === 'effect',
+        );
+
+        // uuid-shared should appear only once (deduplicated)
+        const sharedCount = causalNodes.filter(
+          (n) => n.uuid === 'uuid-shared',
+        ).length;
+        expect(sharedCount).toBe(1);
+
+        // Should have 3 unique nodes: uuid-shared, uuid-effect-1, uuid-effect-2
+        expect(causalNodes.length).toBe(3);
+      });
+
       it('should fall back to description as UUID when causeId/effectId not provided', async () => {
         const graphs = createMockGraphs({
           enrichedResults: [
@@ -867,6 +927,41 @@ describe('MAGMAExecutor', () => {
   });
 
   describe('graceful degradation', () => {
+    it('should not add views with zero nodes to merged result', async () => {
+      // This tests line 272: if (result.value.nodes.length > 0)
+      const graphs = createMockGraphs({
+        enrichedResults: [
+          createEnrichedSemanticMatch(
+            'concept-1',
+            0.9,
+            ['entity-1'],
+            ['Entity 1'],
+          ),
+        ],
+        // Entity has no relationships - returns empty nodes array
+        entityRelationships: {},
+        // Temporal has no events - returns empty nodes array
+        temporalEvents: {},
+        // Causal has no links - returns empty nodes array
+        causalNodes: {},
+        causalLinks: [],
+      });
+
+      const executor = new MAGMAExecutor(graphs);
+      const intent = createValidIntent();
+
+      const result = await executor.execute('test query', intent);
+
+      // Should only have semantic view (the others succeed but return 0 nodes)
+      expect(result.merged.viewContributions.semantic).toBeGreaterThan(0);
+      expect(result.merged.viewContributions.entity).toBe(0);
+      expect(result.merged.viewContributions.temporal).toBe(0);
+      expect(result.merged.viewContributions.causal).toBe(0);
+
+      // Total nodes should just be semantic concepts
+      expect(result.merged.nodes.length).toBe(1);
+    });
+
     it('should return partial results when entity expansion fails', async () => {
       const graphs = createMockGraphs({
         enrichedResults: [
