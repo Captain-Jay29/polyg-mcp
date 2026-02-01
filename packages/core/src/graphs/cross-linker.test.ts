@@ -25,7 +25,11 @@ describe('CrossLinker', () => {
 
   describe('createLink', () => {
     it('should create a cross-graph link', async () => {
-      vi.mocked(db.query).mockResolvedValue({ records: [], metadata: [] });
+      // Mock successful MERGE - returns the source UUID
+      vi.mocked(db.query).mockResolvedValue({
+        records: [{ sourceUuid: 'source-uuid' }],
+        metadata: [],
+      });
 
       await crossLinker.createLink(
         'source-uuid',
@@ -44,7 +48,10 @@ describe('CrossLinker', () => {
     });
 
     it('should create X_INVOLVES link', async () => {
-      vi.mocked(db.query).mockResolvedValue({ records: [], metadata: [] });
+      vi.mocked(db.query).mockResolvedValue({
+        records: [{ sourceUuid: 'event-uuid' }],
+        metadata: [],
+      });
 
       await crossLinker.createLink('event-uuid', 'entity-uuid', 'X_INVOLVES');
 
@@ -58,7 +65,10 @@ describe('CrossLinker', () => {
     });
 
     it('should create X_REFERS_TO link', async () => {
-      vi.mocked(db.query).mockResolvedValue({ records: [], metadata: [] });
+      vi.mocked(db.query).mockResolvedValue({
+        records: [{ sourceUuid: 'causal-uuid' }],
+        metadata: [],
+      });
 
       await crossLinker.createLink('causal-uuid', 'event-uuid', 'X_REFERS_TO');
 
@@ -72,7 +82,10 @@ describe('CrossLinker', () => {
     });
 
     it('should create X_AFFECTS link', async () => {
-      vi.mocked(db.query).mockResolvedValue({ records: [], metadata: [] });
+      vi.mocked(db.query).mockResolvedValue({
+        records: [{ sourceUuid: 'causal-uuid' }],
+        metadata: [],
+      });
 
       await crossLinker.createLink('causal-uuid', 'entity-uuid', 'X_AFFECTS');
 
@@ -83,6 +96,56 @@ describe('CrossLinker', () => {
           targetId: 'entity-uuid',
         }),
       );
+    });
+
+    it('should be idempotent - MERGE prevents duplicates', async () => {
+      // MERGE will not create a second link if one already exists
+      vi.mocked(db.query).mockResolvedValue({
+        records: [{ sourceUuid: 'source-uuid' }],
+        metadata: [],
+      });
+
+      // Call twice - should not throw
+      await crossLinker.createLink(
+        'source-uuid',
+        'target-uuid',
+        'X_REPRESENTS',
+      );
+      await crossLinker.createLink(
+        'source-uuid',
+        'target-uuid',
+        'X_REPRESENTS',
+      );
+
+      // Both calls should succeed
+      expect(db.query).toHaveBeenCalledTimes(2);
+    });
+
+    it('should throw RelationshipError when nodes not found', async () => {
+      // First query (MERGE) returns empty - nodes not found or wrong labels
+      // Second query (existence check) also returns empty - nodes don't exist
+      vi.mocked(db.query)
+        .mockResolvedValueOnce({ records: [], metadata: [] })
+        .mockResolvedValueOnce({ records: [], metadata: [] });
+
+      await expect(
+        crossLinker.createLink('source', 'target', 'X_REPRESENTS'),
+      ).rejects.toThrow('Source or target node not found');
+    });
+
+    it('should throw RelationshipError when node types are wrong', async () => {
+      // First query (MERGE) returns empty - wrong labels
+      // Second query (existence check) returns labels showing mismatch
+      vi.mocked(db.query)
+        .mockResolvedValueOnce({ records: [], metadata: [] })
+        .mockResolvedValueOnce({
+          records: [{ sourceLabels: ['T_Event'], targetLabels: ['C_Node'] }],
+          metadata: [],
+        });
+
+      await expect(
+        crossLinker.createLink('source', 'target', 'X_REPRESENTS'),
+      ).rejects.toThrow('Invalid node types');
     });
 
     it('should throw RelationshipError on database failure', async () => {
@@ -565,7 +628,11 @@ describe('CrossLinker', () => {
     it.each(
       validLinkTypes,
     )('should accept %s as valid link type', async (linkType) => {
-      vi.mocked(db.query).mockResolvedValue({ records: [], metadata: [] });
+      // Mock successful MERGE - returns source UUID
+      vi.mocked(db.query).mockResolvedValue({
+        records: [{ sourceUuid: 'source' }],
+        metadata: [],
+      });
 
       await expect(
         crossLinker.createLink('source', 'target', linkType),

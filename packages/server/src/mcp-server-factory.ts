@@ -284,6 +284,7 @@ function registerAddEventTool(
 
         // Link event to entities if specified
         const linkedEntities: string[] = [];
+        const failedLinks: Array<{ entity: string; reason: string }> = [];
         if (args.entities && Array.isArray(args.entities)) {
           for (const entityRef of args.entities) {
             try {
@@ -294,9 +295,16 @@ function registerAddEventTool(
                   entity.uuid,
                 );
                 linkedEntities.push(entity.name);
+              } else {
+                failedLinks.push({ entity: entityRef, reason: 'not found' });
               }
-            } catch {
-              // Entity not found - skip silently
+            } catch (err) {
+              const reason =
+                err instanceof Error ? err.message : 'unknown error';
+              failedLinks.push({ entity: entityRef, reason });
+              console.warn(
+                `[add_event] Failed to link entity "${entityRef}": ${reason}`,
+              );
             }
           }
         }
@@ -305,15 +313,19 @@ function registerAddEventTool(
           linkedEntities.length > 0
             ? ` (linked to: ${linkedEntities.join(', ')})`
             : '';
+        const failedText =
+          failedLinks.length > 0
+            ? ` (failed to link: ${failedLinks.map((f) => f.entity).join(', ')})`
+            : '';
 
         return {
           content: [
             {
               type: 'text' as const,
-              text: `Added event: ${event.description} at ${event.occurred_at.toISOString()}${linkedText}`,
+              text: `Added event: ${event.description} at ${event.occurred_at.toISOString()}${linkedText}${failedText}`,
             },
           ],
-          structuredContent: { ...event, linkedEntities },
+          structuredContent: { ...event, linkedEntities, failedLinks },
         };
       } catch (error) {
         return formatToolError(error, 'add_event');
@@ -350,28 +362,38 @@ function registerAddFactTool(
 
         // Link fact to subject entity if specified (creates X_INVOLVES relationship)
         let linkedEntity: string | undefined;
+        let linkError: string | undefined;
         if (args.subject_entity) {
           try {
             const entity = await graphs.entity.getEntity(args.subject_entity);
             if (entity) {
               await graphs.temporal.linkFactToEntity(fact.uuid, entity.uuid);
               linkedEntity = entity.name;
+            } else {
+              linkError = 'not found';
             }
-          } catch {
-            // Entity not found - skip silently
+          } catch (err) {
+            linkError = err instanceof Error ? err.message : 'unknown error';
+            console.warn(
+              `[add_fact] Failed to link entity "${args.subject_entity}": ${linkError}`,
+            );
           }
         }
 
         const linkedText = linkedEntity ? ` (about: ${linkedEntity})` : '';
+        const failedText =
+          linkError && args.subject_entity
+            ? ` (failed to link ${args.subject_entity}: ${linkError})`
+            : '';
 
         return {
           content: [
             {
               type: 'text' as const,
-              text: `Added fact: ${fact.subject} ${fact.predicate} ${fact.object}${linkedText}`,
+              text: `Added fact: ${fact.subject} ${fact.predicate} ${fact.object}${linkedText}${failedText}`,
             },
           ],
-          structuredContent: { ...fact, linkedEntity },
+          structuredContent: { ...fact, linkedEntity, linkError },
         };
       } catch (error) {
         return formatToolError(error, 'add_fact');
@@ -435,6 +457,7 @@ function registerAddCausalLinkTool(
 
         // Link causal nodes to entities if specified (creates X_AFFECTS relationships)
         const linkedEntities: string[] = [];
+        const failedEntityLinks: Array<{ entity: string; reason: string }> = [];
         if (args.entities && Array.isArray(args.entities)) {
           for (const entityRef of args.entities) {
             try {
@@ -444,15 +467,26 @@ function registerAddCausalLinkTool(
                 await graphs.causal.linkToEntity(causeNode.uuid, entity.uuid);
                 await graphs.causal.linkToEntity(effectNode.uuid, entity.uuid);
                 linkedEntities.push(entity.name);
+              } else {
+                failedEntityLinks.push({
+                  entity: entityRef,
+                  reason: 'not found',
+                });
               }
-            } catch {
-              // Entity not found - skip silently
+            } catch (err) {
+              const reason =
+                err instanceof Error ? err.message : 'unknown error';
+              failedEntityLinks.push({ entity: entityRef, reason });
+              console.warn(
+                `[add_causal_link] Failed to link entity "${entityRef}": ${reason}`,
+              );
             }
           }
         }
 
         // Link causal nodes to events if specified (creates X_REFERS_TO relationships)
         const linkedEvents: string[] = [];
+        const failedEventLinks: Array<{ event: string; reason: string }> = [];
         if (args.events && Array.isArray(args.events)) {
           for (const eventRef of args.events) {
             try {
@@ -466,9 +500,16 @@ function registerAddCausalLinkTool(
                     ? `${event.description.slice(0, 40)}...`
                     : event.description,
                 );
+              } else {
+                failedEventLinks.push({ event: eventRef, reason: 'not found' });
               }
-            } catch {
-              // Event not found - skip silently
+            } catch (err) {
+              const reason =
+                err instanceof Error ? err.message : 'unknown error';
+              failedEventLinks.push({ event: eventRef, reason });
+              console.warn(
+                `[add_causal_link] Failed to link event "${eventRef}": ${reason}`,
+              );
             }
           }
         }
@@ -481,14 +522,31 @@ function registerAddCausalLinkTool(
           linkedEvents.length > 0
             ? ` (refers to: ${linkedEvents.join(', ')})`
             : '';
+        const failedEntityText =
+          failedEntityLinks.length > 0
+            ? ` (failed entities: ${failedEntityLinks.map((f) => f.entity).join(', ')})`
+            : '';
+        const failedEventText =
+          failedEventLinks.length > 0
+            ? ` (failed events: ${failedEventLinks.map((f) => f.event).join(', ')})`
+            : '';
 
         return {
           content: [
             {
               type: 'text' as const,
-              text: `Added causal link: ${args.cause} -> ${args.effect}${args.confidence ? ` (confidence: ${args.confidence})` : ''}${linkedEntityText}${linkedEventText}`,
+              text: `Added causal link: ${args.cause} -> ${args.effect}${args.confidence ? ` (confidence: ${args.confidence})` : ''}${linkedEntityText}${linkedEventText}${failedEntityText}${failedEventText}`,
             },
           ],
+          structuredContent: {
+            cause: args.cause,
+            effect: args.effect,
+            confidence: args.confidence,
+            linkedEntities,
+            linkedEvents,
+            failedEntityLinks,
+            failedEventLinks,
+          },
         };
       } catch (error) {
         return formatToolError(error, 'add_causal_link');
@@ -518,6 +576,7 @@ function registerAddConceptTool(
 
         // Link concept to entities if specified (creates X_REPRESENTS relationships)
         const linkedEntities: string[] = [];
+        const failedLinks: Array<{ entity: string; reason: string }> = [];
         if (args.entities && Array.isArray(args.entities)) {
           for (const entityRef of args.entities) {
             try {
@@ -525,9 +584,16 @@ function registerAddConceptTool(
               if (entity) {
                 await graphs.semantic.linkToEntity(concept.uuid, entity.uuid);
                 linkedEntities.push(entity.name);
+              } else {
+                failedLinks.push({ entity: entityRef, reason: 'not found' });
               }
-            } catch {
-              // Entity not found - skip silently
+            } catch (err) {
+              const reason =
+                err instanceof Error ? err.message : 'unknown error';
+              failedLinks.push({ entity: entityRef, reason });
+              console.warn(
+                `[add_concept] Failed to link entity "${entityRef}": ${reason}`,
+              );
             }
           }
         }
@@ -536,12 +602,16 @@ function registerAddConceptTool(
           linkedEntities.length > 0
             ? ` (linked to: ${linkedEntities.join(', ')})`
             : '';
+        const failedText =
+          failedLinks.length > 0
+            ? ` (failed to link: ${failedLinks.map((f) => f.entity).join(', ')})`
+            : '';
 
         return {
           content: [
             {
               type: 'text' as const,
-              text: `Added concept: ${concept.name}${concept.description ? ` - ${concept.description}` : ''}${linkedText}`,
+              text: `Added concept: ${concept.name}${concept.description ? ` - ${concept.description}` : ''}${linkedText}${failedText}`,
             },
           ],
           structuredContent: {
@@ -549,6 +619,7 @@ function registerAddConceptTool(
             name: concept.name,
             description: concept.description,
             linkedEntities,
+            failedLinks,
           },
         };
       } catch (error) {
