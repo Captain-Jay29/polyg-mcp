@@ -16,7 +16,13 @@ export class HealthChecker {
   }
 
   async check(): Promise<HealthStatus> {
-    const dbConnected = await this.db.healthCheck().catch(() => false);
+    const dbConnected = await this.db.healthCheck().catch((error) => {
+      console.warn(
+        '[HealthChecker] Database health check failed:',
+        error instanceof Error ? error.message : String(error),
+      );
+      return false;
+    });
 
     return {
       status: dbConnected ? 'ok' : 'error',

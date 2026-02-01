@@ -98,7 +98,8 @@ export class OrchestratorError extends RetrievalError {
       | 'classification'
       | 'execution'
       | 'linearization'
-      | 'synthesis',
+      | 'synthesis'
+      | 'remember',
     cause?: Error,
   ) {
     super(message, 'Orchestrator', step, cause);

@@ -98,8 +98,13 @@ export class SessionManager {
       // Clean up transport if connection fails
       try {
         await transport.close();
-      } catch {
-        // Ignore cleanup errors
+      } catch (cleanupError) {
+        console.warn(
+          '[SessionManager] Error closing transport during cleanup:',
+          cleanupError instanceof Error
+            ? cleanupError.message
+            : String(cleanupError),
+        );
       }
       throw new SessionCreationError(
         `Failed to connect MCP server to transport: ${error instanceof Error ? error.message : String(error)}`,
@@ -195,9 +200,22 @@ export class SessionManager {
     // Stop cleanup timer
     this.stopCleanupTimer();
 
-    // Remove all sessions
+    // Remove all sessions - use allSettled to ensure all cleanups are attempted
     const sessionIds = Array.from(this.sessions.keys());
-    await Promise.all(sessionIds.map((id) => this.removeSession(id)));
+    const results = await Promise.allSettled(
+      sessionIds.map((id) => this.removeSession(id)),
+    );
+
+    // Log any failures
+    const failures = results.filter(
+      (r): r is PromiseRejectedResult => r.status === 'rejected',
+    );
+    if (failures.length > 0) {
+      console.warn(
+        `[SessionManager] ${failures.length} session(s) failed to close during shutdown:`,
+        failures.map((f) => f.reason).join('; '),
+      );
+    }
   }
 
   /**

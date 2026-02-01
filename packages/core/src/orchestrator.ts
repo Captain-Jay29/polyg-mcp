@@ -357,7 +357,11 @@ export class Orchestrator {
   }> {
     // Validate input
     if (!content || content.trim().length === 0) {
-      throw new Error('Content cannot be empty');
+      throw new RetrievalValidationError(
+        'Content cannot be empty',
+        'Orchestrator',
+        ['content: must not be empty'],
+      );
     }
 
     // For now, create a simple event to log what was remembered
@@ -365,8 +369,10 @@ export class Orchestrator {
     try {
       await this.temporalGraph.addEvent(content, new Date());
     } catch (error) {
-      throw new Error(
+      throw new OrchestratorError(
         `Failed to store content in temporal graph: ${error instanceof Error ? error.message : String(error)}`,
+        'remember',
+        error instanceof Error ? error : undefined,
       );
     }
 
