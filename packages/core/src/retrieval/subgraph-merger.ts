@@ -120,6 +120,9 @@ export class SubgraphMerger {
       }
 
       // Calculate final scores with multi-view boost
+      // Note: finalScore can exceed 1.0 when nodes appear in multiple views
+      // (e.g., avgScore=0.8 with 2 views and boost=1.5 → 0.8 × 1.5 = 1.2)
+      // This is intentional - multi-view nodes should rank higher than single-view nodes.
       const scoredNodes: ScoredNode[] = [];
 
       for (const [uuid, info] of nodeMap) {
