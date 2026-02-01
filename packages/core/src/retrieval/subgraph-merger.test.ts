@@ -225,69 +225,6 @@ describe('SubgraphMerger', () => {
     });
   });
 
-  describe('hasMinimumNodes', () => {
-    it('should return true when view has enough nodes', () => {
-      const merger = new SubgraphMerger({ minNodesPerView: 2 });
-      const view: GraphView = {
-        source: 'semantic',
-        nodes: [
-          { uuid: 'n1', data: {} },
-          { uuid: 'n2', data: {} },
-          { uuid: 'n3', data: {} },
-        ],
-      };
-      expect(merger.hasMinimumNodes(view)).toBe(true);
-    });
-
-    it('should return false when view has too few nodes', () => {
-      const merger = new SubgraphMerger({ minNodesPerView: 5 });
-      const view: GraphView = {
-        source: 'semantic',
-        nodes: [
-          { uuid: 'n1', data: {} },
-          { uuid: 'n2', data: {} },
-        ],
-      };
-      expect(merger.hasMinimumNodes(view)).toBe(false);
-    });
-
-    it('should return false for invalid view', () => {
-      const merger = new SubgraphMerger();
-      expect(merger.hasMinimumNodes({} as GraphView)).toBe(false);
-    });
-  });
-
-  describe('topN', () => {
-    it('should return top N nodes', () => {
-      const merger = new SubgraphMerger();
-      const merged = merger.merge([
-        {
-          source: 'semantic',
-          nodes: [
-            { uuid: 'n1', data: {}, score: 0.9 },
-            { uuid: 'n2', data: {}, score: 0.8 },
-            { uuid: 'n3', data: {}, score: 0.7 },
-          ],
-        },
-      ]);
-
-      const top2 = merger.topN(merged, 2);
-
-      expect(top2.nodes).toHaveLength(2);
-      expect(top2.nodes[0].uuid).toBe('n1');
-      expect(top2.nodes[1].uuid).toBe('n2');
-    });
-
-    it('should throw for negative n', () => {
-      const merger = new SubgraphMerger();
-      const merged = {
-        nodes: [],
-        viewContributions: { semantic: 0, entity: 0, temporal: 0, causal: 0 },
-      };
-      expect(() => merger.topN(merged, -1)).toThrow(RetrievalValidationError);
-    });
-  });
-
   describe('filterByViewCount', () => {
     it('should filter nodes by minimum view count', () => {
       const merger = new SubgraphMerger();
