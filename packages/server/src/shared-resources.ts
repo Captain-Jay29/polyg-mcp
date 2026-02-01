@@ -109,6 +109,8 @@ export class SharedResources {
       this.embeddingProvider,
       {
         timeout: this.validatedConfig.execution.parallelTimeout,
+        classifierMaxTokens: this.validatedConfig.llm.classifierMaxTokens,
+        synthesizerMaxTokens: this.validatedConfig.llm.synthesizerMaxTokens,
       },
     );
 

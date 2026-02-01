@@ -12,8 +12,22 @@ import {
 } from './errors.js';
 import { SYNTHESIZER_PROMPT } from './prompts.js';
 
+const DEFAULT_MAX_TOKENS = 2000;
+
+export interface SynthesizerConfig {
+  /** Maximum tokens for LLM response (default: 2000) */
+  maxTokens?: number;
+}
+
 export class Synthesizer {
-  constructor(private llm: LLMProvider) {}
+  private readonly maxTokens: number;
+
+  constructor(
+    private llm: LLMProvider,
+    config?: SynthesizerConfig,
+  ) {
+    this.maxTokens = config?.maxTokens ?? DEFAULT_MAX_TOKENS;
+  }
 
   /**
    * Synthesize graph results into a coherent response
@@ -36,7 +50,7 @@ export class Synthesizer {
       response = await this.llm.complete({
         prompt,
         responseFormat: 'json',
-        maxTokens: 1000,
+        maxTokens: this.maxTokens,
       });
     } catch (error) {
       throw new SynthesizerError(

@@ -92,7 +92,7 @@ function buildRawConfig(): unknown {
     },
     llm: {
       provider: 'openai',
-      model: process.env.LLM_MODEL || 'gpt-4o-mini',
+      model: process.env.LLM_MODEL || 'gpt-5-mini',
       apiKey: process.env.OPENAI_API_KEY,
       classifierMaxTokens: parseEnvInt(process.env.CLASSIFIER_MAX_TOKENS, 2000),
       synthesizerMaxTokens: parseEnvInt(
