@@ -7,7 +7,7 @@
  * Use SemanticGraph.searchWithEntities() which returns EnrichedSemanticMatch
  * with linkedEntityIds already populated (eliminates CrossLinker round-trips).
  */
-import { type EnrichedSemanticMatch } from '@polyg-mcp/shared';
+import type { EnrichedSemanticMatch } from '@polyg-mcp/shared';
 import { z } from 'zod';
 import { RetrievalValidationError } from './errors.js';
 
