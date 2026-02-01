@@ -508,9 +508,7 @@ export const HTTPServerOptionsSchema = z.object({
     .min(1000)
     .max(300000)
     .optional()
-    .describe(
-      'HTTP request timeout in milliseconds (default: 120000 = 2 min)',
-    ),
+    .describe('HTTP request timeout in milliseconds (default: 120000 = 2 min)'),
 });
 
 // Session metrics for health response
