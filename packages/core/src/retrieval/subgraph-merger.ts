@@ -8,7 +8,6 @@ import {
   type GraphView,
   GraphViewSchema,
   type GraphViewSource,
-  type MAGMAConfig,
   type MergedSubgraph,
   MergedSubgraphSchema,
   type ScoredNode,
@@ -52,17 +51,6 @@ export class SubgraphMerger {
     }
 
     this.options = result.data;
-  }
-
-  /**
-   * Create merger from MAGMA config
-   */
-  static fromConfig(config: MAGMAConfig): SubgraphMerger {
-    return new SubgraphMerger({
-      multiViewBoost: config.multiViewBoost,
-      minNodesPerView: config.minNodesPerView,
-      maxNodesPerView: config.maxNodesPerView,
-    });
   }
 
   /**
@@ -220,35 +208,22 @@ export class SubgraphMerger {
   }
 
   /**
-   * Check if a view has sufficient nodes (for fallback logic)
-   */
-  hasMinimumNodes(view: GraphView): boolean {
-    const validated = GraphViewSchema.safeParse(view);
-    if (!validated.success) {
-      return false;
-    }
-    return validated.data.nodes.length >= this.options.minNodesPerView;
-  }
-
-  /**
-   * Filter merged subgraph to top N nodes
-   */
-  topN(merged: MergedSubgraph, n: number): MergedSubgraph {
-    if (n < 0) {
-      throw new RetrievalValidationError(
-        'n must be non-negative',
-        'SubgraphMerger',
-        [`Expected n >= 0, got ${n}`],
-      );
-    }
-    return {
-      nodes: merged.nodes.slice(0, n),
-      viewContributions: merged.viewContributions,
-    };
-  }
-
-  /**
-   * Filter to only nodes with minimum view count
+   * Filter to only nodes appearing in multiple views (high-confidence filtering).
+   *
+   * Useful for surfacing nodes that are corroborated across different graph views
+   * (semantic, entity, temporal, causal), indicating stronger relevance.
+   *
+   * @param merged - The merged subgraph to filter
+   * @param minViews - Minimum number of views a node must appear in (>= 1)
+   * @returns Filtered subgraph with only multi-view nodes
+   * @throws {RetrievalValidationError} If minViews < 1
+   *
+   * @remarks Currently unused in core pipeline. Available for MCP tools or custom filtering.
+   * @example
+   * ```ts
+   * const highConfidence = merger.filterByViewCount(merged, 2);
+   * // Only nodes found in 2+ views (e.g., semantic AND entity)
+   * ```
    */
   filterByViewCount(merged: MergedSubgraph, minViews: number): MergedSubgraph {
     if (minViews < 1) {
@@ -265,7 +240,22 @@ export class SubgraphMerger {
   }
 
   /**
-   * Filter to only nodes with minimum score
+   * Filter to only nodes above a minimum relevance score.
+   *
+   * Useful for quality threshold filtering, removing low-relevance nodes
+   * from results. Note: finalScore can exceed 1.0 due to multi-view boost.
+   *
+   * @param merged - The merged subgraph to filter
+   * @param minScore - Minimum finalScore threshold (>= 0)
+   * @returns Filtered subgraph with only high-scoring nodes
+   * @throws {RetrievalValidationError} If minScore < 0
+   *
+   * @remarks Currently unused in core pipeline. Available for MCP tools or custom filtering.
+   * @example
+   * ```ts
+   * const quality = merger.filterByScore(merged, 0.7);
+   * // Only nodes with finalScore >= 0.7
+   * ```
    */
   filterByScore(merged: MergedSubgraph, minScore: number): MergedSubgraph {
     if (minScore < 0) {
@@ -282,7 +272,21 @@ export class SubgraphMerger {
   }
 
   /**
-   * Get nodes from a specific view source
+   * Extract nodes that originated from a specific graph view.
+   *
+   * Useful for debugging, analysis, or when you need to examine
+   * which nodes came from a particular expansion (semantic, entity, temporal, causal).
+   *
+   * @param merged - The merged subgraph to query
+   * @param source - The view source to filter by
+   * @returns Array of nodes that include the specified view in their sources
+   *
+   * @remarks Currently unused in core pipeline. Available for debugging or custom analysis.
+   * @example
+   * ```ts
+   * const causalNodes = merger.getNodesFromView(merged, 'causal');
+   * // All nodes found during causal expansion
+   * ```
    */
   getNodesFromView(
     merged: MergedSubgraph,
