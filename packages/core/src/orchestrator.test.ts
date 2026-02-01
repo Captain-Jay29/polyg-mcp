@@ -69,6 +69,47 @@ function mockSynthesizerOutput(
   };
 }
 
+// Helper to create a mock MAGMAExecutionResult with actual nodes
+// This ensures merged subgraph has nodes so pipeline reaches synthesizer
+function mockExecutionResultWithNodes() {
+  return {
+    merged: {
+      nodes: [
+        {
+          uuid: 'node-1',
+          data: { name: 'Test Entity', entity_type: 'Person' },
+          viewCount: 1,
+          views: ['semantic' as const],
+          finalScore: 0.9,
+        },
+      ],
+      viewContributions: { semantic: 1, entity: 0, temporal: 0, causal: 0 },
+    },
+    seeds: {
+      conceptIds: ['concept-1'],
+      entitySeeds: [
+        {
+          entityId: 'entity-1',
+          sourceConceptId: 'concept-1',
+          semanticScore: 0.9,
+        },
+      ],
+      stats: {
+        conceptsSearched: 1,
+        entitiesFound: 1,
+        conceptsWithoutLinks: 0,
+      },
+    },
+    timing: {
+      semanticMs: 10,
+      seedExtractionMs: 5,
+      expansionMs: 20,
+      mergeMs: 5,
+      totalMs: 40,
+    },
+  };
+}
+
 describe('Orchestrator', () => {
   let db: FalkorDBAdapter;
   let llm: LLMProvider;
@@ -133,13 +174,17 @@ describe('Orchestrator', () => {
         .mockResolvedValueOnce(JSON.stringify(magmaIntent))
         .mockResolvedValueOnce(JSON.stringify(synthesizerOutput));
 
-      // Mock graph queries to return empty (no entities found)
-      vi.mocked(db.query).mockResolvedValue({ records: [], metadata: [] });
+      // Mock executor to return results with nodes (so pipeline reaches synthesizer)
+      // biome-ignore lint/complexity/useLiteralKeys: accessing private property for testing
+      vi.spyOn(orchestrator['executor'], 'execute').mockResolvedValueOnce(
+        mockExecutionResultWithNodes(),
+      );
 
       const result = await orchestrator.recall('Who is Alice?');
 
       expect(result.answer).toBe('Alice is a person');
-      expect(result.sources).toContain('entity');
+      // Sources come from actual viewContributions, not LLM output
+      expect(result.sources).toContain('semantic');
       expect(llm.complete).toHaveBeenCalledTimes(2);
     });
 
@@ -150,7 +195,10 @@ describe('Orchestrator', () => {
       vi.mocked(llm.complete)
         .mockResolvedValueOnce(JSON.stringify(magmaIntent))
         .mockResolvedValueOnce(JSON.stringify(synthesizerOutput));
-      vi.mocked(db.query).mockResolvedValue({ records: [], metadata: [] });
+      // biome-ignore lint/complexity/useLiteralKeys: accessing private property for testing
+      vi.spyOn(orchestrator['executor'], 'execute').mockResolvedValueOnce(
+        mockExecutionResultWithNodes(),
+      );
 
       await orchestrator.recall(
         'What happened?',
@@ -172,30 +220,32 @@ describe('Orchestrator', () => {
       );
     });
 
-    it('should handle graph expansion with empty results gracefully', async () => {
-      // MAGMA executor handles graph failures gracefully - returns semantic-only
+    it('should return early with no-results response when graph is empty', async () => {
       const magmaIntent = mockMAGMAIntent({
         type: 'WHEN',
         entities: ['deployment'],
         depthHints: { entity: 1, temporal: 3, causal: 1 },
       });
 
-      const synthesizerOutput = mockSynthesizerOutput({
-        answer: 'No temporal events found',
-        confidence: 0.5,
-      });
+      // Only mock classification - synthesizer should NOT be called
+      vi.mocked(llm.complete).mockResolvedValueOnce(
+        JSON.stringify(magmaIntent),
+      );
 
-      vi.mocked(llm.complete)
-        .mockResolvedValueOnce(JSON.stringify(magmaIntent))
-        .mockResolvedValueOnce(JSON.stringify(synthesizerOutput));
-
-      // Return empty results - MAGMA handles this gracefully
+      // Return empty results from all graph queries
       vi.mocked(db.query).mockResolvedValue({ records: [], metadata: [] });
 
       const result = await orchestrator.recall('What happened last week?');
 
-      // Pipeline completes with semantic-only fallback
-      expect(result.answer).toBe('No temporal events found');
+      // Should return early with no-results response
+      expect(result.answer).toContain('No relevant information found');
+      expect(result.confidence).toBe(0);
+      expect(result.sources).toEqual([]);
+      expect(result.follow_ups).toBeDefined();
+      expect(result.follow_ups?.length).toBeGreaterThan(0);
+
+      // Should only call LLM once (classification), not twice (no synthesis)
+      expect(llm.complete).toHaveBeenCalledTimes(1);
     });
 
     it('should throw with context when synthesizer fails', async () => {
@@ -208,7 +258,11 @@ describe('Orchestrator', () => {
         .mockResolvedValueOnce(JSON.stringify(magmaIntent))
         .mockRejectedValueOnce(new Error('LLM rate limited'));
 
-      vi.mocked(db.query).mockResolvedValue({ records: [], metadata: [] });
+      // Need graph data to reach synthesizer
+      // biome-ignore lint/complexity/useLiteralKeys: accessing private property for testing
+      vi.spyOn(orchestrator['executor'], 'execute').mockResolvedValueOnce(
+        mockExecutionResultWithNodes(),
+      );
 
       await expect(orchestrator.recall('test query')).rejects.toThrow(
         'Response synthesis failed: Failed to get LLM response for synthesis',
@@ -230,7 +284,10 @@ describe('Orchestrator', () => {
       vi.mocked(llm.complete)
         .mockResolvedValueOnce(JSON.stringify(magmaIntent))
         .mockResolvedValueOnce(JSON.stringify(synthesizerOutput));
-      vi.mocked(db.query).mockResolvedValue({ records: [], metadata: [] });
+      // biome-ignore lint/complexity/useLiteralKeys: accessing private property for testing
+      vi.spyOn(orchestrator['executor'], 'execute').mockResolvedValueOnce(
+        mockExecutionResultWithNodes(),
+      );
 
       const result = await orchestrator.recall('Tell me about the system');
 
