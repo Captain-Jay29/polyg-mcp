@@ -8,7 +8,6 @@ export {
   QueryError,
   StorageConfigError,
   StorageError,
-  TimeoutError,
   ValidationError,
   wrapError,
 } from './errors.js';

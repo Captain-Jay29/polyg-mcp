@@ -111,8 +111,12 @@ export class FalkorDBAdapter implements IStorageAdapter {
     if (this.client) {
       try {
         await this.client.close();
-      } catch {
-        // Ignore disconnect errors
+      } catch (error) {
+        // Log disconnect errors for debugging, but don't throw
+        console.warn(
+          '[FalkorDB] Error during disconnect:',
+          error instanceof Error ? error.message : String(error),
+        );
       } finally {
         this.client = null;
         this.graph = null;
@@ -132,7 +136,11 @@ export class FalkorDBAdapter implements IStorageAdapter {
     try {
       await this.graph?.query('RETURN 1');
       return true;
-    } catch {
+    } catch (error) {
+      console.warn(
+        '[FalkorDB] Health check failed:',
+        error instanceof Error ? error.message : String(error),
+      );
       return false;
     }
   }
@@ -400,13 +408,21 @@ export class FalkorDBAdapter implements IStorageAdapter {
         try {
           const result = await this.query(query);
           stats[key] = (result.records[0]?.count as number) || 0;
-        } catch {
-          // Individual query failures don't fail the whole operation
+        } catch (error) {
+          // Log individual query failures but continue with other stats
+          console.warn(
+            `[FalkorDB] Statistics query failed for ${key}:`,
+            error instanceof Error ? error.message : String(error),
+          );
           stats[key] = 0;
         }
       }
-    } catch {
-      // If we can't get stats, return zeros
+    } catch (error) {
+      // Log overall stats failure but return zeros
+      console.warn(
+        '[FalkorDB] Failed to get statistics:',
+        error instanceof Error ? error.message : String(error),
+      );
     }
 
     return stats;
