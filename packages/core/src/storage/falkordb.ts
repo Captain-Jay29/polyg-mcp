@@ -42,6 +42,7 @@ export class FalkorDBAdapter implements IStorageAdapter {
   private connectionState: ConnectionStateType = ConnectionState.Disconnected;
   private readonly graphName: string;
   private readonly validatedConfig: FalkorDBConfig;
+  private readonly queryTimeoutMs: number;
 
   /**
    * Create a new FalkorDB adapter
@@ -58,6 +59,7 @@ export class FalkorDBAdapter implements IStorageAdapter {
       );
     }
     this.graphName = this.validatedConfig.graphName;
+    this.queryTimeoutMs = this.validatedConfig.queryTimeoutMs ?? 30000;
   }
 
   /**
@@ -146,8 +148,8 @@ export class FalkorDBAdapter implements IStorageAdapter {
   }
 
   /**
-   * Execute a raw Cypher query
-   * @throws QueryError if query execution fails
+   * Execute a raw Cypher query with timeout
+   * @throws QueryError if query execution fails or times out
    */
   async query(
     cypher: string,
@@ -156,9 +158,15 @@ export class FalkorDBAdapter implements IStorageAdapter {
     const graph = this.requireConnection();
 
     try {
-      const result = await graph.query<Record<string, unknown>[]>(cypher, {
+      const queryPromise = graph.query<Record<string, unknown>[]>(cypher, {
         params: params as QueryParams,
       });
+
+      const result = await this.withQueryTimeout(
+        queryPromise,
+        this.queryTimeoutMs,
+        cypher,
+      );
 
       // Convert result to our format
       const records: Record<string, unknown>[] = [];
@@ -179,11 +187,46 @@ export class FalkorDBAdapter implements IStorageAdapter {
         metadata: result.metadata || [],
       };
     } catch (error) {
+      if (error instanceof QueryError) {
+        throw error;
+      }
       throw new QueryError(
         'Query execution failed',
         cypher,
         error instanceof Error ? error : undefined,
       );
+    }
+  }
+
+  /**
+   * Execute a promise with a timeout
+   * @throws QueryError if the operation times out
+   */
+  private async withQueryTimeout<T>(
+    promise: Promise<T>,
+    timeoutMs: number,
+    cypher: string,
+  ): Promise<T> {
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => {
+        reject(
+          new QueryError(
+            `Query timed out after ${timeoutMs}ms`,
+            cypher,
+            undefined,
+          ),
+        );
+      }, timeoutMs);
+    });
+
+    try {
+      return await Promise.race([promise, timeoutPromise]);
+    } finally {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
     }
   }
 

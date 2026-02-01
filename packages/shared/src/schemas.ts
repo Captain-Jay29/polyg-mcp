@@ -256,29 +256,34 @@ export const LinearizeContextSchema = z.object({
 });
 
 // MAGMA configuration
-export const MAGMAConfigSchema = z.object({
-  // Seeding
-  semanticTopK: z.number().int().min(1).max(100).default(10),
-  minSemanticScore: z.number().min(0).max(1).default(0.5),
+export const MAGMAConfigSchema = z
+  .object({
+    // Seeding
+    semanticTopK: z.number().int().min(1).max(100).default(10),
+    minSemanticScore: z.number().min(0).max(1).default(0.5),
 
-  // Default traversal depths (overridden by intent)
-  defaultDepths: DepthHintsSchema.default({
-    entity: 2,
-    temporal: 2,
-    causal: 3,
-  }),
+    // Default traversal depths (overridden by intent)
+    defaultDepths: DepthHintsSchema.default({
+      entity: 2,
+      temporal: 2,
+      causal: 3,
+    }),
 
-  // Fallback thresholds
-  minNodesPerView: z.number().int().min(0).default(3),
-  maxNodesPerView: z.number().int().min(1).default(50),
+    // Fallback thresholds
+    minNodesPerView: z.number().int().min(0).default(3),
+    maxNodesPerView: z.number().int().min(1).default(50),
 
-  // Multi-view scoring
-  multiViewBoost: z.number().min(1).default(1.5),
+    // Multi-view scoring
+    multiViewBoost: z.number().min(1).default(1.5),
 
-  // Input length limits (to prevent exceeding LLM context window)
-  maxQueryLength: z.number().int().min(100).max(100000).default(8000),
-  maxContextLength: z.number().int().min(100).max(100000).default(4000),
-});
+    // Input length limits (to prevent exceeding LLM context window)
+    maxQueryLength: z.number().int().min(100).max(100000).default(8000),
+    maxContextLength: z.number().int().min(100).max(100000).default(4000),
+  })
+  .refine((data) => data.minNodesPerView <= data.maxNodesPerView, {
+    message: 'minNodesPerView must be less than or equal to maxNodesPerView',
+    path: ['minNodesPerView'],
+  });
 
 // Timeframe for temporal queries
 export const TimeframeSchema = z.object({
@@ -378,6 +383,7 @@ export const FalkorDBConfigSchema = z.object({
   port: z.number().int().min(1).max(65535),
   password: z.string().optional(),
   graphName: z.string().min(1),
+  queryTimeoutMs: z.number().int().min(1000).max(300000).optional(),
 });
 
 export const LLMConfigSchema = z.object({
@@ -496,6 +502,13 @@ export const HTTPServerOptionsSchema = z.object({
     .positive()
     .optional()
     .describe('Maximum concurrent sessions (default: 100)'),
+  requestTimeoutMs: z
+    .number()
+    .int()
+    .min(1000)
+    .max(300000)
+    .optional()
+    .describe('HTTP request timeout in milliseconds (default: 120000 = 2 min)'),
 });
 
 // Session metrics for health response
