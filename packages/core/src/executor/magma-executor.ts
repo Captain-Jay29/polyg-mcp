@@ -258,7 +258,9 @@ export class MAGMAExecutor {
     // Each expansion is wrapped with timeout for protection against hanging queries
     const expansionResults = await Promise.allSettled([
       this.withTimeout(this.expandEntityGraph(entityIds, depthHints.entity)),
-      this.withTimeout(this.expandTemporalGraph(entityIds, depthHints.temporal)),
+      this.withTimeout(
+        this.expandTemporalGraph(entityIds, depthHints.temporal),
+      ),
       this.withTimeout(this.expandCausalGraph(entityIds, depthHints.causal)),
     ]);
 

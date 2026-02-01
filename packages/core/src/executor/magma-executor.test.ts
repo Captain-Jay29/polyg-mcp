@@ -58,7 +58,13 @@ function createMockGraphs(
       string,
       { uuid: string; description: string; node_type: string }[]
     >;
-    causalLinks?: { cause: string; effect: string; causeId?: string; effectId?: string; confidence: number }[];
+    causalLinks?: {
+      cause: string;
+      effect: string;
+      causeId?: string;
+      effectId?: string;
+      confidence: number;
+    }[];
   } = {},
 ): MAGMAGraphRegistry {
   const {
@@ -643,12 +649,17 @@ describe('MAGMAExecutor', () => {
           depthHints: { entity: 1, temporal: 1, causal: 3 },
         });
 
-        const result = await executor.execute('why did the service fail?', intent);
+        const result = await executor.execute(
+          'why did the service fail?',
+          intent,
+        );
 
         // Should have 4 unique nodes (based on UUIDs, not descriptions)
         // uuid-cause-1, uuid-effect-1, uuid-cause-2, uuid-effect-2
         const causalNodes = result.merged.nodes.filter(
-          (n) => (n.data as Record<string, unknown>)?.type === 'cause' || (n.data as Record<string, unknown>)?.type === 'effect',
+          (n) =>
+            (n.data as Record<string, unknown>)?.type === 'cause' ||
+            (n.data as Record<string, unknown>)?.type === 'effect',
         );
 
         // Extract UUIDs from causal nodes
@@ -698,10 +709,15 @@ describe('MAGMAExecutor', () => {
         const executor = new MAGMAExecutor(graphs);
         const intent = createValidIntent('WHY');
 
-        const result = await executor.execute('why did connection fail?', intent);
+        const result = await executor.execute(
+          'why did connection fail?',
+          intent,
+        );
 
         const causalNodes = result.merged.nodes.filter(
-          (n) => (n.data as Record<string, unknown>)?.type === 'cause' || (n.data as Record<string, unknown>)?.type === 'effect',
+          (n) =>
+            (n.data as Record<string, unknown>)?.type === 'cause' ||
+            (n.data as Record<string, unknown>)?.type === 'effect',
         );
 
         // Should fall back to descriptions as UUIDs
@@ -854,7 +870,12 @@ describe('MAGMAExecutor', () => {
     it('should return partial results when entity expansion fails', async () => {
       const graphs = createMockGraphs({
         enrichedResults: [
-          createEnrichedSemanticMatch('concept-1', 0.9, ['entity-1'], ['Entity 1']),
+          createEnrichedSemanticMatch(
+            'concept-1',
+            0.9,
+            ['entity-1'],
+            ['Entity 1'],
+          ),
         ],
         temporalEvents: {
           'entity-1': [
@@ -894,13 +915,26 @@ describe('MAGMAExecutor', () => {
     it('should return partial results when temporal expansion fails', async () => {
       const graphs = createMockGraphs({
         enrichedResults: [
-          createEnrichedSemanticMatch('concept-1', 0.9, ['entity-1'], ['Entity 1']),
+          createEnrichedSemanticMatch(
+            'concept-1',
+            0.9,
+            ['entity-1'],
+            ['Entity 1'],
+          ),
         ],
         entityRelationships: {
           'entity-1': [
             {
-              source: { uuid: 'entity-1', name: 'Entity 1', entity_type: 'person' },
-              target: { uuid: 'entity-2', name: 'Entity 2', entity_type: 'org' },
+              source: {
+                uuid: 'entity-1',
+                name: 'Entity 1',
+                entity_type: 'person',
+              },
+              target: {
+                uuid: 'entity-2',
+                name: 'Entity 2',
+                entity_type: 'org',
+              },
               relationshipType: 'WORKS_FOR',
             },
           ],
@@ -934,13 +968,26 @@ describe('MAGMAExecutor', () => {
     it('should return partial results when causal expansion fails', async () => {
       const graphs = createMockGraphs({
         enrichedResults: [
-          createEnrichedSemanticMatch('concept-1', 0.9, ['entity-1'], ['Entity 1']),
+          createEnrichedSemanticMatch(
+            'concept-1',
+            0.9,
+            ['entity-1'],
+            ['Entity 1'],
+          ),
         ],
         entityRelationships: {
           'entity-1': [
             {
-              source: { uuid: 'entity-1', name: 'Entity 1', entity_type: 'person' },
-              target: { uuid: 'entity-2', name: 'Entity 2', entity_type: 'org' },
+              source: {
+                uuid: 'entity-1',
+                name: 'Entity 1',
+                entity_type: 'person',
+              },
+              target: {
+                uuid: 'entity-2',
+                name: 'Entity 2',
+                entity_type: 'org',
+              },
               relationshipType: 'WORKS_FOR',
             },
           ],
@@ -974,7 +1021,12 @@ describe('MAGMAExecutor', () => {
     it('should return semantic-only results when all expansions fail', async () => {
       const graphs = createMockGraphs({
         enrichedResults: [
-          createEnrichedSemanticMatch('concept-1', 0.9, ['entity-1'], ['Entity 1']),
+          createEnrichedSemanticMatch(
+            'concept-1',
+            0.9,
+            ['entity-1'],
+            ['Entity 1'],
+          ),
         ],
       });
 
@@ -1008,7 +1060,12 @@ describe('MAGMAExecutor', () => {
     it('should handle non-Error rejection reasons', async () => {
       const graphs = createMockGraphs({
         enrichedResults: [
-          createEnrichedSemanticMatch('concept-1', 0.9, ['entity-1'], ['Entity 1']),
+          createEnrichedSemanticMatch(
+            'concept-1',
+            0.9,
+            ['entity-1'],
+            ['Entity 1'],
+          ),
         ],
       });
 
@@ -1035,7 +1092,12 @@ describe('MAGMAExecutor', () => {
     it('should timeout slow entity expansion and continue with others', async () => {
       const graphs = createMockGraphs({
         enrichedResults: [
-          createEnrichedSemanticMatch('concept-1', 0.9, ['entity-1'], ['Entity 1']),
+          createEnrichedSemanticMatch(
+            'concept-1',
+            0.9,
+            ['entity-1'],
+            ['Entity 1'],
+          ),
         ],
         temporalEvents: {
           'entity-1': [
@@ -1050,7 +1112,10 @@ describe('MAGMAExecutor', () => {
 
       // Entity expansion takes too long (never resolves within timeout)
       graphs.entity.getRelationshipsBatch = vi.fn(
-        async () => new Promise<Map<string, EntityRelationship[]>>((resolve) => setTimeout(() => resolve(new Map()), 10000)),
+        async () =>
+          new Promise<Map<string, EntityRelationship[]>>((resolve) =>
+            setTimeout(() => resolve(new Map()), 10000),
+          ),
       );
 
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -1077,13 +1142,26 @@ describe('MAGMAExecutor', () => {
     it('should timeout slow temporal expansion and continue with others', async () => {
       const graphs = createMockGraphs({
         enrichedResults: [
-          createEnrichedSemanticMatch('concept-1', 0.9, ['entity-1'], ['Entity 1']),
+          createEnrichedSemanticMatch(
+            'concept-1',
+            0.9,
+            ['entity-1'],
+            ['Entity 1'],
+          ),
         ],
         entityRelationships: {
           'entity-1': [
             {
-              source: { uuid: 'entity-1', name: 'Entity 1', entity_type: 'person' },
-              target: { uuid: 'entity-2', name: 'Entity 2', entity_type: 'org' },
+              source: {
+                uuid: 'entity-1',
+                name: 'Entity 1',
+                entity_type: 'person',
+              },
+              target: {
+                uuid: 'entity-2',
+                name: 'Entity 2',
+                entity_type: 'org',
+              },
               relationshipType: 'WORKS_FOR',
             },
           ],
@@ -1092,7 +1170,13 @@ describe('MAGMAExecutor', () => {
 
       // Temporal expansion takes too long (never resolves within timeout)
       graphs.temporal.queryTimelineForEntities = vi.fn(
-        async () => new Promise<Map<string, { uuid: string; description: string; occurred_at: Date }[]>>((resolve) => setTimeout(() => resolve(new Map()), 10000)),
+        async () =>
+          new Promise<
+            Map<
+              string,
+              { uuid: string; description: string; occurred_at: Date }[]
+            >
+          >((resolve) => setTimeout(() => resolve(new Map()), 10000)),
       );
 
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -1119,13 +1203,26 @@ describe('MAGMAExecutor', () => {
     it('should timeout slow causal expansion and continue with others', async () => {
       const graphs = createMockGraphs({
         enrichedResults: [
-          createEnrichedSemanticMatch('concept-1', 0.9, ['entity-1'], ['Entity 1']),
+          createEnrichedSemanticMatch(
+            'concept-1',
+            0.9,
+            ['entity-1'],
+            ['Entity 1'],
+          ),
         ],
         entityRelationships: {
           'entity-1': [
             {
-              source: { uuid: 'entity-1', name: 'Entity 1', entity_type: 'person' },
-              target: { uuid: 'entity-2', name: 'Entity 2', entity_type: 'org' },
+              source: {
+                uuid: 'entity-1',
+                name: 'Entity 1',
+                entity_type: 'person',
+              },
+              target: {
+                uuid: 'entity-2',
+                name: 'Entity 2',
+                entity_type: 'org',
+              },
               relationshipType: 'WORKS_FOR',
             },
           ],
@@ -1134,7 +1231,13 @@ describe('MAGMAExecutor', () => {
 
       // Causal expansion takes too long (never resolves within timeout)
       graphs.causal.getNodesForEntities = vi.fn(
-        async () => new Promise<Map<string, { uuid: string; description: string; node_type: string }[]>>((resolve) => setTimeout(() => resolve(new Map()), 10000)),
+        async () =>
+          new Promise<
+            Map<
+              string,
+              { uuid: string; description: string; node_type: string }[]
+            >
+          >((resolve) => setTimeout(() => resolve(new Map()), 10000)),
       );
 
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -1161,19 +1264,39 @@ describe('MAGMAExecutor', () => {
     it('should return semantic-only when all expansions timeout', async () => {
       const graphs = createMockGraphs({
         enrichedResults: [
-          createEnrichedSemanticMatch('concept-1', 0.9, ['entity-1'], ['Entity 1']),
+          createEnrichedSemanticMatch(
+            'concept-1',
+            0.9,
+            ['entity-1'],
+            ['Entity 1'],
+          ),
         ],
       });
 
       // All expansions take too long (never resolve within timeout)
       graphs.entity.getRelationshipsBatch = vi.fn(
-        async () => new Promise<Map<string, EntityRelationship[]>>((resolve) => setTimeout(() => resolve(new Map()), 10000)),
+        async () =>
+          new Promise<Map<string, EntityRelationship[]>>((resolve) =>
+            setTimeout(() => resolve(new Map()), 10000),
+          ),
       );
       graphs.temporal.queryTimelineForEntities = vi.fn(
-        async () => new Promise<Map<string, { uuid: string; description: string; occurred_at: Date }[]>>((resolve) => setTimeout(() => resolve(new Map()), 10000)),
+        async () =>
+          new Promise<
+            Map<
+              string,
+              { uuid: string; description: string; occurred_at: Date }[]
+            >
+          >((resolve) => setTimeout(() => resolve(new Map()), 10000)),
       );
       graphs.causal.getNodesForEntities = vi.fn(
-        async () => new Promise<Map<string, { uuid: string; description: string; node_type: string }[]>>((resolve) => setTimeout(() => resolve(new Map()), 10000)),
+        async () =>
+          new Promise<
+            Map<
+              string,
+              { uuid: string; description: string; node_type: string }[]
+            >
+          >((resolve) => setTimeout(() => resolve(new Map()), 10000)),
       );
 
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
