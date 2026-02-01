@@ -39,7 +39,13 @@ export class SemanticGraph {
       if (error instanceof ParseError) {
         throw new GraphParseError(error.message, error.nodeType, error);
       }
-      throw error;
+      // Wrap unknown errors to maintain error hierarchy
+      throw wrapGraphError(
+        error,
+        'Failed to parse concept node',
+        'Semantic',
+        'safeParseConcept',
+      );
     }
   }
 
