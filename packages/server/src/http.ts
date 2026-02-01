@@ -114,6 +114,15 @@ export class HTTPTransport {
         await this.handleRequest(req, res);
       });
 
+      // Set request timeout (default: 2 minutes)
+      const requestTimeoutMs = this.validatedOptions.requestTimeoutMs ?? 120000;
+      this.server.setTimeout(requestTimeoutMs, (socket) => {
+        console.warn(
+          `[http] Request timeout after ${requestTimeoutMs}ms, destroying socket`,
+        );
+        socket.destroy();
+      });
+
       // Start listening
       const host = this.validatedOptions.host ?? '0.0.0.0';
       const port = this.validatedOptions.port;

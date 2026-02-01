@@ -57,10 +57,19 @@ export class ConfigValidationError extends Error {
 /**
  * Parse environment variable as a valid port number
  */
-function parseEnvPort(envVar: string | undefined, defaultPort: number): number {
+function parseEnvPort(
+  envVar: string | undefined,
+  defaultPort: number,
+  envName?: string,
+): number {
   if (!envVar) return defaultPort;
   const port = Number.parseInt(envVar, 10);
   if (Number.isNaN(port) || port < 1 || port > 65535) {
+    if (envName) {
+      console.warn(
+        `[config] Invalid value for ${envName}="${envVar}" (must be port 1-65535), using default: ${defaultPort}`,
+      );
+    }
     return defaultPort;
   }
   return port;
@@ -69,10 +78,19 @@ function parseEnvPort(envVar: string | undefined, defaultPort: number): number {
 /**
  * Parse environment variable as a positive integer
  */
-function parseEnvInt(envVar: string | undefined, defaultValue: number): number {
+function parseEnvInt(
+  envVar: string | undefined,
+  defaultValue: number,
+  envName?: string,
+): number {
   if (!envVar) return defaultValue;
   const value = Number.parseInt(envVar, 10);
   if (Number.isNaN(value) || value < 0) {
+    if (envName) {
+      console.warn(
+        `[config] Invalid value for ${envName}="${envVar}" (must be non-negative integer), using default: ${defaultValue}`,
+      );
+    }
     return defaultValue;
   }
   return value;
@@ -86,18 +104,28 @@ function buildRawConfig(): unknown {
   return {
     falkordb: {
       host: process.env.FALKORDB_HOST || 'localhost',
-      port: parseEnvPort(process.env.FALKORDB_PORT, 6379),
+      port: parseEnvPort(process.env.FALKORDB_PORT, 6379, 'FALKORDB_PORT'),
       password: process.env.FALKORDB_PASSWORD,
       graphName: process.env.FALKORDB_GRAPH || 'polyg',
+      queryTimeoutMs: parseEnvInt(
+        process.env.FALKORDB_QUERY_TIMEOUT,
+        30000,
+        'FALKORDB_QUERY_TIMEOUT',
+      ),
     },
     llm: {
       provider: 'openai',
       model: process.env.LLM_MODEL || 'gpt-5-mini',
       apiKey: process.env.OPENAI_API_KEY,
-      classifierMaxTokens: parseEnvInt(process.env.CLASSIFIER_MAX_TOKENS, 2000),
+      classifierMaxTokens: parseEnvInt(
+        process.env.CLASSIFIER_MAX_TOKENS,
+        2000,
+        'CLASSIFIER_MAX_TOKENS',
+      ),
       synthesizerMaxTokens: parseEnvInt(
         process.env.SYNTHESIZER_MAX_TOKENS,
         2000,
+        'SYNTHESIZER_MAX_TOKENS',
       ),
     },
     embeddings: {
@@ -107,8 +135,16 @@ function buildRawConfig(): unknown {
       dimensions: 1536,
     },
     execution: {
-      parallelTimeout: 5000,
-      maxRetries: 2,
+      parallelTimeout: parseEnvInt(
+        process.env.POLYG_PARALLEL_TIMEOUT,
+        5000,
+        'POLYG_PARALLEL_TIMEOUT',
+      ),
+      maxRetries: parseEnvInt(
+        process.env.POLYG_MAX_RETRIES,
+        2,
+        'POLYG_MAX_RETRIES',
+      ),
     },
   };
 }
@@ -249,10 +285,19 @@ export function validateHTTPServerOptions(config: unknown): HTTPServerOptions {
 function parseEnvFloat(
   envVar: string | undefined,
   defaultValue: number,
+  envName?: string,
 ): number {
   if (!envVar) return defaultValue;
   const parsed = Number.parseFloat(envVar);
-  return Number.isNaN(parsed) ? defaultValue : parsed;
+  if (Number.isNaN(parsed)) {
+    if (envName) {
+      console.warn(
+        `[config] Invalid value for ${envName}="${envVar}" (must be a number), using default: ${defaultValue}`,
+      );
+    }
+    return defaultValue;
+  }
+  return parsed;
 }
 
 /**
@@ -260,19 +305,59 @@ function parseEnvFloat(
  */
 function buildMAGMAConfigFromEnv(): unknown {
   return {
-    semanticTopK: parseEnvInt(process.env.MAGMA_SEMANTIC_TOP_K, 10),
-    minSemanticScore: parseEnvFloat(process.env.MAGMA_MIN_SEMANTIC_SCORE, 0.5),
+    semanticTopK: parseEnvInt(
+      process.env.MAGMA_SEMANTIC_TOP_K,
+      10,
+      'MAGMA_SEMANTIC_TOP_K',
+    ),
+    minSemanticScore: parseEnvFloat(
+      process.env.MAGMA_MIN_SEMANTIC_SCORE,
+      0.5,
+      'MAGMA_MIN_SEMANTIC_SCORE',
+    ),
     defaultDepths: {
-      entity: parseEnvInt(process.env.MAGMA_ENTITY_DEPTH, 2),
-      temporal: parseEnvInt(process.env.MAGMA_TEMPORAL_DEPTH, 2),
-      causal: parseEnvInt(process.env.MAGMA_CAUSAL_DEPTH, 3),
+      entity: parseEnvInt(
+        process.env.MAGMA_ENTITY_DEPTH,
+        2,
+        'MAGMA_ENTITY_DEPTH',
+      ),
+      temporal: parseEnvInt(
+        process.env.MAGMA_TEMPORAL_DEPTH,
+        2,
+        'MAGMA_TEMPORAL_DEPTH',
+      ),
+      causal: parseEnvInt(
+        process.env.MAGMA_CAUSAL_DEPTH,
+        3,
+        'MAGMA_CAUSAL_DEPTH',
+      ),
     },
-    minNodesPerView: parseEnvInt(process.env.MAGMA_MIN_NODES_PER_VIEW, 3),
-    maxNodesPerView: parseEnvInt(process.env.MAGMA_MAX_NODES_PER_VIEW, 50),
-    multiViewBoost: parseEnvFloat(process.env.MAGMA_MULTI_VIEW_BOOST, 1.5),
+    minNodesPerView: parseEnvInt(
+      process.env.MAGMA_MIN_NODES_PER_VIEW,
+      3,
+      'MAGMA_MIN_NODES_PER_VIEW',
+    ),
+    maxNodesPerView: parseEnvInt(
+      process.env.MAGMA_MAX_NODES_PER_VIEW,
+      50,
+      'MAGMA_MAX_NODES_PER_VIEW',
+    ),
+    multiViewBoost: parseEnvFloat(
+      process.env.MAGMA_MULTI_VIEW_BOOST,
+      1.5,
+      'MAGMA_MULTI_VIEW_BOOST',
+    ),
     // Input length limits
-    maxQueryLength: parseEnvInt(process.env.MAGMA_MAX_QUERY_LENGTH, 8000),
-    maxContextLength: parseEnvInt(process.env.MAGMA_MAX_CONTEXT_LENGTH, 4000),
+    maxQueryLength: parseEnvInt(
+      process.env.MAGMA_MAX_QUERY_LENGTH,
+      8000,
+      'MAGMA_MAX_QUERY_LENGTH',
+    ),
+    maxContextLength: parseEnvInt(
+      process.env.MAGMA_MAX_CONTEXT_LENGTH,
+      4000,
+      'MAGMA_MAX_CONTEXT_LENGTH',
+    ),
   };
 }
 
