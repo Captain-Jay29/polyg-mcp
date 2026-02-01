@@ -193,6 +193,21 @@ export class Orchestrator {
       );
     }
 
+    // Early return if no graph data found - skip LLM call to save cost and avoid hallucination
+    if (executionResult.merged.nodes.length === 0) {
+      return {
+        answer:
+          'No relevant information found in the knowledge graph for this query.',
+        confidence: 0,
+        reasoning: {},
+        sources: [],
+        follow_ups: [
+          'Try adding related entities or concepts to the graph',
+          'Rephrase the query with different keywords',
+        ],
+      };
+    }
+
     // Step 3: Linearize merged subgraph for LLM context
     let linearizedContext: LinearizedContext;
     try {
@@ -237,7 +252,20 @@ export class Orchestrator {
     };
 
     try {
-      return await this.synthesizer.synthesize(synthesizerInput);
+      const result = await this.synthesizer.synthesize(synthesizerInput);
+
+      // Override LLM-generated sources with actual view contributions
+      // This ensures sources accurately reflect which graphs provided data
+      const actualSources = Object.entries(
+        executionResult.merged.viewContributions,
+      )
+        .filter(([, count]) => count > 0)
+        .map(([source]) => source);
+
+      return {
+        ...result,
+        sources: actualSources,
+      };
     } catch (error) {
       throw new OrchestratorError(
         `Response synthesis failed: ${error instanceof Error ? error.message : String(error)}`,
