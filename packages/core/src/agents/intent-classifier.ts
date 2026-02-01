@@ -15,17 +15,21 @@ import { MAGMA_CLASSIFIER_PROMPT } from './prompts.js';
 // Default input length limits (can be overridden via config)
 const DEFAULT_MAX_QUERY_LENGTH = 8000;
 const DEFAULT_MAX_CONTEXT_LENGTH = 4000;
+const DEFAULT_MAX_TOKENS = 1000;
 
 export interface ClassifierConfig {
   /** Maximum query length in characters (default: 8000) */
   maxQueryLength?: number;
   /** Maximum context length in characters (default: 4000) */
   maxContextLength?: number;
+  /** Maximum tokens for LLM response (default: 500) */
+  maxTokens?: number;
 }
 
 export class IntentClassifier {
   private readonly maxQueryLength: number;
   private readonly maxContextLength: number;
+  private readonly maxTokens: number;
 
   constructor(
     private llm: LLMProvider,
@@ -34,6 +38,7 @@ export class IntentClassifier {
     this.maxQueryLength = config?.maxQueryLength ?? DEFAULT_MAX_QUERY_LENGTH;
     this.maxContextLength =
       config?.maxContextLength ?? DEFAULT_MAX_CONTEXT_LENGTH;
+    this.maxTokens = config?.maxTokens ?? DEFAULT_MAX_TOKENS;
   }
 
   /**
@@ -73,7 +78,7 @@ export class IntentClassifier {
       response = await this.llm.complete({
         prompt,
         responseFormat: 'json',
-        maxTokens: 500,
+        maxTokens: this.maxTokens,
       });
     } catch (error) {
       throw new ClassifierError(

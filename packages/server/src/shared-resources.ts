@@ -84,15 +84,16 @@ export class SharedResources {
     }
 
     // Initialize Embedding provider
+    // Fall back to LLM apiKey if embeddings apiKey is not configured (common case: same OpenAI key)
+    const embeddingsApiKey =
+      this.validatedConfig.embeddings.apiKey || this.validatedConfig.llm.apiKey;
     try {
-      this.embeddingProvider = createEmbeddingProvider(
-        {
-          provider: this.validatedConfig.embeddings.provider,
-          model: this.validatedConfig.embeddings.model,
-          dimensions: this.validatedConfig.embeddings.dimensions,
-        },
-        this.validatedConfig.llm.apiKey,
-      );
+      this.embeddingProvider = createEmbeddingProvider({
+        provider: this.validatedConfig.embeddings.provider,
+        model: this.validatedConfig.embeddings.model,
+        apiKey: embeddingsApiKey,
+        dimensions: this.validatedConfig.embeddings.dimensions,
+      });
     } catch (error) {
       throw new ServerConfigError(
         `Embedding provider initialization failed: ${error instanceof Error ? error.message : String(error)}`,
@@ -108,6 +109,8 @@ export class SharedResources {
       this.embeddingProvider,
       {
         timeout: this.validatedConfig.execution.parallelTimeout,
+        classifierMaxTokens: this.validatedConfig.llm.classifierMaxTokens,
+        synthesizerMaxTokens: this.validatedConfig.llm.synthesizerMaxTokens,
       },
     );
 

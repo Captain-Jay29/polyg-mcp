@@ -35,6 +35,8 @@ const OrchestratorConfigSchema = z.object({
   maxContextTokens: z.number().int().min(100).max(100000).optional(),
   maxQueryLength: z.number().int().min(100).max(100000).optional(),
   maxContextLength: z.number().int().min(100).max(100000).optional(),
+  classifierMaxTokens: z.number().int().min(100).max(10000).optional(),
+  synthesizerMaxTokens: z.number().int().min(100).max(10000).optional(),
 });
 
 export interface OrchestratorConfig {
@@ -50,6 +52,10 @@ export interface OrchestratorConfig {
   maxQueryLength?: number;
   /** Maximum context length in characters (default: 4000) */
   maxContextLength?: number;
+  /** Maximum tokens for classifier LLM response (default: 500) */
+  classifierMaxTokens?: number;
+  /** Maximum tokens for synthesizer LLM response (default: 2000) */
+  synthesizerMaxTokens?: number;
 }
 
 const DEFAULT_CONFIG: Required<OrchestratorConfig> = {
@@ -59,6 +65,8 @@ const DEFAULT_CONFIG: Required<OrchestratorConfig> = {
   maxContextTokens: 4000,
   maxQueryLength: 8000,
   maxContextLength: 4000,
+  classifierMaxTokens: 1000,
+  synthesizerMaxTokens: 2000,
 };
 
 /**
@@ -122,8 +130,11 @@ export class Orchestrator {
     this.classifier = new IntentClassifier(llm, {
       maxQueryLength: validatedConfig.maxQueryLength,
       maxContextLength: validatedConfig.maxContextLength,
+      maxTokens: validatedConfig.classifierMaxTokens,
     });
-    this.synthesizer = new Synthesizer(llm);
+    this.synthesizer = new Synthesizer(llm, {
+      maxTokens: validatedConfig.synthesizerMaxTokens,
+    });
 
     // Initialize MAGMA executor with all graphs including crossLinker
     const graphRegistry: MAGMAGraphRegistry = {

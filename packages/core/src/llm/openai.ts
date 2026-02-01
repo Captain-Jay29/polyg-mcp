@@ -13,6 +13,9 @@ import {
   ServerError,
 } from './errors.js';
 
+// Default timeout for API requests (60 seconds)
+const DEFAULT_TIMEOUT_MS = 60000;
+
 /**
  * OpenAI LLM provider implementation
  */
@@ -22,11 +25,12 @@ export class OpenAIProvider implements LLMProvider {
   constructor(
     apiKey: string,
     private model = 'gpt-5-mini',
+    timeoutMs = DEFAULT_TIMEOUT_MS,
   ) {
     if (!apiKey) {
       throw new AuthenticationError('OpenAI API key is required');
     }
-    this.client = new OpenAI({ apiKey });
+    this.client = new OpenAI({ apiKey, timeout: timeoutMs });
   }
 
   /**

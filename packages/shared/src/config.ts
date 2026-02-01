@@ -92,7 +92,7 @@ function buildRawConfig(): unknown {
     },
     llm: {
       provider: 'openai',
-      model: process.env.LLM_MODEL || 'gpt-4o-mini',
+      model: process.env.LLM_MODEL || 'gpt-5-mini',
       apiKey: process.env.OPENAI_API_KEY,
       classifierMaxTokens: parseEnvInt(process.env.CLASSIFIER_MAX_TOKENS, 2000),
       synthesizerMaxTokens: parseEnvInt(
@@ -103,6 +103,7 @@ function buildRawConfig(): unknown {
     embeddings: {
       provider: 'openai',
       model: process.env.EMBEDDING_MODEL || 'text-embedding-3-small',
+      apiKey: process.env.OPENAI_API_KEY,
       dimensions: 1536,
     },
     execution: {

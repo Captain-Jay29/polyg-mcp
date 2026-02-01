@@ -14,17 +14,21 @@ import {
 /**
  * OpenAI embeddings provider implementation
  */
+// Default timeout for API requests (60 seconds)
+const DEFAULT_TIMEOUT_MS = 60000;
+
 export class OpenAIEmbeddings implements EmbeddingProvider {
   private client: OpenAI;
 
   constructor(
     apiKey: string,
     private model = 'text-embedding-3-small',
+    timeoutMs = DEFAULT_TIMEOUT_MS,
   ) {
     if (!apiKey) {
       throw new EmbeddingAuthError('OpenAI API key is required');
     }
-    this.client = new OpenAI({ apiKey });
+    this.client = new OpenAI({ apiKey, timeout: timeoutMs });
   }
 
   /**
@@ -121,9 +125,10 @@ export class OpenAIEmbeddings implements EmbeddingProvider {
       }
 
       if (status === 429) {
+        const retryAfter = this.parseRetryAfter(error);
         return new EmbeddingRateLimitError(
           'OpenAI rate limit exceeded',
-          undefined,
+          retryAfter,
           error,
         );
       }
@@ -159,5 +164,22 @@ export class OpenAIEmbeddings implements EmbeddingProvider {
     }
 
     return new EmbeddingError(`Unknown error: ${String(error)}`);
+  }
+
+  /**
+   * Parse retry-after header from rate limit errors
+   */
+  private parseRetryAfter(error: APIError): number | undefined {
+    const headers = error.headers;
+    if (headers && 'retry-after' in headers) {
+      const value = headers['retry-after'];
+      if (typeof value === 'string') {
+        const seconds = Number.parseInt(value, 10);
+        if (!Number.isNaN(seconds)) {
+          return seconds * 1000; // Convert to milliseconds
+        }
+      }
+    }
+    return undefined;
   }
 }
