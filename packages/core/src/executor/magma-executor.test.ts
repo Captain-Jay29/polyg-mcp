@@ -998,10 +998,9 @@ describe('MAGMAExecutor', () => {
       expect(result.merged).toBeDefined();
       expect(result.merged.nodes.length).toBeGreaterThan(0);
 
-      // Should log warning about failed expansion
+      // Should log warning about failed expansion (logger outputs single formatted string)
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('[MAGMAExecutor] entity expansion failed:'),
-        expect.any(String),
+        expect.stringContaining('[MAGMAExecutor] entity expansion failed'),
       );
 
       consoleSpy.mockRestore();
@@ -1051,10 +1050,9 @@ describe('MAGMAExecutor', () => {
       expect(result.merged).toBeDefined();
       expect(result.merged.nodes.length).toBeGreaterThan(0);
 
-      // Should log warning about failed expansion
+      // Should log warning about failed expansion (logger outputs single formatted string)
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('[MAGMAExecutor] temporal expansion failed:'),
-        expect.any(String),
+        expect.stringContaining('[MAGMAExecutor] temporal expansion failed'),
       );
 
       consoleSpy.mockRestore();
@@ -1104,10 +1102,9 @@ describe('MAGMAExecutor', () => {
       expect(result.merged).toBeDefined();
       expect(result.merged.nodes.length).toBeGreaterThan(0);
 
-      // Should log warning about failed expansion
+      // Should log warning about failed expansion (logger outputs single formatted string)
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('[MAGMAExecutor] causal expansion failed:'),
-        expect.any(String),
+        expect.stringContaining('[MAGMAExecutor] causal expansion failed'),
       );
 
       consoleSpy.mockRestore();
@@ -1176,9 +1173,12 @@ describe('MAGMAExecutor', () => {
       const result = await executor.execute('test query', intent);
 
       expect(result.merged).toBeDefined();
+      // Logger outputs single formatted string with error in metadata
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('[MAGMAExecutor] entity expansion failed:'),
-        'String error message',
+        expect.stringContaining('[MAGMAExecutor] entity expansion failed'),
+      );
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('String error message'),
       );
 
       consoleSpy.mockRestore();
@@ -1225,9 +1225,11 @@ describe('MAGMAExecutor', () => {
       expect(result.merged).toBeDefined();
       expect(result.merged.nodes.length).toBeGreaterThan(0);
 
-      // Should log timeout warning for entity expansion
+      // Should log timeout warning for entity expansion (logger outputs single formatted string)
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('[MAGMAExecutor] entity expansion failed:'),
+        expect.stringContaining('[MAGMAExecutor] entity expansion failed'),
+      );
+      expect(consoleSpy).toHaveBeenCalledWith(
         expect.stringContaining('timed out'),
       );
 
@@ -1286,9 +1288,11 @@ describe('MAGMAExecutor', () => {
       expect(result.merged).toBeDefined();
       expect(result.merged.nodes.length).toBeGreaterThan(0);
 
-      // Should log timeout warning for temporal expansion
+      // Should log timeout warning for temporal expansion (logger outputs single formatted string)
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('[MAGMAExecutor] temporal expansion failed:'),
+        expect.stringContaining('[MAGMAExecutor] temporal expansion failed'),
+      );
+      expect(consoleSpy).toHaveBeenCalledWith(
         expect.stringContaining('timed out'),
       );
 
@@ -1347,9 +1351,11 @@ describe('MAGMAExecutor', () => {
       expect(result.merged).toBeDefined();
       expect(result.merged.nodes.length).toBeGreaterThan(0);
 
-      // Should log timeout warning for causal expansion
+      // Should log timeout warning for causal expansion (logger outputs single formatted string)
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('[MAGMAExecutor] causal expansion failed:'),
+        expect.stringContaining('[MAGMAExecutor] causal expansion failed'),
+      );
+      expect(consoleSpy).toHaveBeenCalledWith(
         expect.stringContaining('timed out'),
       );
 

@@ -115,9 +115,20 @@ export function parseEntity(node: unknown): Entity {
   if (parsed.data.properties) {
     try {
       parsedProperties = JSON.parse(parsed.data.properties);
-    } catch {
+    } catch (error) {
+      console.warn(
+        `[parseEntity] Failed to parse properties JSON for entity ${parsed.data.uuid}: ${error instanceof Error ? error.message : String(error)}`,
+      );
       parsedProperties = {};
     }
+  }
+
+  // Validate created_at date
+  const createdAt = new Date(parsed.data.created_at);
+  if (Number.isNaN(createdAt.getTime())) {
+    console.warn(
+      `[parseEntity] Invalid created_at date for entity ${parsed.data.uuid}: ${parsed.data.created_at}`,
+    );
   }
 
   return {
@@ -125,7 +136,7 @@ export function parseEntity(node: unknown): Entity {
     name: parsed.data.name,
     entity_type: parsed.data.entity_type,
     properties: parsedProperties,
-    created_at: new Date(parsed.data.created_at),
+    created_at: createdAt,
   };
 }
 
@@ -144,10 +155,18 @@ export function parseTemporalEvent(node: unknown): TemporalEvent {
     );
   }
 
+  // Validate occurred_at date
+  const occurredAt = new Date(parsed.data.occurred_at);
+  if (Number.isNaN(occurredAt.getTime())) {
+    console.warn(
+      `[parseTemporalEvent] Invalid occurred_at date for event ${parsed.data.uuid}: ${parsed.data.occurred_at}`,
+    );
+  }
+
   return {
     uuid: parsed.data.uuid,
     description: parsed.data.description,
-    occurred_at: new Date(parsed.data.occurred_at),
+    occurred_at: occurredAt,
     duration: parsed.data.duration,
   };
 }
@@ -167,13 +186,32 @@ export function parseTemporalFact(node: unknown): TemporalFact {
     );
   }
 
+  // Validate valid_from date
+  const validFrom = new Date(parsed.data.valid_from);
+  if (Number.isNaN(validFrom.getTime())) {
+    console.warn(
+      `[parseTemporalFact] Invalid valid_from date for fact ${parsed.data.uuid}: ${parsed.data.valid_from}`,
+    );
+  }
+
+  // Validate valid_to date if present
+  let validTo: Date | undefined;
+  if (parsed.data.valid_to) {
+    validTo = new Date(parsed.data.valid_to);
+    if (Number.isNaN(validTo.getTime())) {
+      console.warn(
+        `[parseTemporalFact] Invalid valid_to date for fact ${parsed.data.uuid}: ${parsed.data.valid_to}`,
+      );
+    }
+  }
+
   return {
     uuid: parsed.data.uuid,
     subject: parsed.data.subject,
     predicate: parsed.data.predicate,
     object: parsed.data.object,
-    valid_from: new Date(parsed.data.valid_from),
-    valid_to: parsed.data.valid_to ? new Date(parsed.data.valid_to) : undefined,
+    valid_from: validFrom,
+    valid_to: validTo,
   };
 }
 
@@ -226,8 +264,25 @@ export function parseConcept(node: unknown): Concept {
   let embedding: number[] | undefined;
   if (parsed.data.embedding) {
     try {
-      embedding = JSON.parse(parsed.data.embedding);
-    } catch {
+      const parsedEmbedding = JSON.parse(parsed.data.embedding);
+      // Validate that embedding is an array of numbers
+      if (
+        Array.isArray(parsedEmbedding) &&
+        parsedEmbedding.every(
+          (v) => typeof v === 'number' && Number.isFinite(v),
+        )
+      ) {
+        embedding = parsedEmbedding;
+      } else {
+        console.warn(
+          `[parseConcept] Invalid embedding format for concept ${parsed.data.uuid}: expected number[], got ${typeof parsedEmbedding}`,
+        );
+        embedding = undefined;
+      }
+    } catch (error) {
+      console.warn(
+        `[parseConcept] Failed to parse embedding JSON for concept ${parsed.data.uuid}: ${error instanceof Error ? error.message : String(error)}`,
+      );
       embedding = undefined;
     }
   }

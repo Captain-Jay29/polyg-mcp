@@ -1,6 +1,7 @@
 // polyg-mcp shared types, schemas, and utilities
 
 export * from './config.js';
+export * from './logger.js';
 export * from './schemas.js';
 export * from './types.js';
 

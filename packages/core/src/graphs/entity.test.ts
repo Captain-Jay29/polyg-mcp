@@ -39,6 +39,8 @@ describe('EntityGraph', () => {
 
   describe('addEntity', () => {
     it('should create a new entity with basic properties', async () => {
+      // Mock existence check to return no existing entity
+      vi.mocked(db.query).mockResolvedValue({ records: [], metadata: [] });
       vi.mocked(db.createNode).mockResolvedValue('generated-uuid');
 
       const entity = await graph.addEntity('Alice', 'person');
@@ -58,6 +60,8 @@ describe('EntityGraph', () => {
     });
 
     it('should create an entity with custom properties', async () => {
+      // Mock existence check to return no existing entity
+      vi.mocked(db.query).mockResolvedValue({ records: [], metadata: [] });
       vi.mocked(db.createNode).mockResolvedValue('uuid-with-props');
 
       const entity = await graph.addEntity('Acme Inc', 'company', {
@@ -75,11 +79,36 @@ describe('EntityGraph', () => {
     });
 
     it('should throw on database error', async () => {
+      // Mock existence check to return no existing entity
+      vi.mocked(db.query).mockResolvedValue({ records: [], metadata: [] });
       vi.mocked(db.createNode).mockRejectedValue(new Error('DB Error'));
 
       await expect(graph.addEntity('Test', 'type')).rejects.toThrow(
         'Failed to add entity: Test',
       );
+    });
+
+    it('should return existing entity instead of creating duplicate', async () => {
+      // Mock existence check to return an existing entity
+      vi.mocked(db.query).mockResolvedValue({
+        records: [
+          {
+            n: mockNode({
+              uuid: 'existing-uuid',
+              name: 'Alice',
+              entity_type: 'person',
+            }),
+          },
+        ],
+        metadata: [],
+      });
+
+      const entity = await graph.addEntity('Alice', 'person');
+
+      // Should not call createNode
+      expect(db.createNode).not.toHaveBeenCalled();
+      expect(entity.uuid).toBe('existing-uuid');
+      expect(entity.name).toBe('Alice');
     });
   });
 

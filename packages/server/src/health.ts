@@ -1,5 +1,6 @@
 // Health check endpoint
 import type { FalkorDBAdapter } from '@polyg-mcp/core';
+import { loggers } from '@polyg-mcp/shared';
 
 export interface HealthStatus {
   status: 'ok' | 'degraded' | 'error';
@@ -17,10 +18,9 @@ export class HealthChecker {
 
   async check(): Promise<HealthStatus> {
     const dbConnected = await this.db.healthCheck().catch((error) => {
-      console.warn(
-        '[HealthChecker] Database health check failed:',
-        error instanceof Error ? error.message : String(error),
-      );
+      loggers.storage.warn('Database health check failed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
       return false;
     });
 

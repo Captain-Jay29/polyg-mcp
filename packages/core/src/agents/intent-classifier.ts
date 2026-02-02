@@ -2,6 +2,7 @@
 import {
   type ClassifierInput,
   type LLMProvider,
+  loggers,
   type MAGMAIntent,
   MAGMAIntentSchema,
 } from '@polyg-mcp/shared';
@@ -134,10 +135,9 @@ export class IntentClassifier {
       const fallbackResult = MAGMAIntentSchema.safeParse(fallbackParsed);
 
       if (fallbackResult.success) {
-        // Log warning for monitoring (could be replaced with proper logger)
-        console.warn(
-          `[IntentClassifier] Invalid intent type "${(parsed as Record<string, unknown>).type}", falling back to EXPLORE`,
-        );
+        loggers.agents.warn('Invalid intent type, falling back to EXPLORE', {
+          invalidType: (parsed as Record<string, unknown>).type,
+        });
         return fallbackResult.data;
       }
     }

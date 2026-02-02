@@ -12,6 +12,8 @@ import {
   type DepthHints,
   type EnrichedSemanticMatch,
   type GraphView,
+  type GraphViewSource,
+  loggers,
   type MAGMAConfig,
   type MAGMAIntent,
   MAGMAIntentSchema,
@@ -55,6 +57,14 @@ const DEFAULT_CONFIG: MAGMAExecutorConfig = {
 };
 
 /**
+ * Information about a failed expansion
+ */
+export interface ExpansionFailure {
+  source: GraphViewSource;
+  error: string;
+}
+
+/**
  * Result from MAGMA execution
  */
 export interface MAGMAExecutionResult {
@@ -67,6 +77,8 @@ export interface MAGMAExecutionResult {
     mergeMs: number;
     totalMs: number;
   };
+  /** Expansions that failed (for observability) */
+  failedExpansions: ExpansionFailure[];
 }
 
 /**
@@ -193,7 +205,7 @@ export class MAGMAExecutor {
     // Step 3: Parallel graph expansion from seeds using batch methods
     // Note: expandFromSeeds has internal graceful error handling (returns partial results)
     const expansionStart = Date.now();
-    const views = await this.expandFromSeeds(
+    const { views, failures: failedExpansions } = await this.expandFromSeeds(
       entityIds,
       intent.depthHints,
       enrichedMatches,
@@ -224,18 +236,21 @@ export class MAGMAExecutor {
         mergeMs,
         totalMs: Date.now() - totalStart,
       },
+      failedExpansions,
     };
   }
 
   /**
    * Expand from seed entities in parallel across all graph types
+   * @returns Object with views and any expansion failures
    */
   private async expandFromSeeds(
     entityIds: string[],
     depthHints: DepthHints,
     enrichedMatches: EnrichedSemanticMatch[],
-  ): Promise<GraphView[]> {
+  ): Promise<{ views: GraphView[]; failures: ExpansionFailure[] }> {
     const views: GraphView[] = [];
+    const failures: ExpansionFailure[] = [];
 
     // Always include semantic view from initial search
     views.push({
@@ -249,7 +264,7 @@ export class MAGMAExecutor {
 
     // If no entity seeds found, return semantic-only
     if (entityIds.length === 0) {
-      return views;
+      return { views, failures };
     }
 
     // Parallel expansion from seeds with graceful degradation
@@ -264,7 +279,7 @@ export class MAGMAExecutor {
       this.withTimeout(this.expandCausalGraph(entityIds, depthHints.causal)),
     ]);
 
-    const expansionNames = ['entity', 'temporal', 'causal'] as const;
+    const expansionNames: GraphViewSource[] = ['entity', 'temporal', 'causal'];
 
     for (let i = 0; i < expansionResults.length; i++) {
       const result = expansionResults[i];
@@ -273,17 +288,25 @@ export class MAGMAExecutor {
           views.push(result.value);
         }
       } else {
-        // Log failed expansion for observability but continue with others
-        console.warn(
-          `[MAGMAExecutor] ${expansionNames[i]} expansion failed:`,
+        const errorMessage =
           result.reason instanceof Error
             ? result.reason.message
-            : String(result.reason),
-        );
+            : String(result.reason);
+
+        // Track failure for caller visibility
+        failures.push({
+          source: expansionNames[i],
+          error: errorMessage,
+        });
+
+        // Log for observability
+        loggers.executor.warn(`${expansionNames[i]} expansion failed`, {
+          error: errorMessage,
+        });
       }
     }
 
-    return views;
+    return { views, failures };
   }
 
   /**

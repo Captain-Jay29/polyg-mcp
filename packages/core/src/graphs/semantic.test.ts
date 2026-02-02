@@ -49,6 +49,8 @@ describe('SemanticGraph', () => {
 
   describe('addConcept', () => {
     it('should create a new concept with embedding', async () => {
+      // Mock getConceptByName to return no existing concept
+      vi.mocked(db.query).mockResolvedValue({ records: [], metadata: [] });
       vi.mocked(embeddings.embed).mockResolvedValue([0.1, 0.2, 0.3]);
       vi.mocked(db.createNode).mockResolvedValue('new-concept-uuid');
 
@@ -68,6 +70,8 @@ describe('SemanticGraph', () => {
     });
 
     it('should include description in embedding text', async () => {
+      // Mock getConceptByName to return no existing concept
+      vi.mocked(db.query).mockResolvedValue({ records: [], metadata: [] });
       vi.mocked(embeddings.embed).mockResolvedValue([0.1, 0.2, 0.3]);
       vi.mocked(db.createNode).mockResolvedValue('uuid');
 
@@ -85,6 +89,8 @@ describe('SemanticGraph', () => {
     });
 
     it('should throw EmbeddingGenerationError on embedding failure', async () => {
+      // Mock getConceptByName to return no existing concept
+      vi.mocked(db.query).mockResolvedValue({ records: [], metadata: [] });
       vi.mocked(embeddings.embed).mockRejectedValue(new Error('API error'));
 
       await expect(graph.addConcept('Test')).rejects.toThrow(
@@ -93,12 +99,34 @@ describe('SemanticGraph', () => {
     });
 
     it('should throw on database error', async () => {
+      // Mock getConceptByName to return no existing concept
+      vi.mocked(db.query).mockResolvedValue({ records: [], metadata: [] });
       vi.mocked(embeddings.embed).mockResolvedValue([0.1]);
       vi.mocked(db.createNode).mockRejectedValue(new Error('DB error'));
 
       await expect(graph.addConcept('Test')).rejects.toThrow(
         'Failed to add concept: Test',
       );
+    });
+
+    it('should return existing concept instead of creating duplicate', async () => {
+      const existingConcept = mockConceptNode({
+        uuid: 'existing-uuid',
+        name: 'Test',
+        description: 'Existing description',
+      });
+      vi.mocked(db.query).mockResolvedValue({
+        records: [{ c: existingConcept }],
+        metadata: [],
+      });
+
+      const concept = await graph.addConcept('Test');
+
+      // Should not call createNode or embed
+      expect(db.createNode).not.toHaveBeenCalled();
+      expect(embeddings.embed).not.toHaveBeenCalled();
+      expect(concept.uuid).toBe('existing-uuid');
+      expect(concept.name).toBe('Test');
     });
   });
 

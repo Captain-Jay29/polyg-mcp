@@ -341,7 +341,8 @@ export class TemporalGraph {
     try {
       await this.db.query(
         `MATCH (e:${EVENT_LABEL} {uuid: $eventId}), (entity {uuid: $entityId})
-         CREATE (e)-[:${INVOLVES_REL} {created_at: $createdAt}]->(entity)`,
+         MERGE (e)-[r:${INVOLVES_REL}]->(entity)
+         ON CREATE SET r.created_at = $createdAt`,
         {
           eventId,
           entityId,
@@ -367,7 +368,8 @@ export class TemporalGraph {
     try {
       await this.db.query(
         `MATCH (f:${FACT_LABEL} {uuid: $factId}), (entity {uuid: $entityId})
-         CREATE (f)-[:${INVOLVES_REL} {created_at: $createdAt}]->(entity)`,
+         MERGE (f)-[r:${INVOLVES_REL}]->(entity)
+         ON CREATE SET r.created_at = $createdAt`,
         {
           factId,
           entityId,

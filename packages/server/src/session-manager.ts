@@ -2,6 +2,7 @@
 import { randomUUID } from 'node:crypto';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { loggers } from '@polyg-mcp/shared';
 import { SessionCreationError, SessionLimitError } from './errors.js';
 import { createMcpServer } from './mcp-server-factory.js';
 import type { SharedResources } from './shared-resources.js';
@@ -99,12 +100,12 @@ export class SessionManager {
       try {
         await transport.close();
       } catch (cleanupError) {
-        console.warn(
-          '[SessionManager] Error closing transport during cleanup:',
-          cleanupError instanceof Error
-            ? cleanupError.message
-            : String(cleanupError),
-        );
+        loggers.session.warn('Error closing transport during cleanup', {
+          error:
+            cleanupError instanceof Error
+              ? cleanupError.message
+              : String(cleanupError),
+        });
       }
       throw new SessionCreationError(
         `Failed to connect MCP server to transport: ${error instanceof Error ? error.message : String(error)}`,
@@ -172,10 +173,9 @@ export class SessionManager {
 
     // Log errors but don't throw - we want to continue cleanup
     if (errors.length > 0) {
-      console.warn(
-        `Errors removing session ${sessionId}:`,
-        errors.map((e) => e.message).join('; '),
-      );
+      loggers.session.warn(`Errors removing session ${sessionId}`, {
+        errors: errors.map((e) => e.message),
+      });
     }
   }
 
@@ -211,9 +211,9 @@ export class SessionManager {
       (r): r is PromiseRejectedResult => r.status === 'rejected',
     );
     if (failures.length > 0) {
-      console.warn(
-        `[SessionManager] ${failures.length} session(s) failed to close during shutdown:`,
-        failures.map((f) => f.reason).join('; '),
+      loggers.session.warn(
+        `${failures.length} session(s) failed to close during shutdown`,
+        { errors: failures.map((f) => String(f.reason)) },
       );
     }
   }

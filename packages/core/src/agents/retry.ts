@@ -1,4 +1,5 @@
 // Retry utility with exponential backoff for LLM calls
+import { loggers } from '@polyg-mcp/shared';
 import { RateLimitError } from '../llm/errors.js';
 
 export interface RetryConfig {
@@ -65,8 +66,9 @@ export async function withRetry<T>(
       if (error.retryAfter !== undefined && error.retryAfter > 0) {
         // Use server-provided retry-after (in seconds)
         delayMs = Math.min(error.retryAfter * 1000, maxDelayMs);
-        console.warn(
-          `[withRetry] Rate limited, waiting ${delayMs}ms (server retry-after: ${error.retryAfter}s), attempt ${attempt + 1}/${maxRetries + 1}`,
+        loggers.agents.warn(
+          `Rate limited, waiting ${delayMs}ms (server retry-after: ${error.retryAfter}s)`,
+          { attempt: attempt + 1, maxAttempts: maxRetries + 1 },
         );
       } else {
         // Use exponential backoff
@@ -74,8 +76,9 @@ export async function withRetry<T>(
           initialDelayMs * backoffMultiplier ** attempt,
           maxDelayMs,
         );
-        console.warn(
-          `[withRetry] Rate limited, waiting ${delayMs}ms (exponential backoff), attempt ${attempt + 1}/${maxRetries + 1}`,
+        loggers.agents.warn(
+          `Rate limited, waiting ${delayMs}ms (exponential backoff)`,
+          { attempt: attempt + 1, maxAttempts: maxRetries + 1 },
         );
       }
 

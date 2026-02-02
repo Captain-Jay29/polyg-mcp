@@ -17,15 +17,18 @@ import {
   type GraphView,
   LinearizeContextSchema,
   LinkEntitiesSchema,
+  loggers,
   RememberInputSchema,
   SemanticSearchSchema,
   SubgraphMergeSchema,
   TemporalExpandSchema,
 } from '@polyg-mcp/shared';
+// Import version from package.json to avoid hardcoding
+import packageJson from '../package.json' with { type: 'json' };
 import { formatToolError, safeParseDate, validateToolInput } from './errors.js';
 import type { SharedResources } from './shared-resources.js';
 
-const SERVER_VERSION = '0.1.0';
+const SERVER_VERSION = packageJson.version;
 
 /**
  * Create a new McpServer instance with all tools registered.
@@ -170,15 +173,23 @@ function registerRememberTool(
     'remember',
     {
       description:
-        'Store new information in the memory system. Extracts entities, facts, and events from the content.',
+        'Store new information as a timestamped event in the temporal graph. For structured data, use add_entity, add_fact, or add_concept instead.',
       inputSchema: RememberInputSchema,
     },
     async (args) => {
+      // Validate input with Zod schema
+      const validation = validateToolInput(
+        args,
+        RememberInputSchema,
+        'remember',
+      );
+      if (!validation.success) {
+        return formatToolError(validation.error, 'remember');
+      }
+      const { content, context } = validation.data;
+
       try {
-        const result = await resources.orchestrator.remember(
-          args.content,
-          args.context,
-        );
+        const result = await resources.orchestrator.remember(content, context);
         return {
           content: [
             {
@@ -206,12 +217,19 @@ function registerAddEntityTool(
       inputSchema: AddEntitySchema,
     },
     async (args) => {
+      // Validate input with Zod schema
+      const validation = validateToolInput(args, AddEntitySchema, 'add_entity');
+      if (!validation.success) {
+        return formatToolError(validation.error, 'add_entity');
+      }
+      const { name, entity_type, properties } = validation.data;
+
       try {
         const graphs = resources.orchestrator.getGraphs();
         const entity = await graphs.entity.addEntity(
-          args.name,
-          args.entity_type,
-          args.properties,
+          name,
+          entity_type,
+          properties,
         );
         return {
           content: [
@@ -240,18 +258,25 @@ function registerLinkEntitiesTool(
       inputSchema: LinkEntitiesSchema,
     },
     async (args) => {
+      // Validate input with Zod schema
+      const validation = validateToolInput(
+        args,
+        LinkEntitiesSchema,
+        'link_entities',
+      );
+      if (!validation.success) {
+        return formatToolError(validation.error, 'link_entities');
+      }
+      const { source, target, relationship } = validation.data;
+
       try {
         const graphs = resources.orchestrator.getGraphs();
-        await graphs.entity.linkEntities(
-          args.source,
-          args.target,
-          args.relationship,
-        );
+        await graphs.entity.linkEntities(source, target, relationship);
         return {
           content: [
             {
               type: 'text' as const,
-              text: `Linked: ${args.source} -[${args.relationship}]-> ${args.target}`,
+              text: `Linked: ${source} -[${relationship}]-> ${target}`,
             },
           ],
         };
@@ -273,20 +298,24 @@ function registerAddEventTool(
       inputSchema: AddEventSchema,
     },
     async (args) => {
+      // Validate input with Zod schema
+      const validation = validateToolInput(args, AddEventSchema, 'add_event');
+      if (!validation.success) {
+        return formatToolError(validation.error, 'add_event');
+      }
+      const { description, occurred_at, entities } = validation.data;
+
       try {
-        const occurredAt = safeParseDate(args.occurred_at, 'occurred_at');
+        const occurredAt = safeParseDate(occurred_at, 'occurred_at');
 
         const graphs = resources.orchestrator.getGraphs();
-        const event = await graphs.temporal.addEvent(
-          args.description,
-          occurredAt,
-        );
+        const event = await graphs.temporal.addEvent(description, occurredAt);
 
         // Link event to entities if specified
         const linkedEntities: string[] = [];
         const failedLinks: Array<{ entity: string; reason: string }> = [];
-        if (args.entities && Array.isArray(args.entities)) {
-          for (const entityRef of args.entities) {
+        if (entities && Array.isArray(entities)) {
+          for (const entityRef of entities) {
             try {
               const entity = await graphs.entity.getEntity(entityRef);
               if (entity) {
@@ -302,9 +331,10 @@ function registerAddEventTool(
               const reason =
                 err instanceof Error ? err.message : 'unknown error';
               failedLinks.push({ entity: entityRef, reason });
-              console.warn(
-                `[add_event] Failed to link entity "${entityRef}": ${reason}`,
-              );
+              loggers.tools.warn(`[add_event] Failed to link entity`, {
+                entity: entityRef,
+                reason,
+              });
             }
           }
         }
@@ -345,17 +375,38 @@ function registerAddFactTool(
       inputSchema: AddFactSchema,
     },
     async (args) => {
+      // Validate input with Zod schema
+      const validation = validateToolInput(args, AddFactSchema, 'add_fact');
+      if (!validation.success) {
+        return formatToolError(validation.error, 'add_fact');
+      }
+      const {
+        subject,
+        predicate,
+        object,
+        valid_from,
+        valid_to,
+        subject_entity,
+      } = validation.data;
+
       try {
-        const validFrom = safeParseDate(args.valid_from, 'valid_from');
-        const validTo = args.valid_to
-          ? safeParseDate(args.valid_to, 'valid_to')
+        const validFrom = safeParseDate(valid_from, 'valid_from');
+        const validTo = valid_to
+          ? safeParseDate(valid_to, 'valid_to')
           : undefined;
+
+        // Validate date range
+        if (validTo && validTo < validFrom) {
+          throw new Error(
+            `Invalid date range: valid_to (${validTo.toISOString()}) must be >= valid_from (${validFrom.toISOString()})`,
+          );
+        }
 
         const graphs = resources.orchestrator.getGraphs();
         const fact = await graphs.temporal.addFact(
-          args.subject,
-          args.predicate,
-          args.object,
+          subject,
+          predicate,
+          object,
           validFrom,
           validTo,
         );
@@ -363,9 +414,9 @@ function registerAddFactTool(
         // Link fact to subject entity if specified (creates X_INVOLVES relationship)
         let linkedEntity: string | undefined;
         let linkError: string | undefined;
-        if (args.subject_entity) {
+        if (subject_entity) {
           try {
-            const entity = await graphs.entity.getEntity(args.subject_entity);
+            const entity = await graphs.entity.getEntity(subject_entity);
             if (entity) {
               await graphs.temporal.linkFactToEntity(fact.uuid, entity.uuid);
               linkedEntity = entity.name;
@@ -374,16 +425,17 @@ function registerAddFactTool(
             }
           } catch (err) {
             linkError = err instanceof Error ? err.message : 'unknown error';
-            console.warn(
-              `[add_fact] Failed to link entity "${args.subject_entity}": ${linkError}`,
-            );
+            loggers.tools.warn(`[add_fact] Failed to link entity`, {
+              entity: subject_entity,
+              error: linkError,
+            });
           }
         }
 
         const linkedText = linkedEntity ? ` (about: ${linkedEntity})` : '';
         const failedText =
-          linkError && args.subject_entity
-            ? ` (failed to link ${args.subject_entity}: ${linkError})`
+          linkError && subject_entity
+            ? ` (failed to link ${subject_entity}: ${linkError})`
             : '';
 
         return {
@@ -413,32 +465,48 @@ function registerAddCausalLinkTool(
       inputSchema: AddCausalLinkSchema,
     },
     async (args) => {
+      // Validate input with Zod schema
+      const validation = validateToolInput(
+        args,
+        AddCausalLinkSchema,
+        'add_causal_link',
+      );
+      if (!validation.success) {
+        return formatToolError(validation.error, 'add_causal_link');
+      }
+      const { cause, effect, confidence, entities, events } = validation.data;
+
       try {
+        // Prevent self-referencing causal links
+        if (cause === effect) {
+          throw new Error('Cannot create a causal link from a node to itself');
+        }
+
         const graphs = resources.orchestrator.getGraphs();
 
         // Get or create cause node
         let causeNode: CausalNode | null;
         try {
-          causeNode = await graphs.causal.getNode(args.cause);
+          causeNode = await graphs.causal.getNode(cause);
           if (!causeNode) {
-            causeNode = await graphs.causal.addNode(args.cause, 'cause');
+            causeNode = await graphs.causal.addNode(cause, 'cause');
           }
         } catch (error) {
           throw new Error(
-            `Failed to get/create cause node '${args.cause}': ${error instanceof Error ? error.message : String(error)}`,
+            `Failed to get/create cause node '${cause}': ${error instanceof Error ? error.message : String(error)}`,
           );
         }
 
         // Get or create effect node
         let effectNode: CausalNode | null;
         try {
-          effectNode = await graphs.causal.getNode(args.effect);
+          effectNode = await graphs.causal.getNode(effect);
           if (!effectNode) {
-            effectNode = await graphs.causal.addNode(args.effect, 'effect');
+            effectNode = await graphs.causal.addNode(effect, 'effect');
           }
         } catch (error) {
           throw new Error(
-            `Failed to get/create effect node '${args.effect}': ${error instanceof Error ? error.message : String(error)}`,
+            `Failed to get/create effect node '${effect}': ${error instanceof Error ? error.message : String(error)}`,
           );
         }
 
@@ -447,19 +515,19 @@ function registerAddCausalLinkTool(
           await graphs.causal.addLink(
             causeNode.uuid,
             effectNode.uuid,
-            args.confidence,
+            confidence,
           );
         } catch (error) {
           throw new Error(
-            `Failed to create link between '${args.cause}' and '${args.effect}': ${error instanceof Error ? error.message : String(error)}`,
+            `Failed to create link between '${cause}' and '${effect}': ${error instanceof Error ? error.message : String(error)}`,
           );
         }
 
         // Link causal nodes to entities if specified (creates X_AFFECTS relationships)
         const linkedEntities: string[] = [];
         const failedEntityLinks: Array<{ entity: string; reason: string }> = [];
-        if (args.entities && Array.isArray(args.entities)) {
-          for (const entityRef of args.entities) {
+        if (entities && Array.isArray(entities)) {
+          for (const entityRef of entities) {
             try {
               const entity = await graphs.entity.getEntity(entityRef);
               if (entity) {
@@ -477,9 +545,10 @@ function registerAddCausalLinkTool(
               const reason =
                 err instanceof Error ? err.message : 'unknown error';
               failedEntityLinks.push({ entity: entityRef, reason });
-              console.warn(
-                `[add_causal_link] Failed to link entity "${entityRef}": ${reason}`,
-              );
+              loggers.tools.warn(`[add_causal_link] Failed to link entity`, {
+                entity: entityRef,
+                reason,
+              });
             }
           }
         }
@@ -487,8 +556,8 @@ function registerAddCausalLinkTool(
         // Link causal nodes to events if specified (creates X_REFERS_TO relationships)
         const linkedEvents: string[] = [];
         const failedEventLinks: Array<{ event: string; reason: string }> = [];
-        if (args.events && Array.isArray(args.events)) {
-          for (const eventRef of args.events) {
+        if (events && Array.isArray(events)) {
+          for (const eventRef of events) {
             try {
               const event = await graphs.temporal.getEvent(eventRef);
               if (event) {
@@ -507,9 +576,10 @@ function registerAddCausalLinkTool(
               const reason =
                 err instanceof Error ? err.message : 'unknown error';
               failedEventLinks.push({ event: eventRef, reason });
-              console.warn(
-                `[add_causal_link] Failed to link event "${eventRef}": ${reason}`,
-              );
+              loggers.tools.warn(`[add_causal_link] Failed to link event`, {
+                event: eventRef,
+                reason,
+              });
             }
           }
         }
@@ -535,13 +605,13 @@ function registerAddCausalLinkTool(
           content: [
             {
               type: 'text' as const,
-              text: `Added causal link: ${args.cause} -> ${args.effect}${args.confidence ? ` (confidence: ${args.confidence})` : ''}${linkedEntityText}${linkedEventText}${failedEntityText}${failedEventText}`,
+              text: `Added causal link: ${cause} -> ${effect}${confidence ? ` (confidence: ${confidence})` : ''}${linkedEntityText}${linkedEventText}${failedEntityText}${failedEventText}`,
             },
           ],
           structuredContent: {
-            cause: args.cause,
-            effect: args.effect,
-            confidence: args.confidence,
+            cause,
+            effect,
+            confidence,
             linkedEntities,
             linkedEvents,
             failedEntityLinks,
@@ -567,18 +637,26 @@ function registerAddConceptTool(
       inputSchema: AddConceptSchema,
     },
     async (args) => {
+      // Validate input with Zod schema
+      const validation = validateToolInput(
+        args,
+        AddConceptSchema,
+        'add_concept',
+      );
+      if (!validation.success) {
+        return formatToolError(validation.error, 'add_concept');
+      }
+      const { name, description, entities } = validation.data;
+
       try {
         const graphs = resources.orchestrator.getGraphs();
-        const concept = await graphs.semantic.addConcept(
-          args.name,
-          args.description,
-        );
+        const concept = await graphs.semantic.addConcept(name, description);
 
         // Link concept to entities if specified (creates X_REPRESENTS relationships)
         const linkedEntities: string[] = [];
         const failedLinks: Array<{ entity: string; reason: string }> = [];
-        if (args.entities && Array.isArray(args.entities)) {
-          for (const entityRef of args.entities) {
+        if (entities && Array.isArray(entities)) {
+          for (const entityRef of entities) {
             try {
               const entity = await graphs.entity.getEntity(entityRef);
               if (entity) {
@@ -591,9 +669,10 @@ function registerAddConceptTool(
               const reason =
                 err instanceof Error ? err.message : 'unknown error';
               failedLinks.push({ entity: entityRef, reason });
-              console.warn(
-                `[add_concept] Failed to link entity "${entityRef}": ${reason}`,
-              );
+              loggers.tools.warn(`[add_concept] Failed to link entity`, {
+                entity: entityRef,
+                reason,
+              });
             }
           }
         }
@@ -699,11 +778,14 @@ function registerSemanticSearchTool(
               linkedEntityNames: string[];
             }> => {
               if (result.status === 'rejected') {
-                console.warn(
-                  '[semantic_search] Failed to fetch entity links for concept:',
-                  result.reason instanceof Error
-                    ? result.reason.message
-                    : String(result.reason),
+                loggers.tools.warn(
+                  '[semantic_search] Failed to fetch entity links for concept',
+                  {
+                    error:
+                      result.reason instanceof Error
+                        ? result.reason.message
+                        : String(result.reason),
+                  },
                 );
                 return false;
               }
