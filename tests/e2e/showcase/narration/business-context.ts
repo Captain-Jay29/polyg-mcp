@@ -20,21 +20,35 @@ export interface IntentAnalysis {
 export function detectQueryIntent(query: string): IntentAnalysis {
   const lower = query.toLowerCase();
 
-  // WHY questions - causal reasoning
-  const causalKeywords = [
-    'why',
-    'cause',
-    'reason',
+  // Check for strong causal phrases first (these override other signals)
+  const causalPhrases = [
+    'what caused',
+    'why did',
+    'why was',
+    'why is',
     'root cause',
     'led to',
     'resulted in',
-    'because',
-    'fault',
-    'blame',
-    'responsible',
-    'triggered',
   ];
-  const causalScore = causalKeywords.filter((k) => lower.includes(k)).length;
+  const hasCausalPhrase = causalPhrases.some((p) => lower.includes(p));
+
+  // WHY questions - causal reasoning (weighted: strong signals get +2)
+  const causalKeywords = [
+    { word: 'why', weight: 2 },
+    { word: 'cause', weight: 2 },
+    { word: 'caused', weight: 2 },
+    { word: 'reason', weight: 1 },
+    { word: 'because', weight: 1 },
+    { word: 'fault', weight: 1 },
+    { word: 'blame', weight: 1 },
+    { word: 'responsible', weight: 1 },
+    { word: 'triggered', weight: 1 },
+    { word: 'fail', weight: 1 },
+  ];
+  let causalScore = causalKeywords
+    .filter((k) => lower.includes(k.word))
+    .reduce((sum, k) => sum + k.weight, 0);
+  if (hasCausalPhrase) causalScore += 3; // Bonus for causal phrases
 
   // WHEN questions - temporal queries
   const temporalKeywords = [
@@ -49,16 +63,15 @@ export function detectQueryIntent(query: string): IntentAnalysis {
     'history',
     'sequence',
     'order',
-    'time',
   ];
   const temporalScore = temporalKeywords.filter((k) =>
     lower.includes(k),
   ).length;
 
   // WHO/WHAT questions - entity relationships
+  // Note: "what" is too generic, only count it if not followed by causal words
   const entityKeywords = [
     'who',
-    'what',
     'which',
     'depends',
     'relationship',
@@ -68,9 +81,13 @@ export function detectQueryIntent(query: string): IntentAnalysis {
     'owns',
     'manages',
     'team',
-    'service',
+    'affected',
   ];
-  const entityScore = entityKeywords.filter((k) => lower.includes(k)).length;
+  let entityScore = entityKeywords.filter((k) => lower.includes(k)).length;
+  // Only count "what" if no causal phrase detected
+  if (lower.includes('what') && !hasCausalPhrase) {
+    entityScore += 1;
+  }
 
   // Status queries
   const statusKeywords = [
@@ -102,7 +119,7 @@ export function detectQueryIntent(query: string): IntentAnalysis {
     {
       intent: 'causal' as QueryIntent,
       score: causalScore,
-      keywords: causalKeywords,
+      keywords: causalKeywords.map((k) => k.word),
     },
     {
       intent: 'temporal' as QueryIntent,

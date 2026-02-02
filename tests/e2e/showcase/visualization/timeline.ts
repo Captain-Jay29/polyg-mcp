@@ -8,7 +8,7 @@ export interface TimelineEvent {
 }
 
 /**
- * Parse ISO timestamp and format as HH:MM
+ * Parse ISO timestamp and format as HH:MM (UTC)
  */
 function formatTime(isoTimestamp: string): string {
   try {
@@ -17,6 +17,7 @@ function formatTime(isoTimestamp: string): string {
       hour: '2-digit',
       minute: '2-digit',
       hour12: false,
+      timeZone: 'UTC',
     });
   } catch {
     return '??:??';
@@ -24,7 +25,7 @@ function formatTime(isoTimestamp: string): string {
 }
 
 /**
- * Get date string from ISO timestamp
+ * Get date string from ISO timestamp (UTC)
  */
 function formatDate(isoTimestamp: string): string {
   try {
@@ -33,6 +34,7 @@ function formatDate(isoTimestamp: string): string {
       month: 'long',
       day: 'numeric',
       year: 'numeric',
+      timeZone: 'UTC',
     });
   } catch {
     return 'Unknown Date';

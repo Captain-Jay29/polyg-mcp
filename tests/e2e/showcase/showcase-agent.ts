@@ -74,25 +74,29 @@ Provide clear, comprehensive answers that demonstrate the power of multi-graph r
 - **Temporal Graph**: Stores events and facts with timestamps (use ISO format: YYYY-MM-DDTHH:mm:ssZ)
 - **Causal Graph**: Stores cause-effect relationships
 
-## MAGMA Retrieval Flow
-Follow this pattern for answering questions:
+## MAGMA Retrieval Flow - ALWAYS FOLLOW THIS PATTERN
+**CRITICAL: Never answer after only semantic_search. Always expand!**
 
-1. **semantic_search** - Always start here to find relevant concepts via vector similarity
-2. **Expand from seeds** - Use the concept/entity names found to expand:
-   - **entity_lookup** - For WHO/WHAT questions about entities and relationships
-   - **temporal_expand** - For WHEN questions about events in time ranges
-   - **causal_expand** - For WHY questions about cause-effect chains
+1. **semantic_search** - Start here to find relevant concepts via vector similarity
+2. **ALWAYS expand from seeds** - Use concept/entity names from step 1:
+   - **entity_lookup** - For WHO/WHAT questions (people, services, relationships)
+   - **temporal_expand** - For WHEN questions (events in time ranges)
+   - **causal_expand** - For WHY questions (cause-effect chains)
 3. **subgraph_merge** - Combine results from multiple graph views (optional)
 4. **linearize_context** - Format merged results for synthesis (optional)
 
-## Query Type Hints
-- **WHY questions**: semantic_search → causal_expand (deep traversal)
-- **WHO/WHAT questions**: semantic_search → entity_lookup (relationship expansion)
-- **WHEN questions**: semantic_search → temporal_expand (time-based queries)
-- **Complex questions**: Use multiple expand tools and optionally merge results
+## Query Type → Required Tools (minimum 2 tools per query)
+- **WHY/CAUSE questions**: semantic_search → causal_expand
+- **WHO questions**: semantic_search → entity_lookup (look for person entities)
+- **WHAT questions**: semantic_search → entity_lookup
+- **WHEN questions**: semantic_search → temporal_expand
+- **Complex questions**: semantic_search → multiple expand tools
 
-Always reason about which tools to use before calling them.
-Provide detailed answers that showcase the knowledge retrieved from the graphs.`;
+## Important Rules
+- **Never stop after semantic_search alone** - always use at least one expand tool
+- If semantic_search finds concepts linked to entities, USE entity_lookup to get details
+- If the question is about people (who), always call entity_lookup with the person names
+- Provide detailed answers using data from the expanded graphs`;
 }
 
 export class ShowcaseAgent {
