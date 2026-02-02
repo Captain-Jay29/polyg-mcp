@@ -23,10 +23,12 @@ import {
   SubgraphMergeSchema,
   TemporalExpandSchema,
 } from '@polyg-mcp/shared';
+// Import version from package.json to avoid hardcoding
+import packageJson from '../package.json' with { type: 'json' };
 import { formatToolError, safeParseDate, validateToolInput } from './errors.js';
 import type { SharedResources } from './shared-resources.js';
 
-const SERVER_VERSION = '0.1.0';
+const SERVER_VERSION = packageJson.version;
 
 /**
  * Create a new McpServer instance with all tools registered.
