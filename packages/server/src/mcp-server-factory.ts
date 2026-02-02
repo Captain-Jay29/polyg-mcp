@@ -17,6 +17,7 @@ import {
   type GraphView,
   LinearizeContextSchema,
   LinkEntitiesSchema,
+  loggers,
   RememberInputSchema,
   SemanticSearchSchema,
   SubgraphMergeSchema,
@@ -170,7 +171,7 @@ function registerRememberTool(
     'remember',
     {
       description:
-        'Store new information in the memory system. Extracts entities, facts, and events from the content.',
+        'Store new information as a timestamped event in the temporal graph. For structured data, use add_entity, add_fact, or add_concept instead.',
       inputSchema: RememberInputSchema,
     },
     async (args) => {
@@ -328,9 +329,10 @@ function registerAddEventTool(
               const reason =
                 err instanceof Error ? err.message : 'unknown error';
               failedLinks.push({ entity: entityRef, reason });
-              console.warn(
-                `[add_event] Failed to link entity "${entityRef}": ${reason}`,
-              );
+              loggers.tools.warn(`[add_event] Failed to link entity`, {
+                entity: entityRef,
+                reason,
+              });
             }
           }
         }
@@ -421,9 +423,10 @@ function registerAddFactTool(
             }
           } catch (err) {
             linkError = err instanceof Error ? err.message : 'unknown error';
-            console.warn(
-              `[add_fact] Failed to link entity "${subject_entity}": ${linkError}`,
-            );
+            loggers.tools.warn(`[add_fact] Failed to link entity`, {
+              entity: subject_entity,
+              error: linkError,
+            });
           }
         }
 
@@ -540,9 +543,10 @@ function registerAddCausalLinkTool(
               const reason =
                 err instanceof Error ? err.message : 'unknown error';
               failedEntityLinks.push({ entity: entityRef, reason });
-              console.warn(
-                `[add_causal_link] Failed to link entity "${entityRef}": ${reason}`,
-              );
+              loggers.tools.warn(`[add_causal_link] Failed to link entity`, {
+                entity: entityRef,
+                reason,
+              });
             }
           }
         }
@@ -570,9 +574,10 @@ function registerAddCausalLinkTool(
               const reason =
                 err instanceof Error ? err.message : 'unknown error';
               failedEventLinks.push({ event: eventRef, reason });
-              console.warn(
-                `[add_causal_link] Failed to link event "${eventRef}": ${reason}`,
-              );
+              loggers.tools.warn(`[add_causal_link] Failed to link event`, {
+                event: eventRef,
+                reason,
+              });
             }
           }
         }
@@ -662,9 +667,10 @@ function registerAddConceptTool(
               const reason =
                 err instanceof Error ? err.message : 'unknown error';
               failedLinks.push({ entity: entityRef, reason });
-              console.warn(
-                `[add_concept] Failed to link entity "${entityRef}": ${reason}`,
-              );
+              loggers.tools.warn(`[add_concept] Failed to link entity`, {
+                entity: entityRef,
+                reason,
+              });
             }
           }
         }
@@ -770,11 +776,14 @@ function registerSemanticSearchTool(
               linkedEntityNames: string[];
             }> => {
               if (result.status === 'rejected') {
-                console.warn(
-                  '[semantic_search] Failed to fetch entity links for concept:',
-                  result.reason instanceof Error
-                    ? result.reason.message
-                    : String(result.reason),
+                loggers.tools.warn(
+                  '[semantic_search] Failed to fetch entity links for concept',
+                  {
+                    error:
+                      result.reason instanceof Error
+                        ? result.reason.message
+                        : String(result.reason),
+                  },
                 );
                 return false;
               }

@@ -26,12 +26,20 @@ import type {
 } from '@polyg-mcp/shared';
 
 /**
+ * Result from disconnect operation
+ */
+export interface DisconnectResult {
+  success: boolean;
+  error?: string;
+}
+
+/**
  * Storage adapter interface - implement this to support different databases
  */
 export interface IStorageAdapter {
   // Connection management
   connect(): Promise<void>;
-  disconnect(): Promise<void>;
+  disconnect(): Promise<DisconnectResult>;
   healthCheck(): Promise<boolean>;
   getConnectionState(): ConnectionState;
 

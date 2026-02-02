@@ -27,7 +27,8 @@ export class EntityGraph {
   constructor(private db: FalkorDBAdapter) {}
 
   /**
-   * Add a new entity to the graph
+   * Add a new entity to the graph.
+   * If an entity with the same name and type already exists, returns the existing entity.
    */
   async addEntity(
     name: string,
@@ -35,6 +36,17 @@ export class EntityGraph {
     properties?: Record<string, unknown>,
   ): Promise<Entity> {
     try {
+      // Check for existing entity with same name and type
+      const existing = await this.db.query(
+        `MATCH (n:${ENTITY_LABEL} {name: $name, entity_type: $entityType}) RETURN n LIMIT 1`,
+        { name, entityType },
+      );
+
+      if (existing.records.length > 0) {
+        // Return existing entity instead of creating duplicate
+        return this.safeParseEntity(existing.records[0].n);
+      }
+
       const now = new Date();
       const nodeProps = {
         name,
@@ -218,8 +230,8 @@ export class EntityGraph {
 
       await this.db.query(
         `MATCH (s:${ENTITY_LABEL} {uuid: $sourceUuid}), (t:${ENTITY_LABEL} {uuid: $targetUuid})
-         MERGE (s)-[:${RELATIONSHIP_TYPE} {relationship_type: $relType}]->(t)
-         ON CREATE SET s.created_at = $createdAt`,
+         MERGE (s)-[r:${RELATIONSHIP_TYPE} {relationship_type: $relType}]->(t)
+         ON CREATE SET r.created_at = $createdAt`,
         {
           sourceUuid: source.uuid,
           targetUuid: target.uuid,

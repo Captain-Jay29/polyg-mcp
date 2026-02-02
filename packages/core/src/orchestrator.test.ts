@@ -107,6 +107,7 @@ function mockExecutionResultWithNodes() {
       mergeMs: 5,
       totalMs: 40,
     },
+    failedExpansions: [],
   };
 }
 

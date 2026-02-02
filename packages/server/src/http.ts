@@ -8,6 +8,7 @@ import {
 import {
   type HTTPServerOptions,
   HTTPServerOptionsSchema,
+  loggers,
 } from '@polyg-mcp/shared';
 import {
   ServerStartError,
@@ -117,8 +118,8 @@ export class HTTPTransport {
       // Set request timeout (default: 2 minutes)
       const requestTimeoutMs = this.validatedOptions.requestTimeoutMs ?? 120000;
       this.server.setTimeout(requestTimeoutMs, (socket) => {
-        console.warn(
-          `[http] Request timeout after ${requestTimeoutMs}ms, destroying socket`,
+        loggers.http.warn(
+          `Request timeout after ${requestTimeoutMs}ms, destroying socket`,
         );
         socket.destroy();
       });
@@ -460,8 +461,12 @@ export class HTTPTransport {
 
         try {
           resolve(JSON.parse(body));
-        } catch {
-          reject(new Error('Invalid JSON body'));
+        } catch (parseError) {
+          reject(
+            new Error(
+              `Invalid JSON body: ${parseError instanceof Error ? parseError.message : String(parseError)}`,
+            ),
+          );
         }
       });
 

@@ -50,10 +50,18 @@ export class SemanticGraph {
   }
 
   /**
-   * Add a new concept with auto-generated embedding
+   * Add a new concept with auto-generated embedding.
+   * If a concept with the same name already exists, returns the existing concept.
    */
   async addConcept(name: string, description?: string): Promise<Concept> {
     try {
+      // Check for existing concept with same name
+      const existing = await this.getConceptByName(name);
+      if (existing) {
+        // Return existing concept instead of creating duplicate
+        return existing;
+      }
+
       // Generate embedding for the concept
       const textToEmbed = description ? `${name}: ${description}` : name;
       let embedding: number[];
@@ -338,7 +346,8 @@ export class SemanticGraph {
     try {
       await this.db.query(
         `MATCH (c:${CONCEPT_LABEL} {uuid: $conceptId}), (e {uuid: $entityId})
-         CREATE (c)-[:${REPRESENTS_REL} {created_at: $createdAt}]->(e)`,
+         MERGE (c)-[r:${REPRESENTS_REL}]->(e)
+         ON CREATE SET r.created_at = $createdAt`,
         {
           conceptId,
           entityId,

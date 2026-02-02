@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import {
   type FalkorDBConfig,
   FalkorDBNodeSchema,
+  loggers,
   type NodeData,
   type StorageQueryResult,
   type StorageStatistics,
@@ -108,23 +109,30 @@ export class FalkorDBAdapter implements IStorageAdapter {
 
   /**
    * Disconnect from FalkorDB
+   * @returns Object indicating whether disconnect was clean or had errors
    */
-  async disconnect(): Promise<void> {
-    if (this.client) {
-      try {
-        await this.client.close();
-      } catch (error) {
-        // Log disconnect errors for debugging, but don't throw
-        console.warn(
-          '[FalkorDB] Error during disconnect:',
-          error instanceof Error ? error.message : String(error),
-        );
-      } finally {
-        this.client = null;
-        this.graph = null;
-        this.connectionState = ConnectionState.Disconnected;
-      }
+  async disconnect(): Promise<{ success: boolean; error?: string }> {
+    if (!this.client) {
+      return { success: true };
     }
+
+    let disconnectError: string | undefined;
+    try {
+      await this.client.close();
+    } catch (error) {
+      disconnectError = error instanceof Error ? error.message : String(error);
+      loggers.storage.warn('Error during disconnect', {
+        error: disconnectError,
+      });
+    } finally {
+      this.client = null;
+      this.graph = null;
+      this.connectionState = ConnectionState.Disconnected;
+    }
+
+    return disconnectError
+      ? { success: false, error: disconnectError }
+      : { success: true };
   }
 
   /**
@@ -139,10 +147,9 @@ export class FalkorDBAdapter implements IStorageAdapter {
       await this.graph?.query('RETURN 1');
       return true;
     } catch (error) {
-      console.warn(
-        '[FalkorDB] Health check failed:',
-        error instanceof Error ? error.message : String(error),
-      );
+      loggers.storage.warn('Health check failed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
       return false;
     }
   }
@@ -453,19 +460,17 @@ export class FalkorDBAdapter implements IStorageAdapter {
           stats[key] = (result.records[0]?.count as number) || 0;
         } catch (error) {
           // Log individual query failures but continue with other stats
-          console.warn(
-            `[FalkorDB] Statistics query failed for ${key}:`,
-            error instanceof Error ? error.message : String(error),
-          );
+          loggers.storage.warn(`Statistics query failed for ${key}`, {
+            error: error instanceof Error ? error.message : String(error),
+          });
           stats[key] = 0;
         }
       }
     } catch (error) {
       // Log overall stats failure but return zeros
-      console.warn(
-        '[FalkorDB] Failed to get statistics:',
-        error instanceof Error ? error.message : String(error),
-      );
+      loggers.storage.warn('Failed to get statistics', {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
 
     return stats;
