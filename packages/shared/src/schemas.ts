@@ -450,6 +450,14 @@ export const StorageQueryResultSchema = z.object({
   metadata: z.array(z.string()),
 });
 
+// Cross-link statistics
+export const CrossLinkStatsSchema = z.object({
+  X_REPRESENTS: z.number().int().min(0),
+  X_INVOLVES: z.number().int().min(0),
+  X_REFERS_TO: z.number().int().min(0),
+  X_AFFECTS: z.number().int().min(0),
+});
+
 // Statistics about stored data
 export const StorageStatisticsSchema = z.object({
   semantic_nodes: z.number().int().min(0),
@@ -457,6 +465,7 @@ export const StorageStatisticsSchema = z.object({
   causal_nodes: z.number().int().min(0),
   entity_nodes: z.number().int().min(0),
   total_relationships: z.number().int().min(0),
+  cross_links: CrossLinkStatsSchema.optional(),
 });
 
 // FalkorDB internal node structure (for parsing raw responses)
@@ -602,6 +611,7 @@ export type ConnectionState = z.infer<typeof ConnectionStateSchema>;
 export type NodeData = z.infer<typeof NodeDataSchema>;
 export type StorageQueryResult = z.infer<typeof StorageQueryResultSchema>;
 export type StorageStatistics = z.infer<typeof StorageStatisticsSchema>;
+export type CrossLinkStats = z.infer<typeof CrossLinkStatsSchema>;
 export type FalkorDBNode = z.infer<typeof FalkorDBNodeSchema>;
 
 // Server types
