@@ -91,7 +91,9 @@ export class CausalGraph {
 
       await this.db.query(
         `MATCH (cause:${NODE_LABEL} {uuid: $causeId}), (effect:${NODE_LABEL} {uuid: $effectId})
-         CREATE (cause)-[:${CAUSES_REL} {confidence: $confidence, evidence: $evidence, created_at: $createdAt}]->(effect)`,
+         MERGE (cause)-[r:${CAUSES_REL}]->(effect)
+         ON CREATE SET r.confidence = $confidence, r.evidence = $evidence, r.created_at = $createdAt
+         ON MATCH SET r.confidence = $confidence, r.evidence = $evidence`,
         {
           causeId,
           effectId,
@@ -445,7 +447,8 @@ export class CausalGraph {
     try {
       await this.db.query(
         `MATCH (n:${NODE_LABEL} {uuid: $nodeId}), (e {uuid: $eventId})
-         CREATE (n)-[:${REFERS_TO_REL} {created_at: $createdAt}]->(e)`,
+         MERGE (n)-[r:${REFERS_TO_REL}]->(e)
+         ON CREATE SET r.created_at = $createdAt`,
         {
           nodeId,
           eventId,
@@ -470,7 +473,8 @@ export class CausalGraph {
     try {
       await this.db.query(
         `MATCH (n:${NODE_LABEL} {uuid: $nodeId}), (e {uuid: $entityId})
-         CREATE (n)-[:${AFFECTS_REL} {created_at: $createdAt}]->(e)`,
+         MERGE (n)-[r:${AFFECTS_REL}]->(e)
+         ON CREATE SET r.created_at = $createdAt`,
         {
           nodeId,
           entityId,

@@ -3,14 +3,14 @@ import { z } from 'zod';
 
 // High-level tools
 export const RememberInputSchema = z.object({
-  content: z.string().describe('What to remember'),
+  content: z.string().min(1).describe('What to remember'),
   context: z.string().optional().describe('Optional context'),
 });
 
 // Entity tools
 export const AddEntitySchema = z.object({
-  name: z.string().describe('Entity name'),
-  entity_type: z.string().describe('Entity type'),
+  name: z.string().min(1).describe('Entity name'),
+  entity_type: z.string().min(1).describe('Entity type'),
   properties: z
     .record(z.string(), z.unknown())
     .optional()
@@ -18,29 +18,31 @@ export const AddEntitySchema = z.object({
 });
 
 export const LinkEntitiesSchema = z.object({
-  source: z.string().describe('Source entity name or UUID'),
-  target: z.string().describe('Target entity name or UUID'),
-  relationship: z.string().describe('Relationship type'),
+  source: z.string().min(1).describe('Source entity name or UUID'),
+  target: z.string().min(1).describe('Target entity name or UUID'),
+  relationship: z.string().min(1).describe('Relationship type'),
 });
 
 // Temporal tools
 export const AddEventSchema = z.object({
-  description: z.string().describe('Event description'),
-  occurred_at: z.string().describe('When it occurred (ISO format)'),
+  description: z.string().min(1).describe('Event description'),
+  occurred_at: z.string().min(1).describe('When it occurred (ISO format)'),
+  duration: z.number().optional().describe('Duration in milliseconds'),
   entities: z
-    .array(z.string())
+    .array(z.string().min(1))
     .optional()
     .describe('Entity names or UUIDs involved in this event'),
 });
 
 export const AddFactSchema = z.object({
-  subject: z.string().describe('Fact subject'),
-  predicate: z.string().describe('Fact predicate'),
-  object: z.string().describe('Fact object'),
-  valid_from: z.string().describe('Valid from (ISO format)'),
-  valid_to: z.string().optional().describe('Valid until (ISO format)'),
+  subject: z.string().min(1).describe('Fact subject'),
+  predicate: z.string().min(1).describe('Fact predicate'),
+  object: z.string().min(1).describe('Fact object'),
+  valid_from: z.string().min(1).describe('Valid from (ISO format)'),
+  valid_to: z.string().min(1).optional().describe('Valid until (ISO format)'),
   subject_entity: z
     .string()
+    .min(1)
     .optional()
     .describe(
       'Entity name or UUID that the fact subject refers to (creates X_INVOLVES link)',
@@ -49,15 +51,15 @@ export const AddFactSchema = z.object({
 
 // Causal tools
 export const AddCausalLinkSchema = z.object({
-  cause: z.string().describe('Cause description or UUID'),
-  effect: z.string().describe('Effect description or UUID'),
+  cause: z.string().min(1).describe('Cause description or UUID'),
+  effect: z.string().min(1).describe('Effect description or UUID'),
   confidence: z.number().min(0).max(1).optional().describe('Confidence score'),
   entities: z
-    .array(z.string())
+    .array(z.string().min(1))
     .optional()
     .describe('Entity names or UUIDs affected by this causal relationship'),
   events: z
-    .array(z.string())
+    .array(z.string().min(1))
     .optional()
     .describe(
       'Event UUIDs or descriptions this causal link refers to (for temporal context)',
@@ -66,10 +68,10 @@ export const AddCausalLinkSchema = z.object({
 
 // Semantic tools
 export const AddConceptSchema = z.object({
-  name: z.string().describe('Concept name'),
+  name: z.string().min(1).describe('Concept name'),
   description: z.string().optional().describe('Concept description'),
   entities: z
-    .array(z.string())
+    .array(z.string().min(1))
     .optional()
     .describe('Entity names or UUIDs this concept represents'),
 });

@@ -187,6 +187,16 @@ export class EntityGraph {
     targetId: string,
     relationshipType: string,
   ): Promise<void> {
+    // Prevent self-referencing relationships
+    if (sourceId === targetId) {
+      throw new RelationshipError(
+        'Cannot link an entity to itself',
+        sourceId,
+        targetId,
+        relationshipType,
+      );
+    }
+
     try {
       const source = await this.getEntity(sourceId);
       const target = await this.getEntity(targetId);
@@ -208,7 +218,8 @@ export class EntityGraph {
 
       await this.db.query(
         `MATCH (s:${ENTITY_LABEL} {uuid: $sourceUuid}), (t:${ENTITY_LABEL} {uuid: $targetUuid})
-         CREATE (s)-[:${RELATIONSHIP_TYPE} {relationship_type: $relType, created_at: $createdAt}]->(t)`,
+         MERGE (s)-[:${RELATIONSHIP_TYPE} {relationship_type: $relType}]->(t)
+         ON CREATE SET s.created_at = $createdAt`,
         {
           sourceUuid: source.uuid,
           targetUuid: target.uuid,
