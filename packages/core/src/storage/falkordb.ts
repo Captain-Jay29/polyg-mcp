@@ -480,18 +480,23 @@ export class FalkorDBAdapter implements IStorageAdapter {
         'X_REFERS_TO',
         'X_AFFECTS',
       ] as const;
-      for (const linkType of crossLinkTypes) {
-        try {
-          const result = await this.query(
-            `MATCH ()-[r:${linkType}]->() RETURN count(r) as count`,
-          );
-          stats.cross_links![linkType] =
-            (result.records[0]?.count as number) || 0;
-        } catch (error) {
-          loggers.storage.warn(`Cross-link statistics query failed for ${linkType}`, {
-            error: error instanceof Error ? error.message : String(error),
-          });
-          stats.cross_links![linkType] = 0;
+      const crossLinks = stats.cross_links;
+      if (crossLinks) {
+        for (const linkType of crossLinkTypes) {
+          try {
+            const result = await this.query(
+              `MATCH ()-[r:${linkType}]->() RETURN count(r) as count`,
+            );
+            crossLinks[linkType] = (result.records[0]?.count as number) || 0;
+          } catch (error) {
+            loggers.storage.warn(
+              `Cross-link statistics query failed for ${linkType}`,
+              {
+                error: error instanceof Error ? error.message : String(error),
+              },
+            );
+            crossLinks[linkType] = 0;
+          }
         }
       }
     } catch (error) {
