@@ -1,3 +1,3 @@
 // MCP tool definitions
-
-export * from './management.js';
+// Tools are registered directly in mcp-server-factory.ts
+// Schemas are defined in @polyg-mcp/shared

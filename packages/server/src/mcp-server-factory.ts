@@ -121,6 +121,7 @@ function registerClearGraphTool(
 
         if (graph === 'all') {
           await resources.db.clearGraph();
+          const stats = await resources.db.getStatistics();
           return {
             content: [
               {
@@ -128,6 +129,14 @@ function registerClearGraphTool(
                 text: 'All graphs cleared successfully',
               },
             ],
+            structuredContent: {
+              cleared: 'all',
+              remainingNodes:
+                stats.semantic_nodes +
+                stats.temporal_nodes +
+                stats.causal_nodes +
+                stats.entity_nodes,
+            },
           };
         }
 
@@ -144,7 +153,45 @@ function registerClearGraphTool(
             'MATCH (n) WHERE any(label IN labels(n) WHERE label STARTS WITH $prefix) DETACH DELETE n',
             { prefix },
           );
+
+          // When clearing entity graph, clean up orphaned cross-links
+          // Entity nodes are TARGETS of X_REPRESENTS, X_INVOLVES, X_AFFECTS from other graphs
+          // DETACH DELETE only removes relationships attached to deleted nodes, not incoming links
+          // that now point to nothing
+          if (graph === 'entity') {
+            const orphanCleanupQueries = [
+              // Clean up X_REPRESENTS links from S_Concept nodes pointing to deleted E_Entity
+              'MATCH (s:S_Concept)-[r:X_REPRESENTS]->() WHERE NOT (r)-->(:E_Entity) DELETE r',
+              // Clean up X_INVOLVES links from T_Event/T_Fact nodes pointing to deleted E_Entity
+              'MATCH ()-[r:X_INVOLVES]->() WHERE NOT (r)-->(:E_Entity) DELETE r',
+              // Clean up X_AFFECTS links from C_Node nodes pointing to deleted E_Entity
+              'MATCH ()-[r:X_AFFECTS]->() WHERE NOT (r)-->(:E_Entity) DELETE r',
+            ];
+
+            for (const cleanupQuery of orphanCleanupQueries) {
+              try {
+                await resources.db.query(cleanupQuery);
+              } catch (cleanupError) {
+                // Log but don't fail the clear operation
+                loggers.tools.warn(
+                  '[clear_graph] Cross-link cleanup query failed',
+                  {
+                    error:
+                      cleanupError instanceof Error
+                        ? cleanupError.message
+                        : String(cleanupError),
+                  },
+                );
+              }
+            }
+          }
         }
+
+        // Get stats to verify clear and return remaining count
+        const stats = await resources.db.getStatistics();
+        const nodeCountKey = `${graph}_nodes` as keyof typeof stats;
+        const remainingNodes =
+          typeof stats[nodeCountKey] === 'number' ? stats[nodeCountKey] : 0;
 
         return {
           content: [
@@ -153,6 +200,10 @@ function registerClearGraphTool(
               text: `${graph} graph cleared successfully`,
             },
           ],
+          structuredContent: {
+            cleared: graph,
+            remainingNodes,
+          },
         };
       } catch (error) {
         return formatToolError(error, 'clear_graph');

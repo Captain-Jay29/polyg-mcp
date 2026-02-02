@@ -423,6 +423,12 @@ export class FalkorDBAdapter implements IStorageAdapter {
       causal_nodes: 0,
       entity_nodes: 0,
       total_relationships: 0,
+      cross_links: {
+        X_REPRESENTS: 0,
+        X_INVOLVES: 0,
+        X_REFERS_TO: 0,
+        X_AFFECTS: 0,
+      },
     };
 
     // If not connected, return zeros
@@ -464,6 +470,33 @@ export class FalkorDBAdapter implements IStorageAdapter {
             error: error instanceof Error ? error.message : String(error),
           });
           stats[key] = 0;
+        }
+      }
+
+      // Count cross-links by type
+      const crossLinkTypes = [
+        'X_REPRESENTS',
+        'X_INVOLVES',
+        'X_REFERS_TO',
+        'X_AFFECTS',
+      ] as const;
+      const crossLinks = stats.cross_links;
+      if (crossLinks) {
+        for (const linkType of crossLinkTypes) {
+          try {
+            const result = await this.query(
+              `MATCH ()-[r:${linkType}]->() RETURN count(r) as count`,
+            );
+            crossLinks[linkType] = (result.records[0]?.count as number) || 0;
+          } catch (error) {
+            loggers.storage.warn(
+              `Cross-link statistics query failed for ${linkType}`,
+              {
+                error: error instanceof Error ? error.message : String(error),
+              },
+            );
+            crossLinks[linkType] = 0;
+          }
         }
       }
     } catch (error) {
