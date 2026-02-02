@@ -22,6 +22,13 @@ export {
   renderEntityTree,
 } from './entity-tree.js';
 export {
+  createSessionFindings,
+  getGraphBadge,
+  renderStepResult,
+  type SessionFindings,
+} from './step-output.js';
+export { renderSessionSummary } from './summary-graph.js';
+export {
   parseTemporalResults,
   renderCompactTimeline,
   renderTimeline,

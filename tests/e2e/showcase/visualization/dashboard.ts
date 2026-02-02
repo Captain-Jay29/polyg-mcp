@@ -21,11 +21,11 @@ function renderProgressBar(value: number, max: number, width = 10): string {
   return '●'.repeat(filled) + '○'.repeat(empty);
 }
 
-/**
- * Format a number with padding for alignment
- */
-function padNumber(n: number, width = 3): string {
-  return String(n).padStart(width);
+function padCenter(s: string, width: number): string {
+  if (s.length >= width) return s;
+  const left = Math.floor((width - s.length) / 2);
+  const right = width - s.length - left;
+  return ' '.repeat(left) + s + ' '.repeat(right);
 }
 
 /**
@@ -35,30 +35,93 @@ export function renderDashboard(stats: GraphStats): string {
   const now = new Date();
   const timeStr = now.toLocaleTimeString('en-US', { hour12: false });
 
-  // Calculate max for scaling (minimum 10 to avoid division by zero)
   const maxNodes = Math.max(
     stats.semantic_nodes,
     stats.temporal_nodes,
     stats.causal_nodes,
     stats.entity_nodes,
-    10,
+    10
   );
 
   const xRep = stats.cross_links?.represents ?? 0;
   const xInv = stats.cross_links?.involves ?? 0;
 
-  const lines = [
-    '',
-    `  GRAPH STATE                                        Updated: ${timeStr}`,
-    '  ╔═════════════════════════════════════════════════════════════════╗',
-    '  ║  SEMANTIC     ENTITY       TEMPORAL     CAUSAL      CROSS-LINKS ║',
-    `  ║  ${renderProgressBar(stats.semantic_nodes, maxNodes)}   ${renderProgressBar(stats.entity_nodes, maxNodes)}   ${renderProgressBar(stats.temporal_nodes, maxNodes)}   ${renderProgressBar(stats.causal_nodes, maxNodes)}   X_REP: ${padNumber(xRep, 3)}   ║`,
-    `  ║  ${padNumber(stats.semantic_nodes)} concepts  ${padNumber(stats.entity_nodes)} entities   ${padNumber(stats.temporal_nodes)} events    ${padNumber(stats.causal_nodes)} links     X_INV: ${padNumber(xInv, 3)}   ║`,
-    '  ╚═════════════════════════════════════════════════════════════════╝',
-    '',
-  ];
+  const gap = '  ';
+  const barW = 10;
 
-  return lines.join('\n');
+  const semBar = renderProgressBar(stats.semantic_nodes, maxNodes, barW);
+  const entBar = renderProgressBar(stats.entity_nodes, maxNodes, barW);
+  const tmpBar = renderProgressBar(stats.temporal_nodes, maxNodes, barW);
+  const cauBar = renderProgressBar(stats.causal_nodes, maxNodes, barW);
+
+  const semLabel = `${stats.semantic_nodes} concepts`;
+  const entLabel = `${stats.entity_nodes} entities`;
+  const tmpLabel = `${stats.temporal_nodes} events`;
+  const cauLabel = `${stats.causal_nodes} links`;
+
+  const repStr = `REP: ${xRep}`;
+  const invStr = `INV: ${xInv}`;
+
+  const semW = Math.max('SEMANTIC'.length, semBar.length, semLabel.length);
+  const entW = Math.max('ENTITY'.length, entBar.length, entLabel.length);
+  const tmpW = Math.max('TEMPORAL'.length, tmpBar.length, tmpLabel.length);
+  const cauW = Math.max('CAUSAL'.length, cauBar.length, cauLabel.length);
+  const xW   = Math.max('CROSS-LINKS'.length, repStr.length, invStr.length);
+
+  const headerRow =
+    padCenter('SEMANTIC', semW) + gap +
+    padCenter('ENTITY', entW)   + gap +
+    padCenter('TEMPORAL', tmpW) + gap +
+    padCenter('CAUSAL', cauW)   + gap +
+    padCenter('CROSS-LINKS', xW);
+
+  const barRow =
+    semBar.padEnd(semW) + gap +
+    entBar.padEnd(entW) + gap +
+    tmpBar.padEnd(tmpW) + gap +
+    cauBar.padEnd(cauW) + gap +
+    repStr.padEnd(xW);
+
+  const labelRow =
+    semLabel.padEnd(semW) + gap +
+    entLabel.padEnd(entW) + gap +
+    tmpLabel.padEnd(tmpW) + gap +
+    cauLabel.padEnd(cauW) + gap +
+    invStr.padEnd(xW);
+
+  const innerWidth = Math.max(
+    headerRow.length,
+    barRow.length,
+    labelRow.length
+  );
+
+  const wrap = (content: string) =>
+    `  ║ ${content.padEnd(innerWidth)} ║`;
+
+  const topBorder    = `  ╔${'═'.repeat(innerWidth + 2)}╗`;
+  const bottomBorder = `  ╚${'═'.repeat(innerWidth + 2)}╝`;
+  const totalWidth   = topBorder.length;
+
+  const leftTitle  = '  GRAPH STATE';
+  const rightTitle = `Updated: ${timeStr}`;
+  const titleSpaces = Math.max(
+    1,
+    totalWidth - leftTitle.length - rightTitle.length
+  );
+
+  const titleLine =
+    leftTitle + ' '.repeat(titleSpaces) + rightTitle;
+
+  return [
+    '',
+    titleLine,
+    topBorder,
+    wrap(headerRow),
+    wrap(barRow),
+    wrap(labelRow),
+    bottomBorder,
+    '',
+  ].join('\n');
 }
 
 /**

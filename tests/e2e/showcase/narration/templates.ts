@@ -21,38 +21,34 @@ export const TOOL_NARRATIONS: Record<string, ToolNarration> = {
 
   semantic_search: {
     actionName: 'Semantic Search',
-    badge: 'SEARCH',
+    badge: 'SEMANTIC GRAPH',
     explanation:
-      'Finding relevant concepts by understanding MEANING, not just keywords.\n' +
-      'This uses AI embeddings to find related information even when exact words differ.',
+      'Finding relevant concepts by understanding MEANING, not just keywords.',
     technical:
       'Vector similarity search over concept embeddings in the semantic graph.',
   },
 
   entity_lookup: {
     actionName: 'Entity Lookup',
-    badge: 'ENTITY',
+    badge: 'ENTITY GRAPH',
     explanation:
-      'Looking up specific things (services, people, systems) and their connections.\n' +
-      'This answers WHO and WHAT questions by exploring relationships.',
+      'Looking up specific things (services, people, systems) and their connections.',
     technical: 'Entity graph traversal with relationship expansion.',
   },
 
   temporal_expand: {
     actionName: 'Timeline Expansion',
-    badge: 'TIME',
+    badge: 'TEMPORAL GRAPH',
     explanation:
-      'Finding events that happened within a time range.\n' +
-      'This answers WHEN questions by reconstructing what occurred.',
+      'Finding events that happened within a time range.',
     technical: 'Temporal graph query with time-range filtering.',
   },
 
   causal_expand: {
     actionName: 'Causal Analysis',
-    badge: 'CAUSE',
+    badge: 'CAUSAL GRAPH',
     explanation:
-      'Tracing cause-and-effect chains to understand WHY something happened.\n' +
-      'Traditional databases cannot automatically trace root causes like this.',
+      'Tracing cause-and-effect chains to understand WHY something happened.',
     technical: 'Causal graph traversal with confidence propagation.',
   },
 

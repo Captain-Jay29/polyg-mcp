@@ -204,9 +204,15 @@ async function runDemo(
   ═══════════════════════════════════════════════════════════════════
     DEMO COMPLETE
   ═══════════════════════════════════════════════════════════════════
+`);
+
+  // Show session findings summary
+  agent.renderSessionSummary();
+
+  console.log(`
     The incident investigation demo has shown:
 
-    ✓ CAUSAL REASONING - Found root cause (JWT_SECRET in PR #1234)
+    ✓ CAUSAL REASONING - Found root cause through graph traversal
     ✓ TIMELINE RECONSTRUCTION - Ordered events chronologically
     ✓ ENTITY RELATIONSHIPS - Mapped who was involved
     ✓ CASCADING EFFECTS - Traced impact through services

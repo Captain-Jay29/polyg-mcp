@@ -17,16 +17,13 @@ import {
   formatStepHeader,
 } from './narration/index.js';
 import {
-  buildCausalTree,
   type GraphStats,
-  parseCausalResults,
-  parseEntityResults,
-  parseTemporalResults,
-  renderCausalTree,
   renderCompactDashboard,
   renderDashboard,
-  renderEntityTree,
-  renderTimeline,
+  createSessionFindings,
+  type SessionFindings,
+  renderStepResult,
+  renderSessionSummary,
 } from './visualization/index.js';
 
 export interface ShowcaseConfig extends AgentConfig {
@@ -49,6 +46,7 @@ interface SessionState {
   totalToolCalls: number;
   uniqueToolsUsed: Set<string>;
   sessionStart: Date;
+  findings: SessionFindings;
 }
 
 function getShowcaseSystemPrompt(): string {
@@ -105,6 +103,7 @@ export class ShowcaseAgent {
       totalToolCalls: 0,
       uniqueToolsUsed: new Set(),
       sessionStart: new Date(),
+      findings: createSessionFindings(),
     };
   }
 
@@ -291,7 +290,7 @@ export class ShowcaseAgent {
 
           // Show visualization based on tool type
           if (this.config.narration !== 'none') {
-            this.visualizeToolResult(tc.name, result);
+            this.visualizeToolResult(tc.name, tc.arguments, result);
           }
 
           messages.push({
@@ -368,58 +367,42 @@ export class ShowcaseAgent {
   /**
    * Visualize tool result based on tool type
    */
-  private visualizeToolResult(toolName: string, result: string): void {
+  private visualizeToolResult(
+    toolName: string,
+    args: Record<string, unknown>,
+    result: string,
+  ): void {
     try {
       const parsed = JSON.parse(result);
 
-      switch (toolName) {
-        case 'temporal_expand': {
-          const events = parseTemporalResults(parsed.events || parsed);
-          if (events.length > 0) {
-            console.log(renderTimeline(events));
-          } else {
-            console.log(`\n    Found: ${this.summarizeResult(parsed)}\n`);
-          }
-          break;
-        }
-
-        case 'causal_expand': {
-          const links = parseCausalResults(parsed.links || parsed);
-          if (links.length > 0) {
-            const tree = buildCausalTree(links);
-            console.log(renderCausalTree(tree));
-          } else {
-            console.log(`\n    Found: ${this.summarizeResult(parsed)}\n`);
-          }
-          break;
-        }
-
-        case 'entity_lookup': {
-          const entities = parseEntityResults(parsed.entities || parsed);
-          if (entities.length > 0) {
-            console.log(renderEntityTree(entities));
-          } else {
-            console.log(`\n    Found: ${this.summarizeResult(parsed)}\n`);
-          }
-          break;
-        }
-
-        case 'semantic_search': {
-          const concepts = parsed.results || parsed.concepts || parsed;
-          const count = Array.isArray(concepts) ? concepts.length : 1;
-          console.log(`\n    Found: ${count} concept(s)\n`);
-          break;
-        }
-
-        case 'get_statistics': {
-          console.log(renderDashboard(parsed));
-          break;
-        }
-
-        default: {
-          console.log(`\n    Result: ${this.summarizeResult(parsed)}\n`);
-        }
+      // Use rich step output for main graph tools
+      if (
+        [
+          'semantic_search',
+          'entity_lookup',
+          'temporal_expand',
+          'causal_expand',
+        ].includes(toolName)
+      ) {
+        console.log(
+          renderStepResult(
+            toolName,
+            args,
+            parsed,
+            this.sessionState.findings,
+          ),
+        );
+        return;
       }
+
+      // Special handling for get_statistics
+      if (toolName === 'get_statistics') {
+        console.log(`\n    Graph stats retrieved.\n`);
+        return;
+      }
+
+      // Default: show summary
+      console.log(`\n    Result: ${this.summarizeResult(parsed)}\n`);
     } catch {
       // Non-JSON result
       const truncated =
@@ -440,6 +423,18 @@ export class ShowcaseAgent {
       return `{${keys.slice(0, 3).join(', ')}${keys.length > 3 ? '...' : ''}}`;
     }
     return String(parsed).slice(0, 50);
+  }
+
+  /**
+   * Render the session summary
+   */
+  renderSessionSummary(): void {
+    const duration = Math.round(
+      (Date.now() - this.sessionState.sessionStart.getTime()) / 1000,
+    );
+    this.sessionState.findings.queriesAnswered =
+      this.sessionState.questionsAnswered;
+    console.log(renderSessionSummary(this.sessionState.findings, duration));
   }
 
   /**

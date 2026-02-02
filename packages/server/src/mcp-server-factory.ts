@@ -784,7 +784,7 @@ function registerSemanticSearchTool(
       if (!validation.success) {
         return formatToolError(validation.error, 'semantic_search');
       }
-      const { query, limit = 10, min_score = 0.5 } = validation.data;
+      const { query, limit = 10, min_score = 0.3 } = validation.data;
 
       try {
         const graphs = resources.orchestrator.getGraphs();
