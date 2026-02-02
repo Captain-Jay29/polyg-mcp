@@ -453,7 +453,14 @@ export class ShowcaseAgent {
   private waitForContinue(): Promise<void> {
     return new Promise((resolve) => {
       console.log('\n  Press ENTER to continue...');
-      process.stdin.once('data', () => resolve());
+      // Ensure stdin is in the right mode
+      if (process.stdin.isTTY) {
+        process.stdin.setRawMode(false);
+      }
+      process.stdin.resume();
+      process.stdin.once('data', () => {
+        resolve();
+      });
     });
   }
 }

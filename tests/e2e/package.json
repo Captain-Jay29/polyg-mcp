@@ -6,6 +6,9 @@
   "scripts": {
     "agent": "dotenv -e ../../.env -- tsx agent/cli.ts",
     "agent:interactive": "dotenv -e ../../.env -- tsx agent/cli.ts -i -v",
+    "showcase": "dotenv -e ../../.env -- tsx showcase/showcase-cli.ts",
+    "showcase:demo": "dotenv -e ../../.env -- tsx showcase/showcase-cli.ts --demo incident --walkthrough",
+    "showcase:interactive": "dotenv -e ../../.env -- tsx showcase/showcase-cli.ts -i -d deployment-incident",
     "seed": "dotenv -e ../../.env -- tsx seed.ts",
     "seed:deployment": "dotenv -e ../../.env -- tsx seed.ts deployment-incident",
     "test": "dotenv -e ../../.env -- vitest run",
