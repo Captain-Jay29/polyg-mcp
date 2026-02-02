@@ -29,6 +29,7 @@ pnpm-debug.log*
 # Testing
 coverage/
 .nyc_output/
+tests/e2e/output.txt
 
 # Docker
 .docker/
