@@ -83,7 +83,11 @@ Match the question type to the right graph:
 
 For complex questions, combine multiple tools. Use \`semantic_search\` when you need to discover relevant concepts, but skip it when the question already specifies what to look up (e.g., a time range or entity name).
 
-Provide detailed answers with evidence from the graphs.`;
+## Important
+- **Search first, ask later**: Always try to find answers in the graphs before asking for clarification.
+- If a query mentions a time range, use \`temporal_expand\` directly (assume UTC if no timezone given).
+- If a query is vague (like "the incident"), search for relevant concepts first - there's likely only one match.
+- Provide detailed answers with evidence from the graphs.`;
 }
 
 export class ShowcaseAgent {
