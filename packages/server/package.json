@@ -32,16 +32,16 @@
     "cursor",
     "falkordb"
   ],
-  "author": "",
+  "author": "Captain-Jay29",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/polyg-ai/polyg-mcp.git",
+    "url": "https://github.com/Captain-Jay29/polyg-mcp.git",
     "directory": "packages/server"
   },
-  "homepage": "https://github.com/polyg-ai/polyg-mcp#readme",
+  "homepage": "https://github.com/Captain-Jay29/polyg-mcp#readme",
   "bugs": {
-    "url": "https://github.com/polyg-ai/polyg-mcp/issues"
+    "url": "https://github.com/Captain-Jay29/polyg-mcp/issues"
   },
   "engines": {
     "node": ">=20.0.0"

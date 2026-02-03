@@ -9,6 +9,7 @@ export default defineConfig({
   bundle: true,
   splitting: false,
   sourcemap: true,
+  minify: true,
   dts: false, // CLI doesn't need type definitions
   shims: true,
   // Keep heavy dependencies external - users install them
