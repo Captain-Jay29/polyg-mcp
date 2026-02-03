@@ -1,19 +1,24 @@
 # polyg-mcp E2E Tests
 
-End-to-end tests using a ReAct agent to validate the MCP server and multi-graph memory system.
+End-to-end tests and showcase demos for the MCP server and multi-graph memory system.
 
 ## Architecture
 
 ```
 tests/e2e/
-├── agent/                 # ReAct agent implementation
-│   ├── cli.ts            # CLI interface
+├── agent/                 # Core agent components
 │   ├── mcp-client.ts     # MCP client wrapper
-│   ├── react-agent.ts    # ReAct agent core
+│   ├── react-agent.ts    # ReAct agent for automated tests
 │   └── types.ts          # Type definitions
+├── showcase/             # Demo/showcase agent
+│   ├── showcase-agent.ts # Narrated agent for demos
+│   ├── showcase-cli.ts   # Interactive CLI
+│   ├── narration/        # Query analysis & step narration
+│   ├── visualization/    # Graph visualizations
+│   └── scenarios/        # Demo scenarios
 ├── datasets/             # Test data scenarios
 │   └── deployment-incident.ts
-├── scenarios/            # Test files
+├── scenarios/            # Automated test files
 │   └── deployment-incident.test.ts
 ├── seed.ts               # Data seeding script
 └── vitest.config.ts      # Test configuration
@@ -38,24 +43,30 @@ tests/e2e/
 
 ## Usage
 
-### Interactive Agent CLI
+### Showcase Demo
 
-Chat with the agent interactively:
+Run an interactive demo showing the multi-graph system capabilities:
 
 ```bash
 # From monorepo root
-pnpm --filter @polyg-mcp/e2e agent:interactive
+pnpm --filter @polyg-mcp/e2e showcase
 
-# Or from tests/e2e directory
-pnpm agent:interactive
+# Run with walkthrough mode (press Enter to advance)
+pnpm --filter @polyg-mcp/e2e showcase:demo
+
+# Interactive mode with a dataset
+pnpm --filter @polyg-mcp/e2e showcase:interactive
 ```
 
 CLI options:
 - `-i, --interactive` - Interactive REPL mode
-- `-v, --verbose` - Show reasoning steps
+- `-v, --verbose` - Show detailed reasoning steps
 - `-q, --query <query>` - Run single query
+- `-d, --dataset <name>` - Load dataset (e.g., deployment-incident)
+- `--demo <scenario>` - Run scripted demo (e.g., incident)
+- `--walkthrough` - Pause between steps for presentations
 - `-s, --server <url>` - MCP server URL (default: http://localhost:4000)
-- `-m, --model <model>` - OpenAI model (default: `$LLM_MODEL` or gpt-4o-mini)
+- `-m, --model <model>` - OpenAI model (default: gpt-4o-mini)
 
 ### Seed Test Data
 
