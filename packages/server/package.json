@@ -1,28 +1,65 @@
 {
-  "name": "@polyg-mcp/server",
+  "name": "polyg-mcp",
   "version": "0.1.0",
+  "description": "Multi-Graph Agent Memory via MCP - The memory system that understands causality",
   "type": "module",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "dist/main.js",
   "bin": {
     "polyg-mcp": "dist/main.js"
   },
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsup",
+    "build:tsc": "tsc",
     "typecheck": "tsc --noEmit",
     "dev": "dotenv -e ../../.env -- tsx watch src/main.ts",
     "start": "dotenv -e ../../.env -- node dist/main.js",
     "test": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "prepublishOnly": "pnpm run build"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "ai",
+    "agent",
+    "memory",
+    "knowledge-graph",
+    "causal-reasoning",
+    "claude",
+    "cursor",
+    "falkordb"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/polyg-ai/polyg-mcp.git",
+    "directory": "packages/server"
+  },
+  "homepage": "https://github.com/polyg-ai/polyg-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/polyg-ai/polyg-mcp/issues"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.25.3",
-    "@polyg-mcp/core": "workspace:*",
-    "@polyg-mcp/shared": "workspace:*",
+    "falkordb": "^6.6.0",
+    "openai": "^6.17.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@polyg-mcp/core": "workspace:*",
+    "@polyg-mcp/shared": "workspace:*",
     "dotenv-cli": "^11.0.0",
+    "tsup": "^8.5.1",
     "tsx": "^4.16.0",
     "typescript": "^5.5.0"
   }
