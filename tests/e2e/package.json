@@ -4,8 +4,6 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "agent": "dotenv -e ../../.env -- tsx agent/cli.ts",
-    "agent:interactive": "dotenv -e ../../.env -- tsx agent/cli.ts -i -v",
     "showcase": "dotenv -e ../../.env -- tsx showcase/showcase-cli.ts",
     "showcase:demo": "dotenv -e ../../.env -- tsx showcase/showcase-cli.ts --demo incident --walkthrough",
     "showcase:interactive": "dotenv -e ../../.env -- tsx showcase/showcase-cli.ts -i -d deployment-incident",
