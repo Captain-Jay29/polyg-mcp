@@ -4,6 +4,7 @@
   "private": true,
   "description": "Multi-Graph Agent Memory via MCP",
   "license": "MIT",
+  "author": "Captain-Jay29",
   "scripts": {
     "build": "turbo run build",
     "dev": "dotenv -e .env -- turbo run dev",

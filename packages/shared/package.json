@@ -4,6 +4,8 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "author": "Captain-Jay29",
+  "license": "MIT",
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
