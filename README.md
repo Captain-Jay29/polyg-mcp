@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="#-quick-start"><img src="https://img.shields.io/badge/Quick_Start-5_min-brightgreen?style=for-the-badge" alt="Quick Start"/></a>
-  <a href="https://github.com/yourname/polyg-mcp/stargazers"><img src="https://img.shields.io/github/stars/yourname/polyg-mcp?style=for-the-badge&logo=github&color=yellow" alt="Stars"/></a>
+  <a href="https://github.com/Captain-Jay29/polyg-mcp/stargazers"><img src="https://img.shields.io/github/stars/Captain-Jay29/polyg-mcp?style=for-the-badge&logo=github&color=yellow" alt="Stars"/></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue?style=for-the-badge" alt="License"/></a>
   <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-5.0+-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript"/></a>
 </p>
@@ -103,7 +103,7 @@ JWT_SECRET removed (PR #1234) → deployment missing secret → CrashLoopBackOff
 ### Using Docker (Recommended)
 
 ```bash
-git clone https://github.com/yourname/polyg-mcp.git
+git clone https://github.com/Captain-Jay29/polyg-mcp.git
 cd polyg-mcp
 
 # Configure environment
@@ -117,7 +117,7 @@ docker-compose up -d
 
 ```bash
 # Clone and install
-git clone https://github.com/yourname/polyg-mcp.git
+git clone https://github.com/Captain-Jay29/polyg-mcp.git
 cd polyg-mcp
 npm install
 
@@ -282,7 +282,7 @@ npm run build
 </p>
 
 <p align="center">
-  <a href="https://github.com/yourname/polyg-mcp/issues">Report Bug</a> •
-  <a href="https://github.com/yourname/polyg-mcp/issues">Request Feature</a> •
+  <a href="https://github.com/Captain-Jay29/polyg-mcp/issues">Report Bug</a> •
+  <a href="https://github.com/Captain-Jay29/polyg-mcp/issues">Request Feature</a> •
   <a href="https://discord.gg/yourserver">Discord</a>
 </p>
