@@ -168,7 +168,7 @@ export const SemanticSearchSchema = z.object({
     .min(0)
     .max(1)
     .optional()
-    .describe('Minimum similarity score threshold (default: 0.5)'),
+    .describe('Minimum similarity score threshold (default: 0.3)'),
 });
 
 // entity_lookup - Expand entity relationships from seeds
