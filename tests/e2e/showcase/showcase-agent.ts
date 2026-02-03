@@ -47,6 +47,7 @@ interface SessionState {
   uniqueToolsUsed: Set<string>;
   sessionStart: Date;
   findings: SessionFindings;
+  dashboardShown: boolean;
 }
 
 function getShowcaseSystemPrompt(): string {
@@ -118,6 +119,7 @@ export class ShowcaseAgent {
       uniqueToolsUsed: new Set(),
       sessionStart: new Date(),
       findings: createSessionFindings(),
+      dashboardShown: false,
     };
   }
 
@@ -184,9 +186,10 @@ export class ShowcaseAgent {
       console.log(formatQueryAnalysis(query, intent));
     }
 
-    // Show initial dashboard if enabled
-    if (this.config.showDashboard && this.config.narration !== 'none') {
+    // Show initial dashboard if enabled (only once per session)
+    if (this.config.showDashboard && this.config.narration !== 'none' && !this.sessionState.dashboardShown) {
       await this.showDashboard();
+      this.sessionState.dashboardShown = true;
     }
 
     const messages: ChatCompletionMessageParam[] = [

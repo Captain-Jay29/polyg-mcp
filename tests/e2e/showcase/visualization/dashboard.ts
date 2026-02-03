@@ -43,8 +43,10 @@ export function renderDashboard(stats: GraphStats): string {
     10
   );
 
-  const xRep = stats.cross_links?.represents ?? 0;
-  const xInv = stats.cross_links?.involves ?? 0;
+  // Server returns X_REPRESENTS, X_INVOLVES, X_REFERS_TO, X_AFFECTS
+  const crossLinks = stats.cross_links as Record<string, number> | undefined;
+  const xRep = crossLinks?.X_REPRESENTS ?? crossLinks?.represents ?? 0;
+  const xInv = crossLinks?.X_INVOLVES ?? crossLinks?.involves ?? 0;
 
   const gap = '  ';
   const barW = 10;
@@ -128,8 +130,9 @@ export function renderDashboard(stats: GraphStats): string {
  * Render a compact single-line dashboard
  */
 export function renderCompactDashboard(stats: GraphStats): string {
-  const xRep = stats.cross_links?.represents ?? 0;
-  const xInv = stats.cross_links?.involves ?? 0;
+  const crossLinks = stats.cross_links as Record<string, number> | undefined;
+  const xRep = crossLinks?.X_REPRESENTS ?? crossLinks?.represents ?? 0;
+  const xInv = crossLinks?.X_INVOLVES ?? crossLinks?.involves ?? 0;
 
   return `  [Semantic: ${stats.semantic_nodes} | Entity: ${stats.entity_nodes} | Temporal: ${stats.temporal_nodes} | Causal: ${stats.causal_nodes} | X-Links: ${xRep + xInv}]`;
 }

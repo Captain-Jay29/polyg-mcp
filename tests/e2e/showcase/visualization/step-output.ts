@@ -69,7 +69,7 @@ export function renderStepResult(
   result: unknown,
   findings: SessionFindings,
 ): string {
-  const badge = getGraphBadge(toolName);
+  // Note: Badge is already shown in step header, so we don't repeat it here
   const lines: string[] = [];
 
   switch (toolName) {
@@ -87,7 +87,7 @@ export function renderStepResult(
         score?: number;
       }>;
 
-      lines.push(`\n  ${badge}`);
+      lines.push('');
       lines.push(`  Query: "${truncate(query, 50)}"`);
       lines.push('');
 
@@ -132,7 +132,7 @@ export function renderStepResult(
       // Use proper parsing with fallbacks for field names
       const entities = parseEntityResults(rawEntities);
 
-      lines.push(`\n  ${badge}`);
+      lines.push('');
       lines.push(`  Looking up: ${truncate(entityArg, 50)}`);
       lines.push(`  Max depth: ${args.depth ?? 2}`);
       lines.push('');
@@ -189,7 +189,7 @@ export function renderStepResult(
       // Use proper parsing with type detection
       const events = parseTemporalResults(rawEvents);
 
-      lines.push(`\n  ${badge}`);
+      lines.push('');
       if (startTime || endTime) {
         const start = startTime ? String(startTime).split('T')[1]?.slice(0, 5) ?? String(startTime) : '...';
         const end = endTime ? String(endTime).split('T')[1]?.slice(0, 5) ?? String(endTime) : '...';
@@ -258,7 +258,7 @@ export function renderStepResult(
       // Use proper parsing with field name fallbacks
       const links = parseCausalResults(rawLinks);
 
-      lines.push(`\n  ${badge}`);
+      lines.push('');
       lines.push(`  Starting from: ${truncate(startFrom, 50)}`);
       lines.push(`  Direction: ${direction} | Max depth: ${args.depth ?? 5}`);
       lines.push('');
