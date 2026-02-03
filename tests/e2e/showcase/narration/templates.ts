@@ -231,21 +231,38 @@ function formatArgumentsSummary(
       if (args.limit) lines.push(`    Limit: ${args.limit} results`);
       break;
 
-    case 'entity_lookup':
-      if (args.name) lines.push(`    Entity: "${args.name}"`);
+    case 'entity_lookup': {
+      const entityIds = args.entity_ids as string[] | undefined;
+      if (Array.isArray(entityIds) && entityIds.length > 0) {
+        const display = entityIds.length <= 2
+          ? entityIds.join(', ')
+          : `${entityIds.length} entities`;
+        lines.push(`    Entities: ${display}`);
+      } else if (args.name) {
+        lines.push(`    Entity: "${args.name}"`);
+      }
       if (args.depth) lines.push(`    Depth: ${args.depth} hops`);
       break;
+    }
 
     case 'temporal_expand':
       if (args.start) lines.push(`    From: ${args.start}`);
       if (args.end) lines.push(`    To: ${args.end}`);
       break;
 
-    case 'causal_expand':
-      if (args.entity || args.name)
+    case 'causal_expand': {
+      const entityIds = args.entity_ids as string[] | undefined;
+      if (Array.isArray(entityIds) && entityIds.length > 0) {
+        const display = entityIds.length <= 2
+          ? entityIds.join(', ')
+          : `${entityIds.length} entities`;
+        lines.push(`    Starting from: ${display}`);
+      } else if (args.entity || args.name) {
         lines.push(`    Starting from: "${args.entity || args.name}"`);
+      }
       if (args.direction) lines.push(`    Direction: ${args.direction}`);
       break;
+    }
 
     case 'add_entity':
       if (args.name) lines.push(`    Name: "${args.name}"`);

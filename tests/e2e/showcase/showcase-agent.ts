@@ -81,6 +81,20 @@ Match the question type to the right graph:
 
 For complex questions, combine multiple tools. Use \`semantic_search\` when you need to discover relevant concepts, but skip it when the question already specifies what to look up (e.g., a time range or entity name).
 
+## CRITICAL: Connecting Tools Together
+\`semantic_search\` returns \`seedEntityIds\` - an array of entity UUIDs linked to the found concepts.
+You MUST pass these IDs to other tools:
+
+1. Call \`semantic_search\` → get \`seedEntityIds\` from the response
+2. Pass those IDs to \`entity_lookup(entity_ids=[...seedEntityIds])\`
+3. Or pass them to \`causal_expand(entity_ids=[...seedEntityIds])\`
+
+Example workflow:
+- semantic_search returns: \`{ seedEntityIds: ["abc-123", "def-456"], matches: [...] }\`
+- Then call: \`entity_lookup({ entity_ids: ["abc-123", "def-456"], depth: 2 })\`
+
+Without passing entity_ids, entity_lookup and causal_expand will return empty results!
+
 ## Important
 - **Search first, ask later**: Always try to find answers in the graphs before asking for clarification.
 - If a query mentions a time range, use \`temporal_expand\` directly (assume UTC if no timezone given).

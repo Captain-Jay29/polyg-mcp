@@ -120,7 +120,11 @@ export function renderStepResult(
     }
 
     case 'entity_lookup': {
-      const entityArg = String(args.entity ?? args.name ?? '');
+      // entity_ids is an array of UUIDs/names from semantic_search seedEntityIds
+      const entityIds = args.entity_ids as string[] | undefined;
+      const entityArg = Array.isArray(entityIds) && entityIds.length > 0
+        ? entityIds.slice(0, 3).join(', ') + (entityIds.length > 3 ? ` (+${entityIds.length - 3} more)` : '')
+        : String(args.entity ?? args.name ?? '(none provided)');
       const parsed = result as { entities?: unknown[] } | unknown[];
       const rawEntities = Array.isArray(parsed)
         ? parsed
@@ -129,7 +133,7 @@ export function renderStepResult(
       const entities = parseEntityResults(rawEntities);
 
       lines.push(`\n  ${badge}`);
-      lines.push(`  Starting from: "${truncate(entityArg, 40)}"`);
+      lines.push(`  Looking up: ${truncate(entityArg, 50)}`);
       lines.push(`  Max depth: ${args.depth ?? 2}`);
       lines.push('');
 
@@ -243,7 +247,11 @@ export function renderStepResult(
     }
 
     case 'causal_expand': {
-      const startFrom = args.concept ?? args.entity ?? args.effect ?? '';
+      // entity_ids is an array of UUIDs/names from semantic_search seedEntityIds
+      const entityIds = args.entity_ids as string[] | undefined;
+      const startFrom = Array.isArray(entityIds) && entityIds.length > 0
+        ? entityIds.slice(0, 3).join(', ') + (entityIds.length > 3 ? ` (+${entityIds.length - 3} more)` : '')
+        : String(args.concept ?? args.entity ?? args.effect ?? '(none provided)');
       const direction = (args.direction as string) ?? 'upstream';
       const parsed = result as { links?: unknown[] } | unknown[];
       const rawLinks = Array.isArray(parsed) ? parsed : (parsed.links ?? []);
@@ -251,7 +259,7 @@ export function renderStepResult(
       const links = parseCausalResults(rawLinks);
 
       lines.push(`\n  ${badge}`);
-      lines.push(`  Starting from: "${truncate(String(startFrom), 40)}"`);
+      lines.push(`  Starting from: ${truncate(startFrom, 50)}`);
       lines.push(`  Direction: ${direction} | Max depth: ${args.depth ?? 5}`);
       lines.push('');
 
