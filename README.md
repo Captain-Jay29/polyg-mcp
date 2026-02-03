@@ -10,8 +10,8 @@
 </p>
 
 <p align="center">
-  <b>Stop asking your agent to keyword-search a single graph.</b><br/>
-  Let it <i>understand intent</i>, <i>query multiple memories in parallel</i>, and <i>reason like a human</i>.
+  <b>The memory system that understands causality.</b><br/>
+  <sub>Ask "why did auth fail?" and get a traced causal chain — not just similar documents.</sub>
 </p>
 
 <p align="center">
@@ -30,20 +30,20 @@
 <tr>
 <td width="50%">
 
-### 🧠 LLM Intent Classification
-Automatically understands *what* the user is asking — whether it's about concepts, events, causes, or entities.
+### 🔗 Causal Chain Traversal
+Trace cause→effect relationships with confidence scores. Answer "why" questions by walking the causal graph, not guessing from similar text.
 
-### ⚡ Parallel Graph Queries
-Queries only the relevant memory graphs simultaneously, not sequentially through a single store.
+### 🕐 Temporal Intelligence
+Events are first-class citizens with timestamps. Reconstruct timelines, query time ranges, understand sequences.
 
 </td>
 <td width="50%">
 
-### 🔗 Multi-Graph Synthesis
-Combines results from multiple knowledge dimensions into a single, coherent, reasoned answer.
+### 🧠 Multi-Graph Reasoning
+Four graphs (semantic, entity, temporal, causal) work together. One question can traverse all four for a complete answer.
 
 ### 🔌 MCP Native
-Built for the Model Context Protocol — works with Claude, Cursor, LangGraph, and any MCP-compatible agent.
+Built for the Model Context Protocol — works with Claude, Cursor, and any MCP-compatible agent out of the box.
 
 </td>
 </tr>
@@ -55,16 +55,24 @@ Built for the Model Context Protocol — works with Claude, Cursor, LangGraph, a
 
 ### The Problem
 
-Most MCP memory servers work like this:
+Your agent has memory. But can it answer **"why"**?
 
 ```
-User Query → Keyword Search → Single Graph → Raw Results
+"Why did the auth service fail?"
+```
+
+Most memory systems return similar documents. polyg-mcp returns this:
+
+```
+JWT_SECRET removed (PR #1234) → deployment missing secret → CrashLoopBackOff → 503s → dashboard down
+       ↓ 100%                        ↓ 100%                    ↓ 95%            ↓ 90%
 ```
 
 <table>
-<tr><td>❌</td><td>No understanding of <i>intent</i></td></tr>
-<tr><td>❌</td><td>No temporal or causal reasoning</td></tr>
-<tr><td>❌</td><td>No synthesis across dimensions</td></tr>
+<tr><td>❌</td><td><b>Vector stores</b> — retrieve similar text, can't trace causality</td></tr>
+<tr><td>❌</td><td><b>Simple graphs</b> — store relationships, don't model cause→effect</td></tr>
+<tr><td>❌</td><td><b>Log aggregators</b> — show timelines, don't explain why</td></tr>
+<tr><td>✅</td><td><b>polyg-mcp</b> — traces causal chains with confidence scores</td></tr>
 </table>
 
 ### The polyg-mcp Solution
@@ -270,7 +278,7 @@ npm run build
 
 <p align="center">
   <b>If this resonates with you, consider giving it a ⭐</b><br/>
-  <sub>Built with 🧠 for agents that need to <i>actually remember</i></sub>
+  <sub>Built for agents that need to answer <i>"why"</i> — not just <i>"what"</i></sub>
 </p>
 
 <p align="center">
