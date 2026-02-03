@@ -57,7 +57,7 @@ export function getGraphBadge(toolName: string): string {
  */
 function truncate(text: string, maxLen: number): string {
   if (text.length <= maxLen) return text;
-  return text.slice(0, maxLen - 3) + '...';
+  return `${text.slice(0, maxLen - 3)}...`;
 }
 
 /**
@@ -76,7 +76,9 @@ export function renderStepResult(
     case 'semantic_search': {
       const query = String(args.query ?? '');
       // Server returns { matches: [...] } with conceptName field
-      const parsed = result as { matches?: unknown[]; results?: unknown[] } | unknown[];
+      const parsed = result as
+        | { matches?: unknown[]; results?: unknown[] }
+        | unknown[];
       const results = Array.isArray(parsed)
         ? parsed
         : (parsed.matches ?? parsed.results ?? []);
@@ -122,9 +124,11 @@ export function renderStepResult(
     case 'entity_lookup': {
       // entity_ids is an array of UUIDs/names from semantic_search seedEntityIds
       const entityIds = args.entity_ids as string[] | undefined;
-      const entityArg = Array.isArray(entityIds) && entityIds.length > 0
-        ? entityIds.slice(0, 3).join(', ') + (entityIds.length > 3 ? ` (+${entityIds.length - 3} more)` : '')
-        : String(args.entity ?? args.name ?? '(none provided)');
+      const entityArg =
+        Array.isArray(entityIds) && entityIds.length > 0
+          ? entityIds.slice(0, 3).join(', ') +
+            (entityIds.length > 3 ? ` (+${entityIds.length - 3} more)` : '')
+          : String(args.entity ?? args.name ?? '(none provided)');
       const parsed = result as { entities?: unknown[] } | unknown[];
       const rawEntities = Array.isArray(parsed)
         ? parsed
@@ -191,8 +195,12 @@ export function renderStepResult(
 
       lines.push('');
       if (startTime || endTime) {
-        const start = startTime ? String(startTime).split('T')[1]?.slice(0, 5) ?? String(startTime) : '...';
-        const end = endTime ? String(endTime).split('T')[1]?.slice(0, 5) ?? String(endTime) : '...';
+        const start = startTime
+          ? (String(startTime).split('T')[1]?.slice(0, 5) ?? String(startTime))
+          : '...';
+        const end = endTime
+          ? (String(endTime).split('T')[1]?.slice(0, 5) ?? String(endTime))
+          : '...';
         lines.push(`  Time range: ${start} → ${end}`);
       }
       lines.push('');
@@ -205,10 +213,9 @@ export function renderStepResult(
         );
 
         for (const evt of sorted.slice(0, 8)) {
-          const time = new Date(evt.timestamp)
-            .toISOString()
-            .split('T')[1]
-            ?.slice(0, 5) ?? '??:??';
+          const time =
+            new Date(evt.timestamp).toISOString().split('T')[1]?.slice(0, 5) ??
+            '??:??';
           const icon =
             evt.type === 'incident'
               ? '▲'
@@ -221,8 +228,7 @@ export function renderStepResult(
           if (
             !findings.events.find(
               (f) =>
-                f.time === evt.timestamp &&
-                f.description === evt.description,
+                f.time === evt.timestamp && f.description === evt.description,
             )
           ) {
             findings.events.push({
@@ -249,9 +255,13 @@ export function renderStepResult(
     case 'causal_expand': {
       // entity_ids is an array of UUIDs/names from semantic_search seedEntityIds
       const entityIds = args.entity_ids as string[] | undefined;
-      const startFrom = Array.isArray(entityIds) && entityIds.length > 0
-        ? entityIds.slice(0, 3).join(', ') + (entityIds.length > 3 ? ` (+${entityIds.length - 3} more)` : '')
-        : String(args.concept ?? args.entity ?? args.effect ?? '(none provided)');
+      const startFrom =
+        Array.isArray(entityIds) && entityIds.length > 0
+          ? entityIds.slice(0, 3).join(', ') +
+            (entityIds.length > 3 ? ` (+${entityIds.length - 3} more)` : '')
+          : String(
+              args.concept ?? args.entity ?? args.effect ?? '(none provided)',
+            );
       const direction = (args.direction as string) ?? 'upstream';
       const parsed = result as { links?: unknown[] } | unknown[];
       const rawLinks = Array.isArray(parsed) ? parsed : (parsed.links ?? []);

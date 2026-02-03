@@ -55,7 +55,7 @@ function getEventIcon(event: TimelineEvent): string {
  */
 function truncateDescription(desc: string, maxWidth: number): string {
   if (desc.length <= maxWidth) return desc;
-  return desc.slice(0, maxWidth - 3) + '...';
+  return `${desc.slice(0, maxWidth - 3)}...`;
 }
 
 /**
@@ -78,7 +78,7 @@ export function renderTimeline(
   const dateStr = title ?? formatDate(sorted[0].timestamp);
   const maxDescWidth = 40;
 
-  const lines = ['', `  TIMELINE: ${dateStr}`, '  ' + '─'.repeat(60)];
+  const lines = ['', `  TIMELINE: ${dateStr}`, `  ${'─'.repeat(60)}`];
 
   for (const event of sorted) {
     const time = formatTime(event.timestamp);

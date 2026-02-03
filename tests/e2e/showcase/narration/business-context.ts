@@ -224,7 +224,7 @@ export function formatQueryAnalysis(
  */
 function truncateQuery(query: string, maxLen: number): string {
   if (query.length <= maxLen) return query;
-  return query.slice(0, maxLen - 3) + '...';
+  return `${query.slice(0, maxLen - 3)}...`;
 }
 
 /**

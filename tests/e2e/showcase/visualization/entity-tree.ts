@@ -18,7 +18,7 @@ export interface EntityRelation {
  */
 function truncate(text: string, maxWidth: number): string {
   if (text.length <= maxWidth) return text;
-  return text.slice(0, maxWidth - 3) + '...';
+  return `${text.slice(0, maxWidth - 3)}...`;
 }
 
 /**
@@ -50,7 +50,7 @@ export function renderEntityTree(
   const lines = [
     '',
     `  ENTITIES${title ? `: ${title}` : ''}`,
-    '  ' + '─'.repeat(50),
+    `  ${'─'.repeat(50)}`,
   ];
 
   for (const entity of entities) {
@@ -94,7 +94,7 @@ export function renderCompactEntityList(entities: EntityNode[]): string {
   for (const entity of entities) {
     const type = entity.type;
     if (!byType.has(type)) byType.set(type, []);
-    byType.get(type)!.push(entity.name);
+    byType.get(type)?.push(entity.name);
   }
 
   const parts: string[] = [];
@@ -131,12 +131,18 @@ export function parseEntityResults(results: unknown): EntityNode[] {
     if (entityData && typeof entityData === 'object') {
       // Nested structure from entity_lookup
       name = entityData.name as string | undefined;
-      type = (entityData.entity_type as string) || (entityData.type as string) || 'unknown';
+      type =
+        (entityData.entity_type as string) ||
+        (entityData.type as string) ||
+        'unknown';
       properties = entityData.properties as Record<string, unknown> | undefined;
     } else {
       // Flat structure
       name = (record.name || record.id) as string | undefined;
-      type = (record.type || record.entityType || record.label || 'unknown') as string;
+      type = (record.type ||
+        record.entityType ||
+        record.label ||
+        'unknown') as string;
     }
 
     if (typeof name !== 'string') continue;
@@ -147,8 +153,12 @@ export function parseEntityResults(results: unknown): EntityNode[] {
         if (typeof rel !== 'object' || !rel) continue;
         const relRecord = rel as Record<string, unknown>;
         // Handle nested target: { source: {...}, target: {...}, relationshipType: "..." }
-        const targetData = relRecord.target as Record<string, unknown> | undefined;
-        const sourceData = relRecord.source as Record<string, unknown> | undefined;
+        const targetData = relRecord.target as
+          | Record<string, unknown>
+          | undefined;
+        const sourceData = relRecord.source as
+          | Record<string, unknown>
+          | undefined;
 
         let target: string | undefined;
         let direction: 'incoming' | 'outgoing' = 'outgoing';
@@ -162,16 +172,23 @@ export function parseEntityResults(results: unknown): EntityNode[] {
             target = targetData.name as string;
           }
         } else {
-          target = (relRecord.target || relRecord.to || relRecord.entity) as string | undefined;
+          target = (relRecord.target || relRecord.to || relRecord.entity) as
+            | string
+            | undefined;
         }
 
-        const relType = relRecord.relationshipType || relRecord.type || relRecord.relationship || 'RELATED_TO';
+        const relType =
+          relRecord.relationshipType ||
+          relRecord.type ||
+          relRecord.relationship ||
+          'RELATED_TO';
 
         if (typeof target === 'string') {
           relationships.push({
             target,
             type: String(relType),
-            direction: relRecord.direction === 'incoming' ? 'incoming' : direction,
+            direction:
+              relRecord.direction === 'incoming' ? 'incoming' : direction,
           });
         }
       }

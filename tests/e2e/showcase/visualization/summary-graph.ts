@@ -7,7 +7,7 @@ import type { SessionFindings } from './step-output.js';
  */
 function truncate(text: string, maxLen: number): string {
   if (text.length <= maxLen) return text;
-  return text.slice(0, maxLen - 3) + '...';
+  return `${text.slice(0, maxLen - 3)}...`;
 }
 
 /**
@@ -96,7 +96,7 @@ export function renderSessionSummary(
   // Causal Chain
   if (findings.causalLinks.length > 0) {
     lines.push('  CAUSAL CHAIN (Root Cause Analysis)');
-    lines.push('  ' + '─'.repeat(width - 2));
+    lines.push(`  ${'─'.repeat(width - 2)}`);
 
     // Find root cause (cause that is not an effect)
     const allCauses = new Set(findings.causalLinks.map((l) => l.cause));
@@ -128,7 +128,9 @@ export function renderSessionSummary(
       lines.push(line);
     }
     if (chainLines.length > 14) {
-      lines.push(`  ... chain continues (${findings.causalLinks.length} total links)`);
+      lines.push(
+        `  ... chain continues (${findings.causalLinks.length} total links)`,
+      );
     }
     lines.push('');
   }
@@ -136,7 +138,7 @@ export function renderSessionSummary(
   // Timeline
   if (findings.events.length > 0) {
     lines.push('  TIMELINE (Key Events)');
-    lines.push('  ' + '─'.repeat(width - 2));
+    lines.push(`  ${'─'.repeat(width - 2)}`);
 
     const sorted = [...findings.events].sort(
       (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime(),
@@ -160,7 +162,7 @@ export function renderSessionSummary(
   // Concepts (if any found)
   if (findings.concepts.length > 0) {
     lines.push('  CONCEPTS DISCOVERED');
-    lines.push('  ' + '─'.repeat(width - 2));
+    lines.push(`  ${'─'.repeat(width - 2)}`);
 
     for (const concept of findings.concepts.slice(0, 5)) {
       const desc = concept.description

@@ -39,8 +39,7 @@ export const TOOL_NARRATIONS: Record<string, ToolNarration> = {
   temporal_expand: {
     actionName: 'Timeline Expansion',
     badge: 'TEMPORAL GRAPH',
-    explanation:
-      'Finding events that happened within a time range.',
+    explanation: 'Finding events that happened within a time range.',
     technical: 'Temporal graph query with time-range filtering.',
   },
 
@@ -183,7 +182,7 @@ export function formatStepHeader(stepNumber: number, toolName: string): string {
   const badge = `[${narration.badge}]`;
   const header = `STEP ${stepNumber}: ${narration.actionName}`;
 
-  return ['', `  ${header.padEnd(55)}${badge}`, '  ' + '─'.repeat(65)].join(
+  return ['', `  ${header.padEnd(55)}${badge}`, `  ${'─'.repeat(65)}`].join(
     '\n',
   );
 }
@@ -234,9 +233,10 @@ function formatArgumentsSummary(
     case 'entity_lookup': {
       const entityIds = args.entity_ids as string[] | undefined;
       if (Array.isArray(entityIds) && entityIds.length > 0) {
-        const display = entityIds.length <= 2
-          ? entityIds.join(', ')
-          : `${entityIds.length} entities`;
+        const display =
+          entityIds.length <= 2
+            ? entityIds.join(', ')
+            : `${entityIds.length} entities`;
         lines.push(`    Entities: ${display}`);
       } else if (args.name) {
         lines.push(`    Entity: "${args.name}"`);
@@ -253,9 +253,10 @@ function formatArgumentsSummary(
     case 'causal_expand': {
       const entityIds = args.entity_ids as string[] | undefined;
       if (Array.isArray(entityIds) && entityIds.length > 0) {
-        const display = entityIds.length <= 2
-          ? entityIds.join(', ')
-          : `${entityIds.length} entities`;
+        const display =
+          entityIds.length <= 2
+            ? entityIds.join(', ')
+            : `${entityIds.length} entities`;
         lines.push(`    Starting from: ${display}`);
       } else if (args.entity || args.name) {
         lines.push(`    Starting from: "${args.entity || args.name}"`);

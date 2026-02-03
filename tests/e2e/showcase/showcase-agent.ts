@@ -17,13 +17,13 @@ import {
   formatStepHeader,
 } from './narration/index.js';
 import {
+  createSessionFindings,
   type GraphStats,
   renderCompactDashboard,
   renderDashboard,
-  createSessionFindings,
-  type SessionFindings,
-  renderStepResult,
   renderSessionSummary,
+  renderStepResult,
+  type SessionFindings,
 } from './visualization/index.js';
 
 export interface ShowcaseConfig extends AgentConfig {
@@ -187,7 +187,11 @@ export class ShowcaseAgent {
     }
 
     // Show initial dashboard if enabled (only once per session)
-    if (this.config.showDashboard && this.config.narration !== 'none' && !this.sessionState.dashboardShown) {
+    if (
+      this.config.showDashboard &&
+      this.config.narration !== 'none' &&
+      !this.sessionState.dashboardShown
+    ) {
       await this.showDashboard();
       this.sessionState.dashboardShown = true;
     }
@@ -402,12 +406,7 @@ export class ShowcaseAgent {
         ].includes(toolName)
       ) {
         console.log(
-          renderStepResult(
-            toolName,
-            args,
-            parsed,
-            this.sessionState.findings,
-          ),
+          renderStepResult(toolName, args, parsed, this.sessionState.findings),
         );
         return;
       }
@@ -423,7 +422,7 @@ export class ShowcaseAgent {
     } catch {
       // Non-JSON result
       const truncated =
-        result.length > 100 ? result.slice(0, 100) + '...' : result;
+        result.length > 100 ? `${result.slice(0, 100)}...` : result;
       console.log(`\n    Result: ${truncated}\n`);
     }
   }

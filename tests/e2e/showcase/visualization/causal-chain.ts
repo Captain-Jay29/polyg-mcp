@@ -26,7 +26,7 @@ function formatConfidence(confidence: number): string {
  */
 function truncate(text: string, maxWidth: number): string {
   if (text.length <= maxWidth) return text;
-  return text.slice(0, maxWidth - 3) + '...';
+  return `${text.slice(0, maxWidth - 3)}...`;
 }
 
 /**
@@ -81,13 +81,13 @@ export function renderCausalTree(roots: CausalNode[]): string {
   const lines = [
     '',
     '  ROOT CAUSE                                    Confidence',
-    '  ' + '─'.repeat(57),
+    `  ${'─'.repeat(57)}`,
   ];
 
   function renderNode(
     node: CausalNode,
     prefix: string,
-    isLast: boolean,
+    _isLast: boolean,
     isRoot: boolean,
   ): void {
     const desc = truncate(node.description, 42);
@@ -117,7 +117,7 @@ export function renderCausalTree(roots: CausalNode[]): string {
         lines.push(`  ${newPrefix}     ▼`);
       }
 
-      renderNode(child, newPrefix + '  ', isLastChild, false);
+      renderNode(child, `${newPrefix}  `, isLastChild, false);
     }
   }
 

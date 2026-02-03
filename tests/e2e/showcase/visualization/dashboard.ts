@@ -40,7 +40,7 @@ export function renderDashboard(stats: GraphStats): string {
     stats.temporal_nodes,
     stats.causal_nodes,
     stats.entity_nodes,
-    10
+    10,
   );
 
   // Server returns X_REPRESENTS, X_INVOLVES, X_REFERS_TO, X_AFFECTS
@@ -68,51 +68,57 @@ export function renderDashboard(stats: GraphStats): string {
   const entW = Math.max('ENTITY'.length, entBar.length, entLabel.length);
   const tmpW = Math.max('TEMPORAL'.length, tmpBar.length, tmpLabel.length);
   const cauW = Math.max('CAUSAL'.length, cauBar.length, cauLabel.length);
-  const xW   = Math.max('CROSS-LINKS'.length, repStr.length, invStr.length);
+  const xW = Math.max('CROSS-LINKS'.length, repStr.length, invStr.length);
 
   const headerRow =
-    padCenter('SEMANTIC', semW) + gap +
-    padCenter('ENTITY', entW)   + gap +
-    padCenter('TEMPORAL', tmpW) + gap +
-    padCenter('CAUSAL', cauW)   + gap +
+    padCenter('SEMANTIC', semW) +
+    gap +
+    padCenter('ENTITY', entW) +
+    gap +
+    padCenter('TEMPORAL', tmpW) +
+    gap +
+    padCenter('CAUSAL', cauW) +
+    gap +
     padCenter('CROSS-LINKS', xW);
 
   const barRow =
-    semBar.padEnd(semW) + gap +
-    entBar.padEnd(entW) + gap +
-    tmpBar.padEnd(tmpW) + gap +
-    cauBar.padEnd(cauW) + gap +
+    semBar.padEnd(semW) +
+    gap +
+    entBar.padEnd(entW) +
+    gap +
+    tmpBar.padEnd(tmpW) +
+    gap +
+    cauBar.padEnd(cauW) +
+    gap +
     repStr.padEnd(xW);
 
   const labelRow =
-    semLabel.padEnd(semW) + gap +
-    entLabel.padEnd(entW) + gap +
-    tmpLabel.padEnd(tmpW) + gap +
-    cauLabel.padEnd(cauW) + gap +
+    semLabel.padEnd(semW) +
+    gap +
+    entLabel.padEnd(entW) +
+    gap +
+    tmpLabel.padEnd(tmpW) +
+    gap +
+    cauLabel.padEnd(cauW) +
+    gap +
     invStr.padEnd(xW);
 
-  const innerWidth = Math.max(
-    headerRow.length,
-    barRow.length,
-    labelRow.length
-  );
+  const innerWidth = Math.max(headerRow.length, barRow.length, labelRow.length);
 
-  const wrap = (content: string) =>
-    `  ║ ${content.padEnd(innerWidth)} ║`;
+  const wrap = (content: string) => `  ║ ${content.padEnd(innerWidth)} ║`;
 
-  const topBorder    = `  ╔${'═'.repeat(innerWidth + 2)}╗`;
+  const topBorder = `  ╔${'═'.repeat(innerWidth + 2)}╗`;
   const bottomBorder = `  ╚${'═'.repeat(innerWidth + 2)}╝`;
-  const totalWidth   = topBorder.length;
+  const totalWidth = topBorder.length;
 
-  const leftTitle  = '  GRAPH STATE';
+  const leftTitle = '  GRAPH STATE';
   const rightTitle = `Updated: ${timeStr}`;
   const titleSpaces = Math.max(
     1,
-    totalWidth - leftTitle.length - rightTitle.length
+    totalWidth - leftTitle.length - rightTitle.length,
   );
 
-  const titleLine =
-    leftTitle + ' '.repeat(titleSpaces) + rightTitle;
+  const titleLine = leftTitle + ' '.repeat(titleSpaces) + rightTitle;
 
   return [
     '',
