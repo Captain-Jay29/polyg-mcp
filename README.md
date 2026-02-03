@@ -33,7 +33,7 @@
 ### 🧠 LLM Intent Classification
 Automatically understands *what* the user is asking — whether it's about concepts, events, causes, or entities.
 
-### ⚡ Parallel Graph Queries  
+### ⚡ Parallel Graph Queries
 Queries only the relevant memory graphs simultaneously, not sequentially through a single store.
 
 </td>
@@ -118,6 +118,13 @@ cp .env.example .env
 npm run dev
 ```
 
+### Using npx (Quickest)
+
+```bash
+# Requires FalkorDB running locally (see Docker section for easy setup)
+npx polyg-mcp
+```
+
 ### Connect to Claude Desktop
 
 Add to your `claude_desktop_config.json`:
@@ -129,12 +136,16 @@ Add to your `claude_desktop_config.json`:
       "command": "npx",
       "args": ["polyg-mcp"],
       "env": {
-        "OPENAI_API_KEY": "your-key-here"
+        "OPENAI_API_KEY": "your-key-here",
+        "FALKORDB_HOST": "localhost",
+        "FALKORDB_PORT": "6379"
       }
     }
   }
 }
 ```
+
+> **Note:** polyg-mcp requires a FalkorDB instance. Run `docker run -p 6379:6379 falkordb/falkordb` or use Docker Compose for the full stack.
 
 ---
 

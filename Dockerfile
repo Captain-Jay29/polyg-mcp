@@ -20,12 +20,13 @@ COPY packages/server/package.json ./packages/server/
 # Install all dependencies (including devDependencies for build)
 RUN pnpm install --frozen-lockfile
 
-# Copy TypeScript configuration
+# Copy TypeScript and build configuration
 COPY tsconfig.json ./
 COPY turbo.json ./
 COPY packages/shared/tsconfig.json ./packages/shared/
 COPY packages/core/tsconfig.json ./packages/core/
 COPY packages/server/tsconfig.json ./packages/server/
+COPY packages/server/tsup.config.ts ./packages/server/
 
 # Copy source code for all packages
 COPY packages/shared/src ./packages/shared/src
@@ -48,7 +49,7 @@ RUN apk add --no-cache curl
 
 WORKDIR /app
 
-# Copy package files
+# Copy package files (workspace packages bundled by tsup, not needed at runtime)
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/core/package.json ./packages/core/
@@ -57,9 +58,7 @@ COPY packages/server/package.json ./packages/server/
 # Install production dependencies only
 RUN pnpm install --prod --frozen-lockfile
 
-# Copy built files from builder
-COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
-COPY --from=builder /app/packages/core/dist ./packages/core/dist
+# Copy bundled server (tsup bundles core/shared into main.js)
 COPY --from=builder /app/packages/server/dist ./packages/server/dist
 
 # Set environment
