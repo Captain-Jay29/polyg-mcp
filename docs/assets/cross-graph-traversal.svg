@@ -1,0 +1,226 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 440">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0d1117"/>
+      <stop offset="100%" style="stop-color:#161b22"/>
+    </linearGradient>
+    
+    <linearGradient id="blueG" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3b82f6"/>
+      <stop offset="100%" style="stop-color:#1d4ed8"/>
+    </linearGradient>
+    <linearGradient id="greenG" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#10b981"/>
+      <stop offset="100%" style="stop-color:#059669"/>
+    </linearGradient>
+    <linearGradient id="orangeG" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f59e0b"/>
+      <stop offset="100%" style="stop-color:#d97706"/>
+    </linearGradient>
+    <linearGradient id="redG" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ef4444"/>
+      <stop offset="100%" style="stop-color:#dc2626"/>
+    </linearGradient>
+    <linearGradient id="purpleG" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#7c3aed"/>
+      <stop offset="100%" style="stop-color:#a855f7"/>
+    </linearGradient>
+
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="2.5" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="softGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="5" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+
+    <!-- Arrow markers -->
+    <marker id="aBlue" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+      <path d="M0,0.5 L6,3.5 L0,6.5" fill="#3b82f6"/>
+    </marker>
+    <marker id="aGreen" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+      <path d="M0,0.5 L6,3.5 L0,6.5" fill="#10b981"/>
+    </marker>
+    <marker id="aOrange" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+      <path d="M0,0.5 L6,3.5 L0,6.5" fill="#f59e0b"/>
+    </marker>
+    <marker id="aRed" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+      <path d="M0,0.5 L6,3.5 L0,6.5" fill="#ef4444"/>
+    </marker>
+    <marker id="aPurple" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+      <path d="M0,0.5 L6,3.5 L0,6.5" fill="#a855f7"/>
+    </marker>
+    <marker id="aGray" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+      <path d="M0,0.5 L6,3.5 L0,6.5" fill="#484f58"/>
+    </marker>
+  </defs>
+  
+  <rect width="960" height="440" fill="url(#bgGrad)"/>
+
+  <!-- ═══ GRAPH ZONE BACKGROUNDS ═══ -->
+  <!-- Semantic zone -->
+  <rect x="30" y="50" width="210" height="340" rx="10" fill="#3b82f6" opacity="0.04" stroke="#3b82f6" stroke-width="1" stroke-opacity="0.15"/>
+  <text x="135" y="76" font-family="system-ui, -apple-system, sans-serif" font-size="11" fill="#3b82f6" text-anchor="middle" font-weight="600" letter-spacing="1" opacity="0.7">SEMANTIC</text>
+
+  <!-- Entity zone -->
+  <rect x="270" y="50" width="210" height="340" rx="10" fill="#ef4444" opacity="0.04" stroke="#ef4444" stroke-width="1" stroke-opacity="0.15"/>
+  <text x="375" y="76" font-family="system-ui, -apple-system, sans-serif" font-size="11" fill="#ef4444" text-anchor="middle" font-weight="600" letter-spacing="1" opacity="0.7">ENTITY</text>
+
+  <!-- Temporal zone -->
+  <rect x="510" y="50" width="210" height="340" rx="10" fill="#10b981" opacity="0.04" stroke="#10b981" stroke-width="1" stroke-opacity="0.15"/>
+  <text x="615" y="76" font-family="system-ui, -apple-system, sans-serif" font-size="11" fill="#10b981" text-anchor="middle" font-weight="600" letter-spacing="1" opacity="0.7">TEMPORAL</text>
+
+  <!-- Causal zone -->
+  <rect x="750" y="50" width="180" height="340" rx="10" fill="#f59e0b" opacity="0.04" stroke="#f59e0b" stroke-width="1" stroke-opacity="0.15"/>
+  <text x="840" y="76" font-family="system-ui, -apple-system, sans-serif" font-size="11" fill="#f59e0b" text-anchor="middle" font-weight="600" letter-spacing="1" opacity="0.7">CAUSAL</text>
+
+  <!-- ═══ SEMANTIC NODES ═══ -->
+  <g filter="url(#glow)">
+    <!-- S_Concept: "auth-service" -->
+    <rect x="55" y="130" width="160" height="42" rx="6" fill="#161b22" stroke="#3b82f6" stroke-width="1.5"/>
+    <circle cx="73" cy="151" r="7" fill="url(#blueG)" opacity="0.5"/>
+    <text x="87" y="147" font-family="system-ui, sans-serif" font-size="10" fill="#58a6ff" font-weight="600">S_Concept</text>
+    <text x="87" y="162" font-family="system-ui, sans-serif" font-size="9" fill="#8b949e">"auth-service"</text>
+
+    <!-- S_Concept: "cascading failure" -->
+    <rect x="65" y="210" width="160" height="42" rx="6" fill="#161b22" stroke="#3b82f6" stroke-width="1.5" opacity="0.6"/>
+    <circle cx="83" cy="231" r="7" fill="url(#blueG)" opacity="0.3"/>
+    <text x="97" y="227" font-family="system-ui, sans-serif" font-size="10" fill="#58a6ff" font-weight="600" opacity="0.7">S_Concept</text>
+    <text x="97" y="242" font-family="system-ui, sans-serif" font-size="9" fill="#8b949e" opacity="0.7">"cascading failure"</text>
+    
+    <!-- Similarity score -->
+    <text x="135" y="118" font-family="system-ui, sans-serif" font-size="9" fill="#3b82f6" text-anchor="middle" opacity="0.6">cosine: 0.51</text>
+    <text x="145" y="200" font-family="system-ui, sans-serif" font-size="9" fill="#3b82f6" text-anchor="middle" opacity="0.5">cosine: 0.50</text>
+  </g>
+
+  <!-- ═══ ENTITY NODES ═══ -->
+  <g filter="url(#glow)">
+    <!-- E_Entity: auth-service -->
+    <rect x="290" y="120" width="170" height="52" rx="6" fill="#161b22" stroke="#ef4444" stroke-width="1.5"/>
+    <circle cx="308" cy="146" r="7" fill="url(#redG)" opacity="0.5"/>
+    <text x="322" y="140" font-family="system-ui, sans-serif" font-size="10" fill="#f87171" font-weight="600">E_Entity</text>
+    <text x="322" y="154" font-family="system-ui, sans-serif" font-size="9" fill="#8b949e">auth-service [SER]</text>
+    <text x="322" y="166" font-family="system-ui, sans-serif" font-size="8" fill="#484f58">team: platform</text>
+
+    <!-- E_Entity: api-gateway -->
+    <rect x="300" y="215" width="170" height="42" rx="6" fill="#161b22" stroke="#ef4444" stroke-width="1.5" opacity="0.7"/>
+    <circle cx="318" cy="236" r="7" fill="url(#redG)" opacity="0.3"/>
+    <text x="332" y="232" font-family="system-ui, sans-serif" font-size="10" fill="#f87171" font-weight="600" opacity="0.8">E_Entity</text>
+    <text x="332" y="246" font-family="system-ui, sans-serif" font-size="9" fill="#8b949e" opacity="0.7">api-gateway [SER]</text>
+
+    <!-- E_RELATES edge -->
+    <line x1="375" y1="174" x2="385" y2="213" stroke="#ef4444" stroke-width="1.5" opacity="0.4" marker-end="url(#aRed)"/>
+    <text x="395" y="196" font-family="system-ui, sans-serif" font-size="8" fill="#ef4444" opacity="0.5">DEPENDS_ON</text>
+  </g>
+
+  <!-- ═══ TEMPORAL NODES ═══ -->
+  <g filter="url(#glow)">
+    <!-- T_Event: deployment started -->
+    <rect x="530" y="110" width="170" height="42" rx="6" fill="#161b22" stroke="#10b981" stroke-width="1.5"/>
+    <circle cx="548" cy="131" r="7" fill="url(#greenG)" opacity="0.5"/>
+    <text x="562" y="127" font-family="system-ui, sans-serif" font-size="10" fill="#3fb950" font-weight="600">T_Event</text>
+    <text x="562" y="141" font-family="system-ui, sans-serif" font-size="9" fill="#8b949e">deploy v2.3.0 14:00</text>
+
+    <!-- T_Event: crash -->
+    <rect x="530" y="175" width="170" height="42" rx="6" fill="#161b22" stroke="#10b981" stroke-width="1.5"/>
+    <circle cx="548" cy="196" r="7" fill="url(#greenG)" opacity="0.5"/>
+    <text x="562" y="192" font-family="system-ui, sans-serif" font-size="10" fill="#3fb950" font-weight="600">T_Event</text>
+    <text x="562" y="202" font-family="system-ui, sans-serif" font-size="9" fill="#8b949e">CrashLoop 14:03</text>
+
+    <!-- T_Event: recovery -->
+    <rect x="530" y="240" width="170" height="42" rx="6" fill="#161b22" stroke="#10b981" stroke-width="1.5" opacity="0.7"/>
+    <circle cx="548" cy="261" r="7" fill="url(#greenG)" opacity="0.3"/>
+    <text x="562" y="257" font-family="system-ui, sans-serif" font-size="10" fill="#3fb950" font-weight="600" opacity="0.8">T_Event</text>
+    <text x="562" y="267" font-family="system-ui, sans-serif" font-size="9" fill="#8b949e" opacity="0.7">recovered 14:24</text>
+
+    <!-- Time arrows -->
+    <line x1="548" y1="154" x2="548" y2="173" stroke="#10b981" stroke-width="1" opacity="0.4" stroke-dasharray="3,3"/>
+    <line x1="548" y1="219" x2="548" y2="238" stroke="#10b981" stroke-width="1" opacity="0.3" stroke-dasharray="3,3"/>
+  </g>
+
+  <!-- ═══ CAUSAL NODES ═══ -->
+  <g filter="url(#glow)">
+    <!-- C_Node: secret removed -->
+    <rect x="765" y="110" width="150" height="42" rx="6" fill="#161b22" stroke="#f59e0b" stroke-width="1.5"/>
+    <circle cx="783" cy="131" r="7" fill="url(#orangeG)" opacity="0.5"/>
+    <text x="797" y="127" font-family="system-ui, sans-serif" font-size="10" fill="#fbbf24" font-weight="600">C_Node</text>
+    <text x="797" y="141" font-family="system-ui, sans-serif" font-size="9" fill="#8b949e">secret removed</text>
+
+    <!-- C_Node: crash -->
+    <rect x="765" y="180" width="150" height="42" rx="6" fill="#161b22" stroke="#f59e0b" stroke-width="1.5"/>
+    <circle cx="783" cy="201" r="7" fill="url(#orangeG)" opacity="0.5"/>
+    <text x="797" y="197" font-family="system-ui, sans-serif" font-size="10" fill="#fbbf24" font-weight="600">C_Node</text>
+    <text x="797" y="207" font-family="system-ui, sans-serif" font-size="9" fill="#8b949e">service crashed</text>
+
+    <!-- C_Node: 503s -->
+    <rect x="765" y="250" width="150" height="42" rx="6" fill="#161b22" stroke="#f59e0b" stroke-width="1.5" opacity="0.7"/>
+    <circle cx="783" cy="271" r="7" fill="url(#orangeG)" opacity="0.3"/>
+    <text x="797" y="267" font-family="system-ui, sans-serif" font-size="10" fill="#fbbf24" font-weight="600" opacity="0.8">C_Node</text>
+    <text x="797" y="277" font-family="system-ui, sans-serif" font-size="9" fill="#8b949e" opacity="0.7">503 errors</text>
+
+    <!-- C_CAUSES edges -->
+    <line x1="840" y1="154" x2="840" y2="178" stroke="#f59e0b" stroke-width="2" opacity="0.7" marker-end="url(#aOrange)"/>
+    <text x="850" y="168" font-family="system-ui, sans-serif" font-size="8" fill="#f59e0b" opacity="0.6">100%</text>
+    <line x1="840" y1="224" x2="840" y2="248" stroke="#f59e0b" stroke-width="2" opacity="0.5" marker-end="url(#aOrange)"/>
+    <text x="850" y="238" font-family="system-ui, sans-serif" font-size="8" fill="#f59e0b" opacity="0.5">95%</text>
+  </g>
+
+  <!-- ═══ CROSS-GRAPH LINKS (X_ edges) ═══ -->
+  <!-- These are the key differentiator — bold, dashed, with labels -->
+  
+  <!-- X_REPRESENTS: S_Concept → E_Entity -->
+  <path d="M217 151 Q 250 140 288 146" stroke="#a855f7" stroke-width="2.5" fill="none" stroke-dasharray="6,4" marker-end="url(#aPurple)" filter="url(#softGlow)"/>
+  <rect x="228" y="126" width="45" height="15" rx="3" fill="#161b22"/>
+  <text x="250" y="137" font-family="system-ui, sans-serif" font-size="8" fill="#a855f7" text-anchor="middle" font-weight="600">X_REP</text>
+
+  <!-- X_INVOLVES: T_Event → E_Entity -->
+  <path d="M528 196 Q 490 170 462 146" stroke="#a855f7" stroke-width="2.5" fill="none" stroke-dasharray="6,4" marker-end="url(#aPurple)" filter="url(#softGlow)"/>
+  <rect x="472" y="160" width="40" height="15" rx="3" fill="#161b22"/>
+  <text x="492" y="171" font-family="system-ui, sans-serif" font-size="8" fill="#a855f7" text-anchor="middle" font-weight="600">X_INV</text>
+
+  <!-- X_REFERS_TO: T_Event → C_Node -->
+  <path d="M702 196 Q 730 190 763 201" stroke="#a855f7" stroke-width="2.5" fill="none" stroke-dasharray="6,4" marker-end="url(#aPurple)" filter="url(#softGlow)"/>
+  <rect x="714" y="178" width="40" height="15" rx="3" fill="#161b22"/>
+  <text x="734" y="189" font-family="system-ui, sans-serif" font-size="8" fill="#a855f7" text-anchor="middle" font-weight="600">X_REF</text>
+
+  <!-- X_AFFECTS: C_Node → E_Entity (auth-service) -->
+  <path d="M763 131 Q 620 90 462 135" stroke="#a855f7" stroke-width="2" fill="none" stroke-dasharray="6,4" opacity="0.5" marker-end="url(#aPurple)"/>
+  <rect x="590" y="87" width="45" height="15" rx="3" fill="#161b22"/>
+  <text x="612" y="98" font-family="system-ui, sans-serif" font-size="8" fill="#a855f7" text-anchor="middle" font-weight="600" opacity="0.6">X_AFF</text>
+
+  <!-- ═══ TRAVERSAL PATH ANNOTATION ═══ -->
+  <!-- Step numbers along the traversal -->
+  <g font-family="system-ui, sans-serif" font-size="9">
+    <!-- Step indicator circles -->
+    <circle cx="135" cy="100" r="10" fill="url(#purpleG)" opacity="0.9"/>
+    <text x="135" y="104" fill="#fff" text-anchor="middle" font-size="9" font-weight="700">1</text>
+    <text x="155" y="104" fill="#484f58" font-size="9">vector search</text>
+
+    <circle cx="375" cy="98" r="10" fill="url(#purpleG)" opacity="0.9"/>
+    <text x="375" y="102" fill="#fff" text-anchor="middle" font-size="9" font-weight="700">2</text>
+    <text x="395" y="102" fill="#484f58" font-size="9">entity expand</text>
+
+    <circle cx="615" cy="93" r="10" fill="url(#purpleG)" opacity="0.9"/>
+    <text x="615" y="97" fill="#fff" text-anchor="middle" font-size="9" font-weight="700">3</text>
+    <text x="635" y="97" fill="#484f58" font-size="9">timeline query</text>
+
+    <circle cx="840" cy="93" r="10" fill="url(#purpleG)" opacity="0.9"/>
+    <text x="840" y="97" fill="#fff" text-anchor="middle" font-size="9" font-weight="700">4</text>
+    <text x="860" y="97" fill="#484f58" font-size="9">causal trace</text>
+  </g>
+
+  <!-- ═══ BOTTOM LEGEND ═══ -->
+  <g transform="translate(30, 405)" font-family="system-ui, -apple-system, sans-serif">
+    <!-- Intra-graph -->
+    <line x1="0" y1="10" x2="30" y2="10" stroke="#484f58" stroke-width="1.5"/>
+    <text x="36" y="14" font-size="10" fill="#484f58">Intra-graph edge</text>
+    
+    <!-- Cross-graph -->
+    <line x1="160" y1="10" x2="190" y2="10" stroke="#a855f7" stroke-width="2.5" stroke-dasharray="6,4"/>
+    <text x="196" y="14" font-size="10" fill="#a855f7" font-weight="500">X_ cross-link (MERGE, idempotent)</text>
+
+    <!-- Query example -->
+    <text x="490" y="14" font-size="11" fill="#6e7681" font-style="italic">"Why did auth fail after Tuesday's deployment?"  →  traverses all 4 graphs via X_ links</text>
+  </g>
+</svg>
