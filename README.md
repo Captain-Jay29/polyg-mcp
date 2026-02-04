@@ -17,10 +17,10 @@
 
 <p align="center">
   <a href="#-features">Features</a> •
+  <a href="#-how-polyg-mcp-thinks">How It Thinks</a> •
   <a href="#-the-four-memory-graphs">Architecture</a> •
-  <a href="#-quick-start">Quick Start</a> •
-  <a href="#-mcp-tools">API</a> •
-  <a href="#-why-polyg-mcp">Why polyg?</a>
+  <a href="#-see-it-in-action">Demo</a> •
+  <a href="#-quick-start">Quick Start</a>
 </p>
 
 ---
@@ -69,6 +69,8 @@ JWT_SECRET removed (PR #1234) → deployment missing secret → CrashLoopBackOff
        ↓ 100%                        ↓ 100%                    ↓ 95%            ↓ 90%
 ```
 
+*Confidence scores propagate through the chain — certainty degrades naturally at each causal hop.*
+
 <table>
 <tr><td>❌</td><td><b>Vector stores</b> — retrieve similar text, can't trace causality</td></tr>
 <tr><td>❌</td><td><b>Simple graphs</b> — store relationships, don't model cause→effect</td></tr>
@@ -84,6 +86,87 @@ JWT_SECRET removed (PR #1234) → deployment missing secret → CrashLoopBackOff
 
 ---
 
+## 🔬 How polyg-mcp Thinks
+
+Under the hood, polyg-mcp uses adaptive intelligence to answer questions efficiently.
+
+### Intent Classification
+
+The LLM extracts intent type and dynamically adjusts traversal depth:
+
+```
+┌─────────────┬───────────────────────────────────────┐
+│   Question  │           Depth Hints                 │
+├─────────────┼───────────────────────────────────────┤
+│  WHY        │  { causal: 3, temporal: 1, entity: 1 }│
+│  WHEN       │  { temporal: 3, causal: 1, entity: 1 }│
+│  WHO/WHAT   │  { entity: 2, causal: 1, temporal: 1 }│
+│  EXPLORE    │  { semantic: 2, entity: 2, causal: 2 }│
+└─────────────┴───────────────────────────────────────┘
+```
+
+### Linearization Strategies
+
+Different intents use different ordering algorithms:
+
+| Intent | Strategy | Why |
+|--------|----------|-----|
+| **WHY** | Topological sort | Causes appear before effects |
+| **WHEN** | Chronological sort | Earliest events first |
+| **WHO/WHAT** | Relevance-weighted | Most connected entities first |
+| **EXPLORE** | Frequency-based | Most referenced nodes first |
+
+### Multi-View Boosting
+
+When a node appears in multiple graph views, it gets a relevance boost:
+
+```
+final_score = avg_score × 1.5^(view_count - 1)
+```
+
+| Views | Boost | Example |
+|-------|-------|---------|
+| 1 graph | 1.0× | Node only in semantic |
+| 2 graphs | 1.5× | Found in semantic + entity |
+| 3 graphs | 2.25× | Found in semantic + entity + causal |
+| 4 graphs | 3.375× | Found in all four graphs |
+
+### Pipeline Flow
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                         MAGMA PIPELINE                               │
+├──────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  ┌─────────┐   ┌──────────┐   ┌──────────────────────────────────┐  │
+│  │ Question│──▶│ Intent   │──▶│      Parallel Graph Expansion    │  │
+│  │         │   │ Classify │   │  ┌────────┐ ┌────────┐ ┌───────┐ │  │
+│  └─────────┘   └──────────┘   │  │Semantic│ │Temporal│ │Causal │ │  │
+│                               │  │ Search │ │ Expand │ │Expand │ │  │
+│                               │  └───┬────┘ └───┬────┘ └───┬───┘ │  │
+│                               └─────┼───────────┼──────────┼─────┘  │
+│                                     │           │          │        │
+│                                     ▼           ▼          ▼        │
+│                               ┌─────────────────────────────────┐   │
+│                               │       Subgraph Merge            │   │
+│                               │  (multi-view boost + dedup)     │   │
+│                               └──────────────┬──────────────────┘   │
+│                                              │                      │
+│                                              ▼                      │
+│                               ┌─────────────────────────────────┐   │
+│                               │   Linearize for LLM Context     │   │
+│                               │  (strategy based on intent)     │   │
+│                               └──────────────┬──────────────────┘   │
+│                                              │                      │
+│                                              ▼                      │
+│                               ┌─────────────────────────────────┐   │
+│                               │      Synthesize Answer          │   │
+│                               └─────────────────────────────────┘   │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
 ## 🧠 The Four Memory Graphs
 
 <p align="center">
@@ -96,6 +179,45 @@ JWT_SECRET removed (PR #1234) → deployment missing secret → CrashLoopBackOff
 | **🟢 Temporal** | Events, timestamps, sequences | *"What happened last Tuesday?"* |
 | **🟠 Causal** | Cause → effect relationships | *"Why did the deployment fail?"* |
 | **🔴 Entity** | Persistent objects, ownership | *"Who owns the payment service?"* |
+
+### Cross-Graph Linking
+
+The secret sauce: **X_ relationships** connect nodes across graphs, enabling seamless multi-graph traversal.
+
+```
+                    ┌─────────────┐
+                    │  S_Concept  │
+                    │  (semantic) │
+                    └──────┬──────┘
+                           │ X_REPRESENTS
+                           ▼
+        ┌──────────────────────────────────────┐
+        │              E_Entity                │
+        │             (the hub)                │
+        └───────┬─────────────┬────────────────┘
+                │             │
+           X_INVOLVES    X_AFFECTS
+                │             │
+                ▼             ▼
+         ┌──────────┐   ┌──────────┐
+         │ T_Event  │   │  C_Node  │
+         │(temporal)│   │ (causal) │
+         └────┬─────┘   └──────────┘
+              │ X_REFERS_TO
+              ▼
+         ┌──────────┐
+         │  C_Node  │
+         └──────────┘
+```
+
+| Cross-Link | Purpose |
+|------------|---------|
+| `X_REPRESENTS` | Semantic concept → Entity it describes |
+| `X_INVOLVES` | Event → Entities that participated |
+| `X_AFFECTS` | Causal node → Entities impacted |
+| `X_REFERS_TO` | Event → Causal node it triggered |
+
+One question like *"Why did auth fail after Tuesday's deployment?"* traverses all four graphs seamlessly through these links.
 
 ---
 
@@ -226,14 +348,97 @@ Why did the auth service fail after the Tuesday deployment?
 
 ---
 
+## 🎬 See It In Action
+
+Real output from the polyg-mcp showcase CLI demonstrating multi-graph traversal:
+
+### WHY Question — Causal Chain Traversal
+
+```
+Query: "What caused the auth service to fail?"
+
+CAUSAL CHAIN (traversed automatically):
+├─ JWT_SECRET accidentally removed in PR #1234
+│   ↓ (100%)
+├─ auth-service deployment missing JWT_SECRET
+│   ↓ (100%)
+├─ auth-service crashed on startup
+│   ↓ (100%)
+├─ auth-service pod entered CrashLoopBackOff
+│   ↓ (95%)
+├─ api-gateway returned 503 errors
+│   ↓ (90%)
+└─ user-dashboard login became unresponsive
+
+Root cause identified with full confidence chain.
+```
+
+### WHEN Question — Timeline Reconstruction
+
+```
+Query: "What happened between 2pm and 3pm?"
+
+TIMELINE (12 events):
+14:00  ● Bob started deployment of auth-service v2.3.0
+14:02  ● Kubernetes pulled new auth-service container image
+14:03  ▲ auth-service pod entered CrashLoopBackOff
+14:03  ▲ auth-service logs: "Error: JWT_SECRET not set"
+14:04  ▲ api-gateway started returning 503 errors
+14:05  ● PagerDuty alert triggered for auth-service downtime
+14:08  ▲ Alice began investigating CrashLoopBackOff
+14:15  ● Alice discovered JWT_SECRET missing from manifest
+14:18  ● Bob confirmed JWT_SECRET removed in PR #1234
+14:22  ● Alice redeployed with fix
+14:24  ● auth-service pod became healthy
+14:26  ● All services recovered, incident closed
+```
+
+### WHO Question — Entity Relationship Mapping
+
+```
+Query: "Who was involved in the incident response?"
+
+ENTITIES DISCOVERED:
+  [PER] alice  —  Role: SRE, Team: platform
+  [PER] bob    —  Role: Developer, Team: platform
+
+RELATIONSHIPS:
+  alice  ─investigated─▶  auth-service
+  alice  ─discovered─▶    JWT_SECRET (missing)
+  alice  ─fixed─▶         deployment manifest
+  bob    ─deployed─▶      auth-service (caused incident)
+  bob    ─removed─▶       JWT_SECRET (in PR #1234)
+```
+
+### CASCADE Question — Blast Radius Analysis
+
+```
+Query: "What services were affected?"
+
+SERVICE DEPENDENCIES:
+  user-dashboard ──DEPENDS_ON──▶ api-gateway ──DEPENDS_ON──▶ auth-service
+                                                                   ▲
+                                                              (root cause)
+
+BLAST RADIUS:
+  auth-service  →  api-gateway  →  user-dashboard
+       │               │                 │
+    crashed        503 errors      login broken
+```
+
+---
+
 ## ⚡ Performance
 
 | Metric | Value |
 |:-------|:------|
 | MAGMA pipeline steps | 7 (classify → search → seed → expand → merge → linearize → synthesize) |
-| Parallel graph expansion | ✅ Entity, Temporal, Causal expanded simultaneously |
+| Parallel graph expansion | Entity, Temporal, Causal expanded simultaneously via `Promise.all` |
 | LLM calls per query | 2 (intent classify + synthesize) |
 | Intent-based depth | Adaptive (WHY=deep causal, WHEN=deep temporal, etc.) |
+| Multi-view boosting | `score × 1.5^(views-1)` — nodes in multiple graphs rank higher |
+| Graceful degradation | `Promise.allSettled` — one graph failure doesn't kill the query |
+| Algorithm complexity | Semantic: O(n×d), Entity BFS: O(V+E), Causal paths: O(V+E) |
 
 ---
 
