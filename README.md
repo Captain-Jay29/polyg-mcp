@@ -3,6 +3,7 @@
 </p>
 
 <p align="center">
+  <a href="https://www.npmjs.com/package/polyg-mcp"><img src="https://img.shields.io/npm/v/polyg-mcp?style=for-the-badge&logo=npm&color=CB3837" alt="npm version"/></a>
   <a href="#-quick-start"><img src="https://img.shields.io/badge/Quick_Start-5_min-brightgreen?style=for-the-badge" alt="Quick Start"/></a>
   <a href="https://github.com/Captain-Jay29/polyg-mcp/stargazers"><img src="https://img.shields.io/github/stars/Captain-Jay29/polyg-mcp?style=for-the-badge&logo=github&color=yellow" alt="Stars"/></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue?style=for-the-badge" alt="License"/></a>
@@ -100,37 +101,23 @@ JWT_SECRET removed (PR #1234) → deployment missing secret → CrashLoopBackOff
 
 ## 🚀 Quick Start
 
-### Using Docker (Recommended)
+### Install from npm (Recommended)
 
 ```bash
-git clone https://github.com/Captain-Jay29/polyg-mcp.git
-cd polyg-mcp
+# Install globally
+npm install -g polyg-mcp
 
-# Configure environment
-cp .env.example .env
-
-# Start the server
-docker-compose up -d
-```
-
-### From Source
-
-```bash
-# Clone and install
-git clone https://github.com/Captain-Jay29/polyg-mcp.git
-cd polyg-mcp
-npm install
-
-# Configure and run
-cp .env.example .env
-npm run dev
-```
-
-### Using npx (Quickest)
-
-```bash
-# Requires FalkorDB running locally (see Docker section for easy setup)
+# Or run directly with npx
 npx polyg-mcp
+```
+
+### Prerequisites: FalkorDB
+
+polyg-mcp requires a FalkorDB instance for graph storage:
+
+```bash
+# Quickest: run FalkorDB in Docker
+docker run -d -p 6379:6379 falkordb/falkordb
 ```
 
 ### Connect to Claude Desktop
@@ -153,7 +140,33 @@ Add to your `claude_desktop_config.json`:
 }
 ```
 
-> **Note:** polyg-mcp requires a FalkorDB instance. Run `docker run -p 6379:6379 falkordb/falkordb` or use Docker Compose for the full stack.
+### Using Docker Compose (Full Stack)
+
+For a complete setup with FalkorDB included:
+
+```bash
+git clone https://github.com/Captain-Jay29/polyg-mcp.git
+cd polyg-mcp
+
+# Configure environment
+cp .env.example .env
+
+# Start polyg-mcp + FalkorDB
+docker-compose up -d
+```
+
+### From Source (Development)
+
+```bash
+# Clone and install
+git clone https://github.com/Captain-Jay29/polyg-mcp.git
+cd polyg-mcp
+npm install
+
+# Configure and run
+cp .env.example .env
+npm run dev
+```
 
 ---
 
