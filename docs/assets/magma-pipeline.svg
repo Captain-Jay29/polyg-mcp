@@ -1,0 +1,198 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 520">
+  <defs>
+    <linearGradient id="bgG" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0d1117"/>
+      <stop offset="100%" style="stop-color:#161b22"/>
+    </linearGradient>
+    <linearGradient id="purG" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#7c3aed"/>
+      <stop offset="100%" style="stop-color:#a855f7"/>
+    </linearGradient>
+    <linearGradient id="blG" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#3b82f6"/>
+      <stop offset="100%" style="stop-color:#60a5fa"/>
+    </linearGradient>
+    <linearGradient id="grG" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#10b981"/>
+      <stop offset="100%" style="stop-color:#34d399"/>
+    </linearGradient>
+    <linearGradient id="orG" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#f59e0b"/>
+      <stop offset="100%" style="stop-color:#fbbf24"/>
+    </linearGradient>
+    <linearGradient id="rdG" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#ef4444"/>
+      <stop offset="100%" style="stop-color:#f87171"/>
+    </linearGradient>
+    <filter id="gl" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="2" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <marker id="ar" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+      <path d="M0,0.5 L5,3 L0,5.5" fill="#484f58"/>
+    </marker>
+    <marker id="arP" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+      <path d="M0,0.5 L5,3 L0,5.5" fill="#a855f7"/>
+    </marker>
+  </defs>
+  
+  <rect width="960" height="520" fill="url(#bgG)"/>
+
+  <!-- Title -->
+  <text x="480" y="30" font-family="system-ui, -apple-system, sans-serif" font-size="13" fill="#c9d1d9" text-anchor="middle" font-weight="600" letter-spacing="0.5">MAGMA PIPELINE — 7-Step Adaptive Retrieval</text>
+  <text x="480" y="46" font-family="system-ui, sans-serif" font-size="10" fill="#484f58" text-anchor="middle">Multi-graph Adaptive Graph-based Memory Architecture</text>
+
+  <!-- ═══ QUERY INPUT ═══ -->
+  <rect x="340" y="58" width="280" height="32" rx="16" fill="#161b22" stroke="#484f58" stroke-width="1"/>
+  <text x="480" y="79" font-family="monospace" font-size="10" fill="#8b949e" text-anchor="middle">"Why did the auth service fail?"</text>
+
+  <!-- Arrow down -->
+  <line x1="480" y1="92" x2="480" y2="108" stroke="#484f58" stroke-width="1.5" marker-end="url(#ar)"/>
+
+  <!-- ═══ STEP 1: INTENT CLASSIFICATION ═══ -->
+  <g transform="translate(30, 110)">
+    <rect width="900" height="56" rx="8" fill="#161b22" stroke="#7c3aed" stroke-width="1" stroke-opacity="0.4"/>
+    <rect width="24" height="56" rx="8" fill="url(#purG)" opacity="0.15"/>
+    <text x="12" y="33" font-family="system-ui, sans-serif" font-size="12" fill="#a855f7" text-anchor="middle" font-weight="700">1</text>
+    
+    <text x="38" y="26" font-family="system-ui, sans-serif" font-size="11" fill="#c9d1d9" font-weight="600">Intent Classification</text>
+    <text x="38" y="42" font-family="system-ui, sans-serif" font-size="9" fill="#6e7681">IntentClassifier.classifyMAGMA()  —  LLM call #1</text>
+    
+    <!-- Output -->
+    <rect x="380" y="10" width="500" height="36" rx="5" fill="#0d1117" stroke="#30363d" stroke-width="1"/>
+    <text x="395" y="26" font-family="monospace" font-size="9" fill="#484f58">output:</text>
+    <text x="445" y="26" font-family="monospace" font-size="9" fill="#a855f7">{ type: "WHY", depthHints: {</text>
+    <text x="395" y="40" font-family="monospace" font-size="9" fill="#a855f7">  semantic: 1, entity: 1, temporal: 1, </text>
+    <text x="730" y="40" font-family="monospace" font-size="9" fill="#fbbf24">causal: 3</text>
+    <text x="790" y="40" font-family="monospace" font-size="9" fill="#a855f7">} }</text>
+  </g>
+
+  <!-- Arrow -->
+  <line x1="480" y1="168" x2="480" y2="184" stroke="#484f58" stroke-width="1.5" marker-end="url(#ar)"/>
+
+  <!-- ═══ STEP 2: SEMANTIC SEARCH ═══ -->
+  <g transform="translate(30, 186)">
+    <rect width="440" height="56" rx="8" fill="#161b22" stroke="#3b82f6" stroke-width="1" stroke-opacity="0.4"/>
+    <rect width="24" height="56" rx="8" fill="url(#blG)" opacity="0.15"/>
+    <text x="12" y="33" font-family="system-ui, sans-serif" font-size="12" fill="#58a6ff" text-anchor="middle" font-weight="700">2</text>
+    
+    <text x="38" y="26" font-family="system-ui, sans-serif" font-size="11" fill="#c9d1d9" font-weight="600">Semantic Search</text>
+    <text x="38" y="42" font-family="system-ui, sans-serif" font-size="9" fill="#6e7681">SemanticGraph.searchWithEntities()  —  cosine over S_Concept[1536]</text>
+    
+    <!-- Output snippet -->
+    <rect x="320" y="8" width="108" height="40" rx="4" fill="#0d1117" stroke="#30363d" stroke-width="1"/>
+    <text x="332" y="23" font-family="monospace" font-size="8" fill="#58a6ff">"auth-service"  0.92</text>
+    <text x="332" y="36" font-family="monospace" font-size="8" fill="#58a6ff">"cascading"     0.51</text>
+  </g>
+
+  <!-- ═══ STEP 3: SEED EXTRACTION ═══ -->
+  <g transform="translate(490, 186)">
+    <rect width="440" height="56" rx="8" fill="#161b22" stroke="#a855f7" stroke-width="1" stroke-opacity="0.4"/>
+    <rect width="24" height="56" rx="8" fill="url(#purG)" opacity="0.15"/>
+    <text x="12" y="33" font-family="system-ui, sans-serif" font-size="12" fill="#a855f7" text-anchor="middle" font-weight="700">3</text>
+    
+    <text x="38" y="26" font-family="system-ui, sans-serif" font-size="11" fill="#c9d1d9" font-weight="600">Seed Extraction</text>
+    <text x="38" y="42" font-family="system-ui, sans-serif" font-size="9" fill="#6e7681">X_REPRESENTS → entity IDs  —  threshold: score ≥ 0.5</text>
+    
+    <!-- Output -->
+    <rect x="310" y="12" width="118" height="30" rx="4" fill="#0d1117" stroke="#30363d" stroke-width="1"/>
+    <text x="322" y="31" font-family="monospace" font-size="8" fill="#a855f7">seeds: { e1, e2, e3 }</text>
+  </g>
+
+  <!-- Arrow between 2→3 -->
+  <line x1="472" y1="214" x2="488" y2="214" stroke="#a855f7" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arP)"/>
+
+  <!-- Arrow down from both -->
+  <line x1="480" y1="244" x2="480" y2="260" stroke="#484f58" stroke-width="1.5" marker-end="url(#ar)"/>
+
+  <!-- ═══ STEP 4: PARALLEL EXPANSION ═══ -->
+  <g transform="translate(30, 262)">
+    <rect width="900" height="76" rx="8" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+    <rect width="24" height="76" rx="8" fill="#484f58" opacity="0.15"/>
+    <text x="12" y="42" font-family="system-ui, sans-serif" font-size="12" fill="#8b949e" text-anchor="middle" font-weight="700">4</text>
+    
+    <text x="38" y="20" font-family="system-ui, sans-serif" font-size="11" fill="#c9d1d9" font-weight="600">Parallel Graph Expansion</text>
+    <text x="250" y="20" font-family="monospace" font-size="9" fill="#484f58">Promise.allSettled()  —  one failure doesn't kill the query</text>
+
+    <!-- Three parallel boxes -->
+    <!-- Entity -->
+    <rect x="38" y="30" width="268" height="38" rx="5" fill="#0d1117" stroke="#ef4444" stroke-width="1" stroke-opacity="0.5"/>
+    <circle cx="52" cy="49" r="5" fill="url(#rdG)" opacity="0.5"/>
+    <text x="62" y="46" font-family="system-ui, sans-serif" font-size="9" fill="#f87171" font-weight="600">Entity</text>
+    <text x="100" y="46" font-family="monospace" font-size="8" fill="#6e7681">BFS d=1 from seeds</text>
+    <text x="62" y="60" font-family="monospace" font-size="8" fill="#8b949e">→ auth-service, api-gateway, alice, bob</text>
+
+    <!-- Temporal -->
+    <rect x="318" y="30" width="268" height="38" rx="5" fill="#0d1117" stroke="#10b981" stroke-width="1" stroke-opacity="0.5"/>
+    <circle cx="332" cy="49" r="5" fill="url(#grG)" opacity="0.5"/>
+    <text x="342" y="46" font-family="system-ui, sans-serif" font-size="9" fill="#3fb950" font-weight="600">Temporal</text>
+    <text x="392" y="46" font-family="monospace" font-size="8" fill="#6e7681">timeline d=1</text>
+    <text x="342" y="60" font-family="monospace" font-size="8" fill="#8b949e">→ deploy 14:00, crash 14:03, fix 14:22</text>
+
+    <!-- Causal -->
+    <rect x="598" y="30" width="290" height="38" rx="5" fill="#0d1117" stroke="#f59e0b" stroke-width="1.5" stroke-opacity="0.8"/>
+    <circle cx="612" cy="49" r="5" fill="url(#orG)" opacity="0.7"/>
+    <text x="622" y="46" font-family="system-ui, sans-serif" font-size="9" fill="#fbbf24" font-weight="600">Causal</text>
+    <text x="660" y="46" font-family="monospace" font-size="8" fill="#fbbf24">path traverse d=3 ← WHY intent</text>
+    <text x="622" y="60" font-family="monospace" font-size="8" fill="#8b949e">→ secret→crash→503→dashboard (conf: 90%)</text>
+  </g>
+
+  <!-- Arrow down -->
+  <line x1="480" y1="340" x2="480" y2="356" stroke="#484f58" stroke-width="1.5" marker-end="url(#ar)"/>
+
+  <!-- ═══ STEP 5: SUBGRAPH MERGE ═══ -->
+  <g transform="translate(30, 358)">
+    <rect width="440" height="50" rx="8" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+    <rect width="24" height="50" rx="8" fill="#484f58" opacity="0.15"/>
+    <text x="12" y="30" font-family="system-ui, sans-serif" font-size="12" fill="#8b949e" text-anchor="middle" font-weight="700">5</text>
+    
+    <text x="38" y="24" font-family="system-ui, sans-serif" font-size="11" fill="#c9d1d9" font-weight="600">Subgraph Merge</text>
+    <text x="38" y="40" font-family="system-ui, sans-serif" font-size="9" fill="#6e7681">Multi-view boost: score × 1.5^(views-1)  —  auth-service in 3 views → 2.25× boost</text>
+  </g>
+
+  <!-- ═══ STEP 6: LINEARIZE ═══ -->
+  <g transform="translate(490, 358)">
+    <rect width="440" height="50" rx="8" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+    <rect width="24" height="50" rx="8" fill="#484f58" opacity="0.15"/>
+    <text x="12" y="30" font-family="system-ui, sans-serif" font-size="12" fill="#8b949e" text-anchor="middle" font-weight="700">6</text>
+    
+    <text x="38" y="24" font-family="system-ui, sans-serif" font-size="11" fill="#c9d1d9" font-weight="600">Linearize Context</text>
+    <text x="38" y="40" font-family="system-ui, sans-serif" font-size="9" fill="#6e7681">WHY → topological sort (causes before effects)  —  4000 token budget</text>
+  </g>
+
+  <!-- Arrow between 5→6 -->
+  <line x1="472" y1="383" x2="488" y2="383" stroke="#484f58" stroke-width="1.5" marker-end="url(#ar)"/>
+  
+  <!-- Arrow down -->
+  <line x1="480" y1="410" x2="480" y2="430" stroke="#484f58" stroke-width="1.5" marker-end="url(#ar)"/>
+
+  <!-- ═══ STEP 7: SYNTHESIS ═══ -->
+  <g transform="translate(30, 432)">
+    <rect width="900" height="56" rx="8" fill="#161b22" stroke="#7c3aed" stroke-width="1" stroke-opacity="0.4"/>
+    <rect width="24" height="56" rx="8" fill="url(#purG)" opacity="0.15"/>
+    <text x="12" y="33" font-family="system-ui, sans-serif" font-size="12" fill="#a855f7" text-anchor="middle" font-weight="700">7</text>
+    
+    <text x="38" y="26" font-family="system-ui, sans-serif" font-size="11" fill="#c9d1d9" font-weight="600">Synthesis</text>
+    <text x="38" y="42" font-family="system-ui, sans-serif" font-size="9" fill="#6e7681">Synthesizer.synthesize()  —  LLM call #2</text>
+    
+    <!-- Output -->
+    <rect x="280" y="6" width="600" height="44" rx="5" fill="#0d1117" stroke="#30363d" stroke-width="1"/>
+    <text x="295" y="23" font-family="monospace" font-size="9" fill="#484f58">output:</text>
+    <text x="345" y="23" font-family="monospace" font-size="9" fill="#c9d1d9">{ answer: "The auth service failed because JWT_SECRET was</text>
+    <text x="295" y="37" font-family="monospace" font-size="9" fill="#c9d1d9">removed in PR #1234...", reasoning: "causal chain", confidence: 0.95 }</text>
+  </g>
+
+  <!-- ═══ BOTTOM ANNOTATIONS ═══ -->
+  <g transform="translate(30, 500)" font-family="system-ui, sans-serif" font-size="9">
+    <rect x="0" y="0" width="8" height="8" rx="2" fill="#7c3aed" opacity="0.4"/>
+    <text x="14" y="8" fill="#6e7681">LLM call (2 total)</text>
+    
+    <rect x="130" y="0" width="8" height="8" rx="2" fill="#f59e0b" opacity="0.4"/>
+    <text x="144" y="8" fill="#6e7681">Intent-boosted (WHY → deep causal)</text>
+
+    <rect x="340" y="0" width="8" height="8" rx="2" fill="#484f58" opacity="0.4"/>
+    <text x="354" y="8" fill="#6e7681">Graph operation</text>
+
+    <text x="500" y="8" fill="#484f58">Graceful degradation: any single graph failure → pipeline continues with remaining views</text>
+  </g>
+</svg>

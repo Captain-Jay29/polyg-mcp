@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/polyg-mcp"><img src="https://img.shields.io/npm/v/polyg-mcp?style=for-the-badge&logo=npm&color=CB3837" alt="npm version"/></a>
-  <a href="#-quick-start"><img src="https://img.shields.io/badge/Quick_Start-5_min-brightgreen?style=for-the-badge" alt="Quick Start"/></a>
+  <a href="#quick-start"><img src="https://img.shields.io/badge/Quick_Start-5_min-brightgreen?style=for-the-badge" alt="Quick Start"/></a>
   <a href="https://github.com/Captain-Jay29/polyg-mcp/stargazers"><img src="https://img.shields.io/github/stars/Captain-Jay29/polyg-mcp?style=for-the-badge&logo=github&color=yellow" alt="Stars"/></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue?style=for-the-badge" alt="License"/></a>
   <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-5.0+-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript"/></a>
@@ -16,235 +16,209 @@
 </p>
 
 <p align="center">
-  <a href="#-features">Features</a> •
-  <a href="#-how-polyg-mcp-thinks">How It Thinks</a> •
-  <a href="#-the-four-memory-graphs">Architecture</a> •
-  <a href="#-see-it-in-action">Demo</a> •
-  <a href="#-quick-start">Quick Start</a>
+  <a href="#the-problem">Problem</a> &middot;
+  <a href="#demo">Demo</a> &middot;
+  <a href="#architecture">Architecture</a> &middot;
+  <a href="#magma-pipeline">Pipeline</a> &middot;
+  <a href="#quick-start">Quick Start</a> &middot;
+  <a href="docs/arch.md">Deep Dive</a>
 </p>
 
 ---
 
-## ✨ Features
+## The Problem
 
-<table>
-<tr>
-<td width="50%">
+Most agent memory is flat retrieval — cosine similarity over text chunks. polyg-mcp is a multi-graph memory system that traces cause-effect chains, reconstructs timelines, maps entity dependencies, and answers "why" with confidence-scored causal paths.
 
-### 🔗 Causal Chain Traversal
-Trace cause→effect relationships with confidence scores. Answer "why" questions by walking the causal graph, not guessing from similar text.
+```
+Query: "Why did the auth service fail?"
 
-### 🕐 Temporal Intelligence
-Events are first-class citizens with timestamps. Reconstruct timelines, query time ranges, understand sequences.
+Vector store → 5 documents mentioning "auth service" ranked by cosine similarity.
 
-</td>
-<td width="50%">
+polyg-mcp  → JWT_SECRET removed (PR #1234) → deploy missing secret → CrashLoopBackOff → 503s
+                    ↓ 100%                        ↓ 100%                  ↓ 95%           ↓ 90%
 
-### 🧠 Multi-Graph Reasoning
-Four graphs (semantic, entity, temporal, causal) work together. One question can traverse all four for a complete answer.
+             Root cause identified with full causal chain.
+             Confidence degrades at each hop — quantified uncertainty, not guesswork.
+```
 
-### 🔌 MCP Native
-Built for the Model Context Protocol — works with Claude, Cursor, and any MCP-compatible agent out of the box.
-
-</td>
-</tr>
-</table>
+Four purpose-built graphs (semantic, entity, temporal, causal) connected by typed cross-links (`X_REPRESENTS`, `X_INVOLVES`, `X_AFFECTS`, `X_REFERS_TO`) enable a single query to traverse all four dimensions. The system exposes 15 MCP tools and requires 2 LLM calls per retrieval — one for intent classification, one for synthesis.
 
 ---
 
-## 🧩 Why polyg-mcp?
-
-### The Problem
-
-Your agent has memory. But can it answer **"why"**?
-
-```
-"Why did the auth service fail?"
-```
-
-Most memory systems return similar documents. polyg-mcp returns this:
-
-```
-JWT_SECRET removed (PR #1234) → deployment missing secret → CrashLoopBackOff → 503s → dashboard down
-       ↓ 100%                        ↓ 100%                    ↓ 95%            ↓ 90%
-```
-
-*Confidence scores propagate through the chain — certainty degrades naturally at each causal hop.*
-
-<table>
-<tr><td>❌</td><td><b>Vector stores</b> — retrieve similar text, can't trace causality</td></tr>
-<tr><td>❌</td><td><b>Simple graphs</b> — store relationships, don't model cause→effect</td></tr>
-<tr><td>❌</td><td><b>Log aggregators</b> — show timelines, don't explain why</td></tr>
-<tr><td>✅</td><td><b>polyg-mcp</b> — traces causal chains with confidence scores</td></tr>
-</table>
-
-### The polyg-mcp Solution
+## Demo
 
 <p align="center">
-  <img src="docs/assets/query-flow.svg" alt="Query Flow" width="100%"/>
+  <img src="docs/assets/demo-animation-1x.gif" alt="polyg-mcp incident investigation demo" width="100%"/>
 </p>
 
----
+<details>
+<summary><b>What's happening in the demo</b></summary>
+<br/>
 
-## 🔬 How polyg-mcp Thinks
+The showcase CLI seeds a production incident into the four graphs — 8 entities, 19 events, 12 causal links, 11 semantic concepts — then runs four queries with adaptive depth:
 
-Under the hood, polyg-mcp uses adaptive intelligence to answer questions efficiently.
+| Query | Classified Intent | Primary Graph (depth) | Result |
+|:------|:-----------------|:---------------------|:-------|
+| "What caused the auth service to fail?" | `WHY` | Causal (d=3) | 6-node cause-effect chain with confidence propagation |
+| "What happened between 2pm and 3pm?" | `WHEN` | Temporal (d=3) | 12 events, chronologically ordered |
+| "Who was involved in the incident?" | `WHO` | Entity (d=2) | 7 entities with roles and relationships |
+| "What services were affected?" | `WHAT` | Entity (d=2) | 3 services, dependency-traced blast radius |
 
-### Intent Classification
+Each query dynamically adjusts per-graph traversal depth. A `WHY` query allocates depth=3 to causal while shallow-expanding temporal at depth=1. A `WHEN` query inverts this.
 
-The LLM extracts intent type and dynamically adjusts traversal depth:
-
-```
-┌─────────────┬───────────────────────────────────────┐
-│   Question  │           Depth Hints                 │
-├─────────────┼───────────────────────────────────────┤
-│  WHY        │  { causal: 3, temporal: 1, entity: 1 }│
-│  WHEN       │  { temporal: 3, causal: 1, entity: 1 }│
-│  WHO/WHAT   │  { entity: 2, causal: 1, temporal: 1 }│
-│  EXPLORE    │  { semantic: 2, entity: 2, causal: 2 }│
-└─────────────┴───────────────────────────────────────┘
-```
-
-### Linearization Strategies
-
-Different intents use different ordering algorithms:
-
-| Intent | Strategy | Why |
-|--------|----------|-----|
-| **WHY** | Topological sort | Causes appear before effects |
-| **WHEN** | Chronological sort | Earliest events first |
-| **WHO/WHAT** | Relevance-weighted | Most connected entities first |
-| **EXPLORE** | Frequency-based | Most referenced nodes first |
-
-### Multi-View Boosting
-
-When a node appears in multiple graph views, it gets a relevance boost:
-
-```
-final_score = avg_score × 1.5^(view_count - 1)
-```
-
-| Views | Boost | Example |
-|-------|-------|---------|
-| 1 graph | 1.0× | Node only in semantic |
-| 2 graphs | 1.5× | Found in semantic + entity |
-| 3 graphs | 2.25× | Found in semantic + entity + causal |
-| 4 graphs | 3.375× | Found in all four graphs |
-
-### Pipeline Flow
-
-```
-┌──────────────────────────────────────────────────────────────────────┐
-│                         MAGMA PIPELINE                               │
-├──────────────────────────────────────────────────────────────────────┤
-│                                                                      │
-│  ┌─────────┐   ┌──────────┐   ┌──────────────────────────────────┐  │
-│  │ Question│──▶│ Intent   │──▶│      Parallel Graph Expansion    │  │
-│  │         │   │ Classify │   │  ┌────────┐ ┌────────┐ ┌───────┐ │  │
-│  └─────────┘   └──────────┘   │  │Semantic│ │Temporal│ │Causal │ │  │
-│                               │  │ Search │ │ Expand │ │Expand │ │  │
-│                               │  └───┬────┘ └───┬────┘ └───┬───┘ │  │
-│                               └─────┼───────────┼──────────┼─────┘  │
-│                                     │           │          │        │
-│                                     ▼           ▼          ▼        │
-│                               ┌─────────────────────────────────┐   │
-│                               │       Subgraph Merge            │   │
-│                               │  (multi-view boost + dedup)     │   │
-│                               └──────────────┬──────────────────┘   │
-│                                              │                      │
-│                                              ▼                      │
-│                               ┌─────────────────────────────────┐   │
-│                               │   Linearize for LLM Context     │   │
-│                               │  (strategy based on intent)     │   │
-│                               └──────────────┬──────────────────┘   │
-│                                              │                      │
-│                                              ▼                      │
-│                               ┌─────────────────────────────────┐   │
-│                               │      Synthesize Answer          │   │
-│                               └─────────────────────────────────┘   │
-└──────────────────────────────────────────────────────────────────────┘
-```
+</details>
 
 ---
 
-## 🧠 The Four Memory Graphs
+## Architecture
+
+### System Overview
+
+```
+MCP Client (Claude, Cursor, any MCP agent)
+     │
+     │  MCP Protocol (HTTP/SSE)
+     ▼
+PolygMCPServer ─── Tool Registration (15 tools: 6 MAGMA + 7 write + 2 admin)
+     │
+     ▼
+SharedResources ── Orchestrator, FalkorDB Adapter, LLM Provider, Embedding Provider
+     │
+     ▼
+MAGMA Pipeline ── IntentClassifier → Executor → Merger → Linearizer → Synthesizer
+     │
+     ├── SemanticGraph   (S_Concept, vector similarity, cosine distance)
+     ├── EntityGraph      (E_Entity, E_RELATES, BFS traversal)
+     ├── TemporalGraph    (T_Event, T_Fact, ISO timestamp sort)
+     ├── CausalGraph      (C_Node, C_CAUSES with confidence, path traversal)
+     └── CrossLinker       (X_REPRESENTS, X_INVOLVES, X_AFFECTS, X_REFERS_TO)
+            │
+            ▼
+       FalkorDB (Redis-based graph database, Cypher queries)
+```
+
+### Four Memory Graphs
 
 <p align="center">
   <img src="docs/assets/four-graphs-architecture.svg" alt="Four Graphs Architecture" width="100%"/>
 </p>
 
-| Graph | Purpose | Example Query |
-|:------|:--------|:--------------|
-| **🔵 Semantic** | Concepts, similarity, embeddings | *"What do we know about authentication?"* |
-| **🟢 Temporal** | Events, timestamps, sequences | *"What happened last Tuesday?"* |
-| **🟠 Causal** | Cause → effect relationships | *"Why did the deployment fail?"* |
-| **🔴 Entity** | Persistent objects, ownership | *"Who owns the payment service?"* |
+| Graph | Node Type | Schema | Edge Type | Query Algorithm |
+|:------|:----------|:-------|:----------|:----------------|
+| **Semantic** | `S_Concept` | `uuid`, `name`, `embedding[1536]` | Cosine similarity | Vector distance, O(n*d) |
+| **Entity** | `E_Entity` | `uuid`, `name`, `type`, `properties{}` | `E_RELATES` (typed, directional) | BFS traversal, O(V+E) |
+| **Temporal** | `T_Event` / `T_Fact` | `uuid`, `description`, `occurred_at` / `valid_from`, `valid_to` | Chronological ordering | ISO timestamp sort, O(n log n) |
+| **Causal** | `C_Node` | `uuid`, `description`, `node_type` | `C_CAUSES` (confidence: 0.0-1.0) | Directed path traversal, O(V+E) |
 
 ### Cross-Graph Linking
 
-The secret sauce: **X_ relationships** connect nodes across graphs, enabling seamless multi-graph traversal.
+The graphs are not isolated. Typed `X_` edges connect nodes across graph boundaries, enabling multi-hop traversal from a single query:
+
+<p align="center">
+  <img src="docs/assets/cross-graph-traversal.svg" alt="Cross-Graph Traversal" width="100%"/>
+</p>
+
+| Cross-Link | Direction | Purpose | Created by |
+|:-----------|:----------|:--------|:-----------|
+| `X_REPRESENTS` | S_Concept → E_Entity | Grounds a concept to its real-world entity | `CrossLinker` on write |
+| `X_INVOLVES` | T_Event → E_Entity | Links an event to participating entities | `CrossLinker` on write |
+| `X_AFFECTS` | C_Node → E_Entity | Connects a causal node to impacted entities | `CrossLinker` on write |
+| `X_REFERS_TO` | T_Event → C_Node | Links an event to the causal node it triggered | `CrossLinker` on write |
+
+All cross-links use `MERGE` for idempotency. When a graph is cleared, orphaned `X_` links are automatically cleaned.
+
+**Traversal example** — *"Why did auth fail after Tuesday's deployment?"*:
 
 ```
-                    ┌─────────────┐
-                    │  S_Concept  │
-                    │  (semantic) │
-                    └──────┬──────┘
-                           │ X_REPRESENTS
-                           ▼
-        ┌──────────────────────────────────────┐
-        │              E_Entity                │
-        │             (the hub)                │
-        └───────┬─────────────┬────────────────┘
-                │             │
-           X_INVOLVES    X_AFFECTS
-                │             │
-                ▼             ▼
-         ┌──────────┐   ┌──────────┐
-         │ T_Event  │   │  C_Node  │
-         │(temporal)│   │ (causal) │
-         └────┬─────┘   └──────────┘
-              │ X_REFERS_TO
-              ▼
-         ┌──────────┐
-         │  C_Node  │
-         └──────────┘
+Semantic search      → S_Concept("auth-service", score=0.92)
+    ↓ X_REPRESENTS
+Entity expand        → E_Entity("auth-service", type=SERVICE) → E_RELATES → E_Entity("api-gateway")
+    ↓ X_INVOLVES
+Temporal expand      → T_Event("deploy v2.3.0", 14:00) → T_Event("CrashLoop", 14:03)
+    ↓ X_REFERS_TO
+Causal expand        → C_Node("secret removed") →[100%]→ C_Node("crash") →[95%]→ C_Node("503s")
 ```
-
-| Cross-Link | Purpose |
-|------------|---------|
-| `X_REPRESENTS` | Semantic concept → Entity it describes |
-| `X_INVOLVES` | Event → Entities that participated |
-| `X_AFFECTS` | Causal node → Entities impacted |
-| `X_REFERS_TO` | Event → Causal node it triggered |
-
-One question like *"Why did auth fail after Tuesday's deployment?"* traverses all four graphs seamlessly through these links.
 
 ---
 
-## 🚀 Quick Start
+## MAGMA Pipeline
 
-### Install from npm (Recommended)
+**MAGMA** (Multi-graph Adaptive Graph-based Memory Architecture) processes every retrieval in 7 steps with 2 LLM calls:
+
+<p align="center">
+  <img src="docs/assets/magma-pipeline.svg" alt="MAGMA Pipeline Data Flow" width="100%"/>
+</p>
+
+| Step | Component | Operation | Output |
+|:-----|:----------|:----------|:-------|
+| 1 | `IntentClassifier` | LLM extracts intent + per-graph depth hints | `{ type: "WHY", depthHints: { causal: 3, ... } }` |
+| 2 | `SemanticGraph.searchWithEntities()` | Cosine similarity over `S_Concept` embeddings | Ranked concepts with `linkedEntityIds` |
+| 3 | `MAGMAExecutor.extractSeedsFromEnriched()` | Follow `X_REPRESENTS` edges, filter by score >= 0.5 | `Set<entityId>` |
+| 4 | `MAGMAExecutor.expandFromSeeds()` | Parallel via `Promise.allSettled` — partial failure safe | Entity, temporal, causal views |
+| 5 | `SubgraphMerger.merge()` | Hash aggregation + multi-view boost | `MergedSubgraph { nodes[], edges[] }` |
+| 6 | `ContextLinearizer.linearize()` | Intent-specific sort, enforce 4000-token budget | Ordered context string |
+| 7 | `Synthesizer.synthesize()` | LLM generates answer from structured context | `{ answer, reasoning, confidence }` |
+
+### Intent-Adaptive Depth
+
+The classifier allocates traversal depth per graph. This is the core of adaptive retrieval — the system doesn't expand uniformly.
+
+```
+             Semantic  Entity  Temporal  Causal
+  WHY            1       1        1        3      ← deep causal chain traversal
+  WHEN           1       1        3        1      ← deep timeline reconstruction
+  WHO / WHAT     1       2        1        1      ← entity relationship expansion
+  EXPLORE        2       2        2        2      ← uniform exploration
+```
+
+### Linearization Strategies
+
+After merging, nodes must be ordered for the LLM context window. The sort strategy is intent-dependent:
+
+| Intent | Strategy | Effect |
+|:-------|:---------|:-------|
+| `WHY` | Topological sort | Causes appear before effects — LLM reads the chain in logical order |
+| `WHEN` | Chronological sort | Events ordered by `occurred_at` — natural timeline |
+| `WHO` / `WHAT` | Relevance-weighted | Most-connected entities surface first |
+| `EXPLORE` | Frequency-based | Most-referenced nodes first |
+
+### Multi-View Boosting
+
+Nodes found in multiple graph expansions receive a relevance boost. The intuition: if a node appears in both causal and temporal views, it's more likely to be central to the answer.
+
+```
+final_score = avg_score × 1.5^(view_count - 1)
+
+  1 view  → 1.0×     (single graph only)
+  2 views → 1.5×     (corroborated)
+  3 views → 2.25×    (strong cross-graph signal)
+  4 views → 3.375×   (central to entire context)
+```
+
+---
+
+## Quick Start
+
+### Install
 
 ```bash
-# Install globally
 npm install -g polyg-mcp
-
-# Or run directly with npx
+# or run directly
 npx polyg-mcp
 ```
 
-### Prerequisites: FalkorDB
+### Prerequisites
 
-polyg-mcp requires a FalkorDB instance for graph storage:
+FalkorDB (graph database):
 
 ```bash
-# Quickest: run FalkorDB in Docker
 docker run -d -p 6379:6379 falkordb/falkordb
 ```
 
-### Connect to Claude Desktop
+### Claude Desktop
 
-Add to your `claude_desktop_config.json`:
+Add to `claude_desktop_config.json`:
 
 ```json
 {
@@ -262,245 +236,149 @@ Add to your `claude_desktop_config.json`:
 }
 ```
 
-### Using Docker Compose (Full Stack)
-
-For a complete setup with FalkorDB included:
+### Docker Compose
 
 ```bash
 git clone https://github.com/Captain-Jay29/polyg-mcp.git
 cd polyg-mcp
-
-# Configure environment
 cp .env.example .env
-
-# Start polyg-mcp + FalkorDB
 docker-compose up -d
 ```
 
-### From Source (Development)
+### From Source
 
 ```bash
-# Clone and install
 git clone https://github.com/Captain-Jay29/polyg-mcp.git
-cd polyg-mcp
-npm install
-
-# Configure and run
+cd polyg-mcp && npm install
 cp .env.example .env
 npm run dev
 ```
 
 ---
 
-## 🔌 MCP Tools
+## MCP Tools
 
-### MAGMA Retrieval Tools (6 tools)
+15 tools exposed via MCP. Compatible with Claude, Cursor, and any MCP agent.
 
-| Tool | Purpose |
-|------|---------|
-| `semantic_search` | Find seed concepts via vector similarity |
-| `entity_lookup` | Expand entity relationships from seeds |
-| `temporal_expand` | Query events involving seed entities |
-| `causal_expand` | Traverse causal chains from seed entities |
-| `subgraph_merge` | Combine and score graph views |
-| `linearize_context` | Format merged subgraph for LLM |
+<details>
+<summary><b>MAGMA Retrieval (6 tools)</b></summary>
 
-### Write Tools (7 tools)
+| Tool | Operation |
+|:-----|:---------|
+| `semantic_search` | Cosine similarity over `S_Concept` embeddings, returns enriched matches with `linkedEntityIds` |
+| `entity_lookup` | BFS expansion from seed entity IDs, configurable depth, returns `E_Entity` nodes + `E_RELATES` edges |
+| `temporal_expand` | Time-range query over `T_Event` / `T_Fact`, returns chronologically ordered events |
+| `causal_expand` | Directed path traversal over `C_Node` → `C_CAUSES`, returns chains with per-edge confidence |
+| `subgraph_merge` | Combines entity/temporal/causal views, applies multi-view boosting formula |
+| `linearize_context` | Formats merged subgraph into token-budgeted string using intent-specific sort strategy |
 
-| Tool | Purpose |
-|------|---------|
-| `remember` | Store natural language memory |
-| `add_entity` | Add entity to graph |
-| `add_event` | Add temporal event |
-| `add_fact` | Add time-bounded fact |
-| `add_concept` | Add semantic concept |
-| `add_causal_link` | Create cause → effect link |
-| `link_entities` | Create entity relationship |
+</details>
 
-### Admin Tools (2 tools)
+<details>
+<summary><b>Write (7 tools)</b></summary>
 
-| Tool | Purpose |
-|------|---------|
-| `get_statistics` | Get graph statistics |
-| `clear_graph` | Clear specific graph |
+| Tool | Operation |
+|:-----|:---------|
+| `remember` | Natural language memory storage (auto-routes to appropriate graph) |
+| `add_entity` | Create `E_Entity` node with `type` and `properties` map |
+| `add_event` | Create `T_Event` node with ISO `occurred_at` timestamp |
+| `add_fact` | Create `T_Fact` node with `subject`, `predicate`, `valid_from` / `valid_to` |
+| `add_concept` | Create `S_Concept` with auto-generated `text-embedding-3-small` embedding |
+| `add_causal_link` | Create two `C_Node` nodes connected by `C_CAUSES` edge with confidence (self-loop prevention) |
+| `link_entities` | Create typed `E_RELATES` edge between two `E_Entity` nodes (self-loop prevention) |
 
----
+</details>
 
-## 🎯 Live Example
+<details>
+<summary><b>Admin (2 tools)</b></summary>
 
-**Query:**
-```
-Why did the auth service fail after the Tuesday deployment?
-```
+| Tool | Operation |
+|:-----|:---------|
+| `get_statistics` | Node/edge counts per graph + cross-link statistics |
+| `clear_graph` | Selective graph clear with automatic orphaned `X_` link cleanup |
 
-**MAGMA Pipeline:**
-
-1. **Intent Classification** → Detects: `WHY` intent with depth hints (causal=3, temporal=1)
-2. **Semantic Search** → Finds seed concepts matching "auth service", "deployment", "failure"
-3. **Seed Extraction** → Uses X_REPRESENTS links to find entity IDs
-4. **Parallel Expansion** → Causal chains (depth 3) + Temporal events (depth 1)
-5. **Subgraph Merge** → Combine views, boost nodes found in multiple graphs
-6. **Linearization** → Order nodes for causal reasoning (cause → effect)
-7. **Synthesis** → LLM generates answer from structured context
-
-**Answer:**
-> "The auth service failed because the AUTH_SECRET environment variable was missing in the Tuesday deployment. The config was refactored on Monday, and the new deployment template didn't include the secret."
+</details>
 
 ---
 
-## 🎬 See It In Action
-
-Real output from the polyg-mcp showcase CLI demonstrating multi-graph traversal:
-
-### WHY Question — Causal Chain Traversal
-
-```
-Query: "What caused the auth service to fail?"
-
-CAUSAL CHAIN (traversed automatically):
-├─ JWT_SECRET accidentally removed in PR #1234
-│   ↓ (100%)
-├─ auth-service deployment missing JWT_SECRET
-│   ↓ (100%)
-├─ auth-service crashed on startup
-│   ↓ (100%)
-├─ auth-service pod entered CrashLoopBackOff
-│   ↓ (95%)
-├─ api-gateway returned 503 errors
-│   ↓ (90%)
-└─ user-dashboard login became unresponsive
-
-Root cause identified with full confidence chain.
-```
-
-### WHEN Question — Timeline Reconstruction
-
-```
-Query: "What happened between 2pm and 3pm?"
-
-TIMELINE (12 events):
-14:00  ● Bob started deployment of auth-service v2.3.0
-14:02  ● Kubernetes pulled new auth-service container image
-14:03  ▲ auth-service pod entered CrashLoopBackOff
-14:03  ▲ auth-service logs: "Error: JWT_SECRET not set"
-14:04  ▲ api-gateway started returning 503 errors
-14:05  ● PagerDuty alert triggered for auth-service downtime
-14:08  ▲ Alice began investigating CrashLoopBackOff
-14:15  ● Alice discovered JWT_SECRET missing from manifest
-14:18  ● Bob confirmed JWT_SECRET removed in PR #1234
-14:22  ● Alice redeployed with fix
-14:24  ● auth-service pod became healthy
-14:26  ● All services recovered, incident closed
-```
-
-### WHO Question — Entity Relationship Mapping
-
-```
-Query: "Who was involved in the incident response?"
-
-ENTITIES DISCOVERED:
-  [PER] alice  —  Role: SRE, Team: platform
-  [PER] bob    —  Role: Developer, Team: platform
-
-RELATIONSHIPS:
-  alice  ─investigated─▶  auth-service
-  alice  ─discovered─▶    JWT_SECRET (missing)
-  alice  ─fixed─▶         deployment manifest
-  bob    ─deployed─▶      auth-service (caused incident)
-  bob    ─removed─▶       JWT_SECRET (in PR #1234)
-```
-
-### CASCADE Question — Blast Radius Analysis
-
-```
-Query: "What services were affected?"
-
-SERVICE DEPENDENCIES:
-  user-dashboard ──DEPENDS_ON──▶ api-gateway ──DEPENDS_ON──▶ auth-service
-                                                                   ▲
-                                                              (root cause)
-
-BLAST RADIUS:
-  auth-service  →  api-gateway  →  user-dashboard
-       │               │                 │
-    crashed        503 errors      login broken
-```
-
----
-
-## ⚡ Performance
-
-| Metric | Value |
-|:-------|:------|
-| MAGMA pipeline steps | 7 (classify → search → seed → expand → merge → linearize → synthesize) |
-| Parallel graph expansion | Entity, Temporal, Causal expanded simultaneously via `Promise.all` |
-| LLM calls per query | 2 (intent classify + synthesize) |
-| Intent-based depth | Adaptive (WHY=deep causal, WHEN=deep temporal, etc.) |
-| Multi-view boosting | `score × 1.5^(views-1)` — nodes in multiple graphs rank higher |
-| Graceful degradation | `Promise.allSettled` — one graph failure doesn't kill the query |
-| Algorithm complexity | Semantic: O(n×d), Entity BFS: O(V+E), Causal paths: O(V+E) |
-
----
-
-## 🛠 Configuration
+## Configuration
 
 ```bash
 # .env
-OPENAI_API_KEY=sk-...          # Required for LLM calls
+OPENAI_API_KEY=sk-...               # Required — LLM + embeddings
 EMBEDDING_MODEL=text-embedding-3-small
 LLM_MODEL=gpt-4o-mini
+CLASSIFIER_MAX_TOKENS=1000           # Intent classifier token limit
+SYNTHESIZER_MAX_TOKENS=2000          # Synthesizer output limit
 
-# Optional
+FALKORDB_HOST=localhost
+FALKORDB_PORT=6379
+FALKORDB_QUERY_TIMEOUT=30000         # Max query execution (ms)
+
 POLYG_PORT=3000
 POLYG_LOG_LEVEL=info
+POLYG_PARALLEL_TIMEOUT=30000         # Graph expansion timeout (ms)
+POLYG_MAX_RETRIES=3                  # LLM retry with exponential backoff
 ```
 
 ---
 
-## 📦 Roadmap
+## Project Structure
 
-- [x] Core multi-graph architecture (Entity, Temporal, Causal, Semantic)
-- [x] MAGMA retrieval pipeline (intent → seed → expand → merge → linearize)
-- [x] LLM intent classification (WHY/WHEN/WHO/WHAT/EXPLORE)
-- [x] Cross-graph linking (X_REPRESENTS, X_INVOLVES)
-- [x] MCP tool interface (15 tools: 6 MAGMA + 7 write + 2 admin)
-- [x] FalkorDB persistent storage
-- [ ] Semantic indexing in write tools (auto X_REPRESENTS creation)
-- [ ] Graph visualization UI
-- [ ] Streaming responses
+```
+polyg-mcp/
+├── packages/
+│   ├── core/src/
+│   │   ├── graphs/
+│   │   │   ├── semantic.ts         # Vector similarity (cosine over 1536-dim)
+│   │   │   ├── entity.ts           # Entity relationships (BFS)
+│   │   │   ├── temporal.ts         # Timeline queries (ISO sort)
+│   │   │   ├── causal.ts           # Cause-effect chains (path traversal)
+│   │   │   └── cross-linker.ts     # X_* relationship management
+│   │   ├── executor/
+│   │   │   └── magma-executor.ts   # MAGMA pipeline orchestration
+│   │   ├── retrieval/
+│   │   │   ├── subgraph-merger.ts  # Multi-view boosting
+│   │   │   ├── context-linearizer.ts
+│   │   │   └── seed-extraction.ts
+│   │   ├── agents/
+│   │   │   ├── intent-classifier.ts
+│   │   │   └── synthesizer.ts
+│   │   └── storage/
+│   │       └── falkordb-adapter.ts # Cypher query builder
+│   ├── server/src/
+│   │   ├── mcp-server-factory.ts   # 15 tool registrations
+│   │   └── shared-resources.ts     # Dependency injection
+│   └── shared/src/
+│       ├── types.ts                # TypeScript interfaces
+│       └── schemas.ts              # Zod validation
+├── docker-compose.yml
+└── tests/
+```
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
-Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md) first.
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ```bash
-# Run tests
-npm test
-
-# Run linting
-npm run lint
-
-# Build
-npm run build
+pnpm test
+pnpm lint
+pnpm build
 ```
 
----
+## License
 
-## 📄 License
-
-[MIT](LICENSE) © 2025
+[MIT](LICENSE)
 
 ---
 
 <p align="center">
-  <b>If this resonates with you, consider giving it a ⭐</b><br/>
-  <sub>Built for agents that need to answer <i>"why"</i> — not just <i>"what"</i></sub>
+  <sub>Built for agents that need to answer <i>"why"</i> — not just <i>"what"</i>.</sub>
 </p>
 
 <p align="center">
-  <a href="https://github.com/Captain-Jay29/polyg-mcp/issues">Report Bug</a> •
-  <a href="https://github.com/Captain-Jay29/polyg-mcp/issues">Request Feature</a> •
-  <a href="https://discord.gg/yourserver">Discord</a>
+  <a href="https://github.com/Captain-Jay29/polyg-mcp/issues">Report Bug</a> &middot;
+  <a href="https://github.com/Captain-Jay29/polyg-mcp/issues">Request Feature</a>
 </p>
