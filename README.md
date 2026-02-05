@@ -16,8 +16,11 @@
 </p>
 
 <p align="center">
+  <img src="docs/assets/demo-animation-light.gif" alt="polyg-mcp incident investigation demo" width="100%"/>
+</p>
+
+<p align="center">
   <a href="#the-problem">Problem</a> &middot;
-  <a href="#demo">Demo</a> &middot;
   <a href="#architecture">Architecture</a> &middot;
   <a href="#magma-pipeline">Pipeline</a> &middot;
   <a href="#quick-start">Quick Start</a> &middot;
@@ -43,31 +46,6 @@ polyg-mcp  → JWT_SECRET removed (PR #1234) → deploy missing secret → Crash
 ```
 
 Four purpose-built graphs (semantic, entity, temporal, causal) connected by typed cross-links (`X_REPRESENTS`, `X_INVOLVES`, `X_AFFECTS`, `X_REFERS_TO`) enable a single query to traverse all four dimensions. The system exposes 15 MCP tools and requires 2 LLM calls per retrieval — one for intent classification, one for synthesis.
-
----
-
-## Demo
-
-<p align="center">
-  <img src="docs/assets/demo-animation-light.gif" alt="polyg-mcp incident investigation demo" width="100%"/>
-</p>
-
-<details>
-<summary><b>What's happening in the demo</b></summary>
-<br/>
-
-The showcase CLI seeds a production incident into the four graphs — 8 entities, 19 events, 12 causal links, 11 semantic concepts — then runs four queries with adaptive depth:
-
-| Query | Classified Intent | Primary Graph (depth) | Result |
-|:------|:-----------------|:---------------------|:-------|
-| "What caused the auth service to fail?" | `WHY` | Causal (d=3) | 6-node cause-effect chain with confidence propagation |
-| "What happened between 2pm and 3pm?" | `WHEN` | Temporal (d=3) | 12 events, chronologically ordered |
-| "Who was involved in the incident?" | `WHO` | Entity (d=2) | 7 entities with roles and relationships |
-| "What services were affected?" | `WHAT` | Entity (d=2) | 3 services, dependency-traced blast radius |
-
-Each query dynamically adjusts per-graph traversal depth. A `WHY` query allocates depth=3 to causal while shallow-expanding temporal at depth=1. A `WHEN` query inverts this.
-
-</details>
 
 ---
 
