@@ -49,7 +49,7 @@ Four purpose-built graphs (semantic, entity, temporal, causal) connected by type
 ## Demo
 
 <p align="center">
-  <img src="docs/assets/demo-animation-1x.gif" alt="polyg-mcp incident investigation demo" width="100%"/>
+  <img src="docs/assets/demo-animation-light.gif" alt="polyg-mcp incident investigation demo" width="100%"/>
 </p>
 
 <details>
