@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/polyg-hero-banner.svg" alt="polyg-mcp" width="100%"/>
+  <img src="docs/assets/polyg-hero-banner.svg" alt="polyg-mcp" width="70%"/>
 </p>
 
 <p align="center">
