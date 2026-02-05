@@ -50,7 +50,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.25.3",
+    "@modelcontextprotocol/sdk": "^1.26.0",
     "falkordb": "^6.6.0",
     "openai": "^6.17.0",
     "zod": "^4.3.6"
