@@ -341,6 +341,7 @@ export class EntityGraph {
 
       // Group relationships by entity UUID
       const relationshipMap = new Map<string, EntityRelationship[]>();
+      const entityIdSet = new Set(entityIds);
 
       // Initialize empty arrays for all requested entities
       for (const id of entityIds) {
@@ -359,14 +360,14 @@ export class EntityGraph {
         };
 
         // Add relationship to source entity's list if it's in our query
-        if (entityIds.includes(source.uuid)) {
+        if (entityIdSet.has(source.uuid)) {
           const sourceRels = relationshipMap.get(source.uuid) || [];
           sourceRels.push(relationship);
           relationshipMap.set(source.uuid, sourceRels);
         }
 
         // Add relationship to target entity's list if it's in our query
-        if (entityIds.includes(target.uuid)) {
+        if (entityIdSet.has(target.uuid)) {
           const targetRels = relationshipMap.get(target.uuid) || [];
           targetRels.push(relationship);
           relationshipMap.set(target.uuid, targetRels);
