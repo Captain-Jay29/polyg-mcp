@@ -518,6 +518,59 @@ describe('MAGMAExecutor', () => {
         expect(result.merged.viewContributions.temporal).toBe(2);
       });
 
+      it('should scale temporal time window by depth hint', async () => {
+        const graphs = createMockGraphs({
+          enrichedResults: [
+            createEnrichedSemanticMatch(
+              'concept1',
+              0.9,
+              ['entity1'],
+              ['Entity 1'],
+            ),
+          ],
+          temporalEvents: {
+            entity1: [
+              {
+                uuid: 'event1',
+                description: 'Test event',
+                occurred_at: new Date(),
+              },
+            ],
+          },
+        });
+
+        const executor = new MAGMAExecutor(graphs);
+
+        // Execute with depth 1 (should use ±3 months)
+        const intentDepth1 = createValidIntent('WHEN', {
+          depthHints: { entity: 1, temporal: 1, causal: 1 },
+        });
+        await executor.execute('when did this happen?', intentDepth1);
+
+        const call1Args = vi.mocked(graphs.temporal.queryTimelineForEntities)
+          .mock.calls[0];
+        const from1 = call1Args[1] as Date;
+        const to1 = call1Args[2] as Date;
+        const range1Ms = to1.getTime() - from1.getTime();
+
+        vi.mocked(graphs.temporal.queryTimelineForEntities).mockClear();
+
+        // Execute with depth 5 (should use ±15 months)
+        const intentDepth5 = createValidIntent('WHEN', {
+          depthHints: { entity: 1, temporal: 5, causal: 1 },
+        });
+        await executor.execute('when did this happen?', intentDepth5);
+
+        const call5Args = vi.mocked(graphs.temporal.queryTimelineForEntities)
+          .mock.calls[0];
+        const from5 = call5Args[1] as Date;
+        const to5 = call5Args[2] as Date;
+        const range5Ms = to5.getTime() - from5.getTime();
+
+        // Depth 5 should produce a time range 5x wider than depth 1
+        expect(range5Ms).toBeCloseTo(range1Ms * 5, -3);
+      });
+
       it('should handle entities with no temporal events', async () => {
         const graphs = createMockGraphs({
           enrichedResults: [

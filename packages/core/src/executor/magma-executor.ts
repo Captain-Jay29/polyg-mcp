@@ -374,15 +374,17 @@ export class MAGMAExecutor {
    */
   private async expandTemporalGraph(
     entityIds: string[],
-    _depth: number,
+    depth: number,
   ): Promise<GraphView> {
     const nodes: GraphView['nodes'] = [];
     const seenIds = new Set<string>();
 
-    // Use a wide time range (last year to now + 1 year)
+    // Scale time window by depth hint: each depth unit = 3 months
+    // depth 1 → ±3 months, depth 2 → ±6 months, ..., depth 5 → ±15 months
     const now = new Date();
-    const from = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
-    const to = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
+    const msPerDepthUnit = 90 * 24 * 60 * 60 * 1000; // ~3 months
+    const from = new Date(now.getTime() - depth * msPerDepthUnit);
+    const to = new Date(now.getTime() + depth * msPerDepthUnit);
 
     // Single batch query for all entities
     // Errors propagate up for graceful degradation at Promise.allSettled level
