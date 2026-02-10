@@ -459,6 +459,180 @@ describe('CausalGraph', () => {
     });
   });
 
+  describe('circular causal chains', () => {
+    it('should handle circular chain A→B→C→A in getUpstreamCauses without duplicates', async () => {
+      // Simulate cycle: FalkorDB *1..maxDepth returns all path segments including cycle
+      // A→B, B→C, C→A would be returned when traversing upstream from A
+      vi.mocked(db.query).mockResolvedValue({
+        records: [
+          {
+            c: mockCausalNode({ uuid: 'node-c', description: 'Event C' }),
+            e: mockCausalNode({ uuid: 'node-a', description: 'Event A' }),
+            confidence: 0.7,
+          },
+          {
+            c: mockCausalNode({ uuid: 'node-b', description: 'Event B' }),
+            e: mockCausalNode({ uuid: 'node-c', description: 'Event C' }),
+            confidence: 0.8,
+          },
+          {
+            c: mockCausalNode({ uuid: 'node-a', description: 'Event A' }),
+            e: mockCausalNode({ uuid: 'node-b', description: 'Event B' }),
+            confidence: 0.9,
+          },
+        ],
+        metadata: [],
+      });
+
+      const causes = await graph.getUpstreamCauses('node-a', 3);
+
+      expect(causes).toHaveLength(3);
+      // Each link should be present
+      expect(causes.map((l) => `${l.cause}->${l.effect}`)).toEqual(
+        expect.arrayContaining([
+          'Event C->Event A',
+          'Event B->Event C',
+          'Event A->Event B',
+        ]),
+      );
+    });
+
+    it('should handle circular chain in getDownstreamEffects without duplicates', async () => {
+      vi.mocked(db.query).mockResolvedValue({
+        records: [
+          {
+            c: mockCausalNode({ uuid: 'node-a', description: 'Event A' }),
+            e: mockCausalNode({ uuid: 'node-b', description: 'Event B' }),
+            confidence: 0.9,
+          },
+          {
+            c: mockCausalNode({ uuid: 'node-b', description: 'Event B' }),
+            e: mockCausalNode({ uuid: 'node-c', description: 'Event C' }),
+            confidence: 0.8,
+          },
+          {
+            c: mockCausalNode({ uuid: 'node-c', description: 'Event C' }),
+            e: mockCausalNode({ uuid: 'node-a', description: 'Event A' }),
+            confidence: 0.7,
+          },
+        ],
+        metadata: [],
+      });
+
+      const effects = await graph.getDownstreamEffects('node-a', 3);
+
+      expect(effects).toHaveLength(3);
+      expect(effects.map((l) => `${l.cause}->${l.effect}`)).toEqual(
+        expect.arrayContaining([
+          'Event A->Event B',
+          'Event B->Event C',
+          'Event C->Event A',
+        ]),
+      );
+    });
+
+    it('should deduplicate links from circular chain in traverse (both directions)', async () => {
+      // First call: find matching nodes by description
+      vi.mocked(db.query).mockResolvedValueOnce({
+        records: [
+          { n: mockCausalNode({ uuid: 'node-a', description: 'Event A' }) },
+        ],
+        metadata: [],
+      });
+
+      // Cycle links returned for upstream
+      const cycleLinks = [
+        {
+          c: mockCausalNode({ uuid: 'node-c', description: 'Event C' }),
+          e: mockCausalNode({ uuid: 'node-a', description: 'Event A' }),
+          confidence: 0.7,
+        },
+        {
+          c: mockCausalNode({ uuid: 'node-b', description: 'Event B' }),
+          e: mockCausalNode({ uuid: 'node-c', description: 'Event C' }),
+          confidence: 0.8,
+        },
+        {
+          c: mockCausalNode({ uuid: 'node-a', description: 'Event A' }),
+          e: mockCausalNode({ uuid: 'node-b', description: 'Event B' }),
+          confidence: 0.9,
+        },
+      ];
+
+      // getUpstreamCauses returns cycle links
+      vi.mocked(db.query).mockResolvedValueOnce({
+        records: cycleLinks,
+        metadata: [],
+      });
+
+      // getDownstreamEffects returns same cycle links
+      vi.mocked(db.query).mockResolvedValueOnce({
+        records: cycleLinks,
+        metadata: [],
+      });
+
+      const links = await graph.traverse([{ mention: 'Event A' }], 'both', 3);
+
+      // Should deduplicate: 3 unique links, not 6
+      expect(links).toHaveLength(3);
+      const keys = links.map((l) => `${l.cause}->${l.effect}`);
+      expect(new Set(keys).size).toBe(keys.length);
+    });
+
+    it('should deduplicate circular chain links in traverseFromNodeIds', async () => {
+      const cycleLinks = [
+        {
+          c: mockCausalNode({ uuid: 'node-a', description: 'Event A' }),
+          e: mockCausalNode({ uuid: 'node-b', description: 'Event B' }),
+          confidence: 0.9,
+        },
+        {
+          c: mockCausalNode({ uuid: 'node-b', description: 'Event B' }),
+          e: mockCausalNode({ uuid: 'node-a', description: 'Event A' }),
+          confidence: 0.8,
+        },
+      ];
+
+      // getUpstreamCauses for node-a
+      vi.mocked(db.query).mockResolvedValueOnce({
+        records: cycleLinks,
+        metadata: [],
+      });
+
+      // getDownstreamEffects for node-a
+      vi.mocked(db.query).mockResolvedValueOnce({
+        records: cycleLinks,
+        metadata: [],
+      });
+
+      const result = await graph.traverseFromNodeIds(['node-a'], 'both', 2);
+
+      // 2 unique links (A→B and B→A), not 4
+      expect(result).toHaveLength(2);
+      const keys = result.map((l) => `${l.cause}->${l.effect}`);
+      expect(new Set(keys).size).toBe(keys.length);
+    });
+
+    it('should handle self-referencing causal link (A→A)', async () => {
+      vi.mocked(db.query).mockResolvedValue({
+        records: [
+          {
+            c: mockCausalNode({ uuid: 'node-a', description: 'Event A' }),
+            e: mockCausalNode({ uuid: 'node-a', description: 'Event A' }),
+            confidence: 0.5,
+          },
+        ],
+        metadata: [],
+      });
+
+      const causes = await graph.getUpstreamCauses('node-a', 3);
+
+      expect(causes).toHaveLength(1);
+      expect(causes[0].cause).toBe('Event A');
+      expect(causes[0].effect).toBe('Event A');
+    });
+  });
+
   describe('error handling', () => {
     it('should wrap parse errors in GraphParseError', async () => {
       vi.mocked(db.query).mockResolvedValue({
