@@ -349,7 +349,7 @@ export class Orchestrator {
    */
   async remember(
     content: string,
-    _context?: string,
+    context?: string,
   ): Promise<{
     entities_created: number;
     facts_added: number;
@@ -364,10 +364,12 @@ export class Orchestrator {
       );
     }
 
-    // For now, create a simple event to log what was remembered
+    // Include context in the event description when provided
     // Future: Use LLM to extract entities, facts, and causal relationships
+    const description = context ? `${content} [Context: ${context}]` : content;
+
     try {
-      await this.temporalGraph.addEvent(content, new Date());
+      await this.temporalGraph.addEvent(description, new Date());
     } catch (error) {
       throw new OrchestratorError(
         `Failed to store content in temporal graph: ${error instanceof Error ? error.message : String(error)}`,
