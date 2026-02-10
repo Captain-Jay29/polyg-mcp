@@ -339,7 +339,7 @@ describe('Orchestrator', () => {
       );
     });
 
-    it('should accept context parameter (for future use)', async () => {
+    it('should include context in event description when provided', async () => {
       vi.mocked(db.createNode).mockResolvedValue('event-uuid');
 
       const result = await orchestrator.remember(
@@ -348,6 +348,26 @@ describe('Orchestrator', () => {
       );
 
       expect(result.events_logged).toBe(1);
+      expect(db.createNode).toHaveBeenCalledWith(
+        'T_Event',
+        expect.objectContaining({
+          description:
+            'Important note [Context: During project planning session]',
+        }),
+      );
+    });
+
+    it('should store content without context suffix when context is omitted', async () => {
+      vi.mocked(db.createNode).mockResolvedValue('event-uuid');
+
+      await orchestrator.remember('Plain note');
+
+      expect(db.createNode).toHaveBeenCalledWith(
+        'T_Event',
+        expect.objectContaining({
+          description: 'Plain note',
+        }),
+      );
     });
   });
 
