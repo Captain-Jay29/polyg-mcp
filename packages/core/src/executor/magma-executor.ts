@@ -287,13 +287,22 @@ export class MAGMAExecutor {
     const expansionResults = await Promise.allSettled([
       this.config.disabledGraphs.includes('entity')
         ? Promise.resolve({ source: 'entity' as const, nodes: [] } as GraphView)
-        : this.withTimeout(this.expandEntityGraph(entityIds, effectiveDepths.entity)),
+        : this.withTimeout(
+            this.expandEntityGraph(entityIds, effectiveDepths.entity),
+          ),
       this.config.disabledGraphs.includes('temporal')
-        ? Promise.resolve({ source: 'temporal' as const, nodes: [] } as GraphView)
-        : this.withTimeout(this.expandTemporalGraph(entityIds, effectiveDepths.temporal)),
+        ? Promise.resolve({
+            source: 'temporal' as const,
+            nodes: [],
+          } as GraphView)
+        : this.withTimeout(
+            this.expandTemporalGraph(entityIds, effectiveDepths.temporal),
+          ),
       this.config.disabledGraphs.includes('causal')
         ? Promise.resolve({ source: 'causal' as const, nodes: [] } as GraphView)
-        : this.withTimeout(this.expandCausalGraph(entityIds, effectiveDepths.causal)),
+        : this.withTimeout(
+            this.expandCausalGraph(entityIds, effectiveDepths.causal),
+          ),
     ]);
 
     const expansionNames: GraphViewSource[] = ['entity', 'temporal', 'causal'];
