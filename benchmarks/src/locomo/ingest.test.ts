@@ -1,6 +1,6 @@
-import { type Mock, describe, expect, it, vi } from 'vitest';
-import type { LLMProvider, StorageStatistics } from '@polyg-mcp/shared';
 import type { MAGMAGraphRegistry } from '@polyg-mcp/core';
+import type { LLMProvider, StorageStatistics } from '@polyg-mcp/shared';
+import { describe, expect, it, type Mock, vi } from 'vitest';
 import { ingestConversation } from './ingest.js';
 import type { LoCoMoConversation } from './types.js';
 
@@ -13,7 +13,11 @@ function makeConversation(): LoCoMoConversation {
         speaker_a: 'Alice',
         speaker_b: 'Bob',
         turns: [
-          { speaker: 'Alice', dia_id: 'd1', text: 'I started a new job at Acme.' },
+          {
+            speaker: 'Alice',
+            dia_id: 'd1',
+            text: 'I started a new job at Acme.',
+          },
           { speaker: 'Bob', dia_id: 'd2', text: 'That caused you to move!' },
         ],
       },
@@ -85,29 +89,60 @@ function makeMockGraphs(): MAGMAGraphRegistry {
       addEntity: vi.fn().mockImplementation((name: string) => {
         const uuid = `entity-${entityCounter++}`;
         entityUuids.set(name, uuid);
-        return Promise.resolve({ uuid, name, entity_type: 'person', properties: {}, created_at: new Date() });
+        return Promise.resolve({
+          uuid,
+          name,
+          entity_type: 'person',
+          properties: {},
+          created_at: new Date(),
+        });
       }),
       getEntity: vi.fn().mockImplementation((nameOrId: string) => {
         const uuid = entityUuids.get(nameOrId);
-        if (uuid) return Promise.resolve({ uuid, name: nameOrId, entity_type: 'person', properties: {}, created_at: new Date() });
+        if (uuid)
+          return Promise.resolve({
+            uuid,
+            name: nameOrId,
+            entity_type: 'person',
+            properties: {},
+            created_at: new Date(),
+          });
         return Promise.resolve(null);
       }),
     },
     temporal: {
-      addEvent: vi.fn().mockResolvedValue({ uuid: 'event-0', description: 'test', occurred_at: new Date() }),
-      addFact: vi.fn().mockResolvedValue({ uuid: 'fact-0', subject: 's', predicate: 'p', object: 'o', valid_from: new Date() }),
+      addEvent: vi.fn().mockResolvedValue({
+        uuid: 'event-0',
+        description: 'test',
+        occurred_at: new Date(),
+      }),
+      addFact: vi.fn().mockResolvedValue({
+        uuid: 'fact-0',
+        subject: 's',
+        predicate: 'p',
+        object: 'o',
+        valid_from: new Date(),
+      }),
       linkEventToEntity: vi.fn().mockResolvedValue(undefined),
       linkFactToEntity: vi.fn().mockResolvedValue(undefined),
     },
     causal: {
       findOrCreate: vi.fn().mockImplementation((desc: string) =>
-        Promise.resolve({ uuid: `causal-${desc}`, description: desc, node_type: 'cause' }),
+        Promise.resolve({
+          uuid: `causal-${desc}`,
+          description: desc,
+          node_type: 'cause',
+        }),
       ),
-      addLink: vi.fn().mockResolvedValue({ cause: 'a', effect: 'b', confidence: 0.9 }),
+      addLink: vi
+        .fn()
+        .mockResolvedValue({ cause: 'a', effect: 'b', confidence: 0.9 }),
       linkToEntity: vi.fn().mockResolvedValue(undefined),
     },
     semantic: {
-      addConcept: vi.fn().mockResolvedValue({ uuid: 'concept-0', name: 'career' }),
+      addConcept: vi
+        .fn()
+        .mockResolvedValue({ uuid: 'concept-0', name: 'career' }),
       linkToEntity: vi.fn().mockResolvedValue(undefined),
     },
     crossLinker: {},
