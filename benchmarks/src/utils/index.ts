@@ -1,12 +1,12 @@
 export {
+  type BootstrapResult,
   bootstrapCI,
   formatCI,
-  type BootstrapResult,
 } from './bootstrap.js';
 
 export {
-  validateExtractionQuality,
   type ValidationCheck,
   type ValidationResult,
   type ValidationThresholds,
+  validateExtractionQuality,
 } from './graph-validation.js';

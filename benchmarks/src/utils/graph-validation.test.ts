@@ -1,10 +1,8 @@
-import { describe, expect, it } from 'vitest';
 import type { StorageStatistics } from '@polyg-mcp/shared';
+import { describe, expect, it } from 'vitest';
 import { validateExtractionQuality } from './graph-validation.js';
 
-function makeStats(
-  overrides?: Partial<StorageStatistics>,
-): StorageStatistics {
+function makeStats(overrides?: Partial<StorageStatistics>): StorageStatistics {
   return {
     semantic_nodes: 10,
     temporal_nodes: 3,
@@ -29,27 +27,21 @@ describe('validateExtractionQuality', () => {
   });
 
   it('fails when entity count is zero', () => {
-    const result = validateExtractionQuality(
-      makeStats({ entity_nodes: 0 }),
-    );
+    const result = validateExtractionQuality(makeStats({ entity_nodes: 0 }));
     expect(result.passed).toBe(false);
     const check = result.checks.find((c) => c.name === 'entity_count');
     expect(check?.passed).toBe(false);
   });
 
   it('fails when entity count exceeds max', () => {
-    const result = validateExtractionQuality(
-      makeStats({ entity_nodes: 100 }),
-    );
+    const result = validateExtractionQuality(makeStats({ entity_nodes: 100 }));
     expect(result.passed).toBe(false);
     const check = result.checks.find((c) => c.name === 'entity_count');
     expect(check?.passed).toBe(false);
   });
 
   it('fails when causal nodes are zero', () => {
-    const result = validateExtractionQuality(
-      makeStats({ causal_nodes: 0 }),
-    );
+    const result = validateExtractionQuality(makeStats({ causal_nodes: 0 }));
     expect(result.passed).toBe(false);
     const check = result.checks.find((c) => c.name === 'causal_nodes');
     expect(check?.passed).toBe(false);
@@ -82,9 +74,7 @@ describe('validateExtractionQuality', () => {
   });
 
   it('fails when temporal nodes are zero', () => {
-    const result = validateExtractionQuality(
-      makeStats({ temporal_nodes: 0 }),
-    );
+    const result = validateExtractionQuality(makeStats({ temporal_nodes: 0 }));
     expect(result.passed).toBe(false);
     const check = result.checks.find((c) => c.name === 'temporal_nodes');
     expect(check?.passed).toBe(false);
@@ -93,10 +83,9 @@ describe('validateExtractionQuality', () => {
   it('uses custom thresholds when provided', () => {
     // With default thresholds entity_nodes=3 would fail (min is 5)
     // but with a custom min of 1 it should pass
-    const result = validateExtractionQuality(
-      makeStats({ entity_nodes: 3 }),
-      { minEntities: 1 },
-    );
+    const result = validateExtractionQuality(makeStats({ entity_nodes: 3 }), {
+      minEntities: 1,
+    });
     const check = result.checks.find((c) => c.name === 'entity_count');
     expect(check?.passed).toBe(true);
   });
