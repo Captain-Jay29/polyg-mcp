@@ -32,6 +32,9 @@ importers:
 
   benchmarks:
     dependencies:
+      '@polyg-mcp/core':
+        specifier: workspace:*
+        version: link:../packages/core
       '@polyg-mcp/shared':
         specifier: workspace:*
         version: link:../packages/shared
