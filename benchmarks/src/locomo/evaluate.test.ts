@@ -1,3 +1,4 @@
+import type { LLMProvider } from '@polyg-mcp/shared';
 import { describe, expect, it, vi } from 'vitest';
 import {
   aggregateScores,
