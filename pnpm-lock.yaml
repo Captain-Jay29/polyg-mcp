@@ -30,6 +30,19 @@ importers:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@25.1.0)
 
+  benchmarks:
+    dependencies:
+      '@polyg-mcp/shared':
+        specifier: workspace:*
+        version: link:../packages/shared
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
+    devDependencies:
+      typescript:
+        specifier: ^5.5.0
+        version: 5.9.3
+
   packages/core:
     dependencies:
       '@polyg-mcp/shared':
