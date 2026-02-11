@@ -1,16 +1,4 @@
 export {
-  buildExtractionPrompt,
-  type ExtractionResult,
-  ExtractionResultSchema,
-} from './extraction-prompt.js';
-
-export {
-  type IngestionOptions,
-  type IngestionResult,
-  ingestConversation,
-} from './ingest.js';
-
-export {
   aggregateScores,
   type CategoryScore,
   type EvaluationSummary,
@@ -20,12 +8,22 @@ export {
   type RecallFn,
   type ScoredResult,
 } from './evaluate.js';
+export {
+  buildExtractionPrompt,
+  type ExtractionResult,
+  ExtractionResultSchema,
+} from './extraction-prompt.js';
+export {
+  type IngestionOptions,
+  type IngestionResult,
+  ingestConversation,
+} from './ingest.js';
 
 export {
   buildJudgePrompt,
-  judgeAnswer,
   type JudgeInput,
   type JudgeResult,
+  judgeAnswer,
 } from './judge.js';
 
 export {

@@ -35,7 +35,8 @@ export async function judgeAnswer(
   });
 
   const normalized = rawResponse.toUpperCase();
-  const correct = normalized.includes('CORRECT') && !normalized.includes('WRONG');
+  const correct =
+    normalized.includes('CORRECT') && !normalized.includes('WRONG');
 
   return { correct, rawResponse };
 }

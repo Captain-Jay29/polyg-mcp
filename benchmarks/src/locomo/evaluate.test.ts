@@ -1,4 +1,3 @@
-import type { LLMProvider } from '@polyg-mcp/shared';
 import { describe, expect, it, vi } from 'vitest';
 import {
   aggregateScores,
@@ -32,10 +31,6 @@ function makeConversation(
 
 function makeRecall(answer = 'mock answer', confidence = 0.9): RecallFn {
   return vi.fn().mockResolvedValue({ answer, confidence });
-}
-
-function makeMockLLM(response: string): LLMProvider {
-  return { complete: vi.fn().mockResolvedValue(response) };
 }
 
 function makeRawResult(overrides: Partial<RawResult> = {}): RawResult {
@@ -160,9 +155,7 @@ describe('aggregateScores', () => {
     const singleHop = summary.byCategory.find(
       (c) => c.category === 'single-hop',
     );
-    const multiHop = summary.byCategory.find(
-      (c) => c.category === 'multi-hop',
-    );
+    const multiHop = summary.byCategory.find((c) => c.category === 'multi-hop');
 
     expect(singleHop?.accuracy).toBe(0.5);
     expect(singleHop?.count).toBe(2);
@@ -200,8 +193,12 @@ describe('aggregateScores', () => {
     expect(summary.overall.ci.mean).toBeCloseTo(0.6, 5);
     expect(summary.overall.ci.lower).toBeGreaterThanOrEqual(0);
     expect(summary.overall.ci.upper).toBeLessThanOrEqual(1);
-    expect(summary.overall.ci.lower).toBeLessThanOrEqual(summary.overall.ci.mean);
-    expect(summary.overall.ci.upper).toBeGreaterThanOrEqual(summary.overall.ci.mean);
+    expect(summary.overall.ci.lower).toBeLessThanOrEqual(
+      summary.overall.ci.mean,
+    );
+    expect(summary.overall.ci.upper).toBeGreaterThanOrEqual(
+      summary.overall.ci.mean,
+    );
     expect(summary.overall.ci.ci).toBe(0.95);
   });
 
