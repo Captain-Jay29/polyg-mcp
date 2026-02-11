@@ -46,6 +46,8 @@ const MAGMAExecutorConfigSchema = z.object({
   semanticTopK: z.number().int().min(1).max(100).default(10),
   minSemanticScore: z.number().min(0).max(1).default(0.5),
   timeout: z.number().int().min(100).max(60000).default(5000),
+  disabledGraphs: z.array(z.enum(['entity', 'temporal', 'causal'])).default([]),
+  forceUniformDepth: z.number().int().min(1).max(5).optional(),
 });
 
 export type MAGMAExecutorConfig = z.infer<typeof MAGMAExecutorConfigSchema>;
@@ -54,6 +56,7 @@ const DEFAULT_CONFIG: MAGMAExecutorConfig = {
   semanticTopK: 10,
   minSemanticScore: 0.5,
   timeout: 5000,
+  disabledGraphs: [],
 };
 
 /**
@@ -267,16 +270,30 @@ export class MAGMAExecutor {
       return { views, failures };
     }
 
+    // Apply forceUniformDepth override if configured (for ablation studies)
+    const effectiveDepths = this.config.forceUniformDepth
+      ? {
+          entity: this.config.forceUniformDepth,
+          temporal: this.config.forceUniformDepth,
+          causal: this.config.forceUniformDepth,
+        }
+      : depthHints;
+
     // Parallel expansion from seeds with graceful degradation
     // Use Promise.allSettled to allow partial success - if one expansion fails,
     // others can still contribute results
     // Each expansion is wrapped with timeout for protection against hanging queries
+    // Disabled graphs (for ablation) resolve immediately with empty results
     const expansionResults = await Promise.allSettled([
-      this.withTimeout(this.expandEntityGraph(entityIds, depthHints.entity)),
-      this.withTimeout(
-        this.expandTemporalGraph(entityIds, depthHints.temporal),
-      ),
-      this.withTimeout(this.expandCausalGraph(entityIds, depthHints.causal)),
+      this.config.disabledGraphs.includes('entity')
+        ? Promise.resolve({ source: 'entity' as const, nodes: [] } as GraphView)
+        : this.withTimeout(this.expandEntityGraph(entityIds, effectiveDepths.entity)),
+      this.config.disabledGraphs.includes('temporal')
+        ? Promise.resolve({ source: 'temporal' as const, nodes: [] } as GraphView)
+        : this.withTimeout(this.expandTemporalGraph(entityIds, effectiveDepths.temporal)),
+      this.config.disabledGraphs.includes('causal')
+        ? Promise.resolve({ source: 'causal' as const, nodes: [] } as GraphView)
+        : this.withTimeout(this.expandCausalGraph(entityIds, effectiveDepths.causal)),
     ]);
 
     const expansionNames: GraphViewSource[] = ['entity', 'temporal', 'causal'];

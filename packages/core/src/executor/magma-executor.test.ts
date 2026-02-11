@@ -1484,4 +1484,336 @@ describe('MAGMAExecutor', () => {
       expect(config1).toEqual(config2); // Same values
     });
   });
+
+  describe('ablation config', () => {
+    describe('config validation', () => {
+      it('should default disabledGraphs to empty array', () => {
+        const graphs = createMockGraphs();
+        const executor = new MAGMAExecutor(graphs);
+        const config = executor.getConfig();
+
+        expect(config.disabledGraphs).toEqual([]);
+      });
+
+      it('should accept valid graph names in disabledGraphs', () => {
+        const graphs = createMockGraphs();
+        const executor = new MAGMAExecutor(graphs, {
+          disabledGraphs: ['entity', 'temporal', 'causal'],
+        });
+        const config = executor.getConfig();
+
+        expect(config.disabledGraphs).toEqual(['entity', 'temporal', 'causal']);
+      });
+
+      it('should reject invalid graph names in disabledGraphs', () => {
+        const graphs = createMockGraphs();
+
+        expect(
+          () =>
+            new MAGMAExecutor(graphs, {
+              disabledGraphs: ['semantic'] as unknown as ('entity' | 'temporal' | 'causal')[],
+            }),
+        ).toThrow(RetrievalValidationError);
+      });
+
+      it('should default forceUniformDepth to undefined', () => {
+        const graphs = createMockGraphs();
+        const executor = new MAGMAExecutor(graphs);
+        const config = executor.getConfig();
+
+        expect(config.forceUniformDepth).toBeUndefined();
+      });
+
+      it('should accept forceUniformDepth values 1-5', () => {
+        const graphs = createMockGraphs();
+
+        for (const depth of [1, 2, 3, 4, 5]) {
+          const executor = new MAGMAExecutor(graphs, { forceUniformDepth: depth });
+          expect(executor.getConfig().forceUniformDepth).toBe(depth);
+        }
+      });
+
+      it('should reject forceUniformDepth of 0', () => {
+        const graphs = createMockGraphs();
+
+        expect(
+          () => new MAGMAExecutor(graphs, { forceUniformDepth: 0 }),
+        ).toThrow(RetrievalValidationError);
+      });
+
+      it('should reject forceUniformDepth above 5', () => {
+        const graphs = createMockGraphs();
+
+        expect(
+          () => new MAGMAExecutor(graphs, { forceUniformDepth: 6 }),
+        ).toThrow(RetrievalValidationError);
+      });
+    });
+
+    describe('disabledGraphs execution', () => {
+      it('should skip entity expansion when entity is disabled', async () => {
+        const graphs = createMockGraphs({
+          enrichedResults: [
+            createEnrichedSemanticMatch('concept1', 0.9, ['entity1'], ['Entity 1']),
+          ],
+          entityRelationships: {
+            entity1: [
+              {
+                source: { uuid: 'entity1', name: 'Entity 1', entity_type: 'type' },
+                target: { uuid: 'entity2', name: 'Entity 2', entity_type: 'type' },
+                relationshipType: 'RELATES',
+              },
+            ],
+          },
+          temporalEvents: {
+            entity1: [
+              { uuid: 'event1', description: 'Test event', occurred_at: new Date() },
+            ],
+          },
+          causalNodes: {
+            entity1: [{ uuid: 'causal1', description: 'Causal node', node_type: 'event' }],
+          },
+          causalLinks: [{ cause: 'cause1', effect: 'effect1', confidence: 0.85 }],
+        });
+
+        const executor = new MAGMAExecutor(graphs, { disabledGraphs: ['entity'] });
+        const intent = createValidIntent('EXPLORE', {
+          depthHints: { entity: 2, temporal: 1, causal: 1 },
+        });
+
+        const result = await executor.execute('test query', intent);
+
+        // Entity graph methods should NOT have been called
+        expect(graphs.entity.getRelationshipsBatch).not.toHaveBeenCalled();
+
+        // Temporal and causal should still run
+        expect(graphs.temporal.queryTimelineForEntities).toHaveBeenCalled();
+        expect(graphs.causal.getNodesForEntities).toHaveBeenCalled();
+
+        // Entity view should contribute 0 nodes
+        expect(result.merged.viewContributions.entity).toBe(0);
+        expect(result.merged.viewContributions.temporal).toBeGreaterThan(0);
+      });
+
+      it('should skip temporal expansion when temporal is disabled', async () => {
+        const graphs = createMockGraphs({
+          enrichedResults: [
+            createEnrichedSemanticMatch('concept1', 0.9, ['entity1'], ['Entity 1']),
+          ],
+          entityRelationships: {
+            entity1: [
+              {
+                source: { uuid: 'entity1', name: 'Entity 1', entity_type: 'type' },
+                target: { uuid: 'entity2', name: 'Entity 2', entity_type: 'type' },
+                relationshipType: 'RELATES',
+              },
+            ],
+          },
+          temporalEvents: {
+            entity1: [
+              { uuid: 'event1', description: 'Test event', occurred_at: new Date() },
+            ],
+          },
+        });
+
+        const executor = new MAGMAExecutor(graphs, { disabledGraphs: ['temporal'] });
+        const intent = createValidIntent();
+
+        const result = await executor.execute('test query', intent);
+
+        // Temporal graph methods should NOT have been called
+        expect(graphs.temporal.queryTimelineForEntities).not.toHaveBeenCalled();
+
+        // Entity should still run
+        expect(graphs.entity.getRelationshipsBatch).toHaveBeenCalled();
+
+        expect(result.merged.viewContributions.temporal).toBe(0);
+      });
+
+      it('should skip causal expansion when causal is disabled', async () => {
+        const graphs = createMockGraphs({
+          enrichedResults: [
+            createEnrichedSemanticMatch('concept1', 0.9, ['entity1'], ['Entity 1']),
+          ],
+          causalNodes: {
+            entity1: [{ uuid: 'causal1', description: 'Causal node', node_type: 'event' }],
+          },
+          causalLinks: [{ cause: 'cause1', effect: 'effect1', confidence: 0.85 }],
+        });
+
+        const executor = new MAGMAExecutor(graphs, { disabledGraphs: ['causal'] });
+        const intent = createValidIntent();
+
+        const result = await executor.execute('test query', intent);
+
+        // Causal graph methods should NOT have been called
+        expect(graphs.causal.getNodesForEntities).not.toHaveBeenCalled();
+        expect(graphs.causal.traverseFromNodeIds).not.toHaveBeenCalled();
+
+        expect(result.merged.viewContributions.causal).toBe(0);
+      });
+
+      it('should return semantic-only when all three graphs are disabled', async () => {
+        const graphs = createMockGraphs({
+          enrichedResults: [
+            createEnrichedSemanticMatch('concept1', 0.9, ['entity1'], ['Entity 1']),
+          ],
+          entityRelationships: {
+            entity1: [
+              {
+                source: { uuid: 'entity1', name: 'Entity 1', entity_type: 'type' },
+                target: { uuid: 'entity2', name: 'Entity 2', entity_type: 'type' },
+                relationshipType: 'RELATES',
+              },
+            ],
+          },
+        });
+
+        const executor = new MAGMAExecutor(graphs, {
+          disabledGraphs: ['entity', 'temporal', 'causal'],
+        });
+        const intent = createValidIntent();
+
+        const result = await executor.execute('test query', intent);
+
+        // No graph expansion methods should have been called
+        expect(graphs.entity.getRelationshipsBatch).not.toHaveBeenCalled();
+        expect(graphs.temporal.queryTimelineForEntities).not.toHaveBeenCalled();
+        expect(graphs.causal.getNodesForEntities).not.toHaveBeenCalled();
+
+        // Only semantic results
+        expect(result.merged.nodes.length).toBe(1);
+        expect(result.merged.viewContributions.semantic).toBe(1);
+        expect(result.merged.viewContributions.entity).toBe(0);
+        expect(result.merged.viewContributions.temporal).toBe(0);
+        expect(result.merged.viewContributions.causal).toBe(0);
+      });
+
+      it('should run all expansions when disabledGraphs is empty', async () => {
+        const graphs = createMockGraphs({
+          enrichedResults: [
+            createEnrichedSemanticMatch('concept1', 0.9, ['entity1'], ['Entity 1']),
+          ],
+          entityRelationships: {
+            entity1: [
+              {
+                source: { uuid: 'entity1', name: 'Entity 1', entity_type: 'type' },
+                target: { uuid: 'entity2', name: 'Entity 2', entity_type: 'type' },
+                relationshipType: 'RELATES',
+              },
+            ],
+          },
+          temporalEvents: {
+            entity1: [
+              { uuid: 'event1', description: 'Test event', occurred_at: new Date() },
+            ],
+          },
+          causalNodes: {
+            entity1: [{ uuid: 'causal1', description: 'Causal node', node_type: 'event' }],
+          },
+          causalLinks: [{ cause: 'cause1', effect: 'effect1', confidence: 0.85 }],
+        });
+
+        const executor = new MAGMAExecutor(graphs, { disabledGraphs: [] });
+        const intent = createValidIntent();
+
+        const result = await executor.execute('test query', intent);
+
+        // All expansion methods should have been called
+        expect(graphs.entity.getRelationshipsBatch).toHaveBeenCalled();
+        expect(graphs.temporal.queryTimelineForEntities).toHaveBeenCalled();
+        expect(graphs.causal.getNodesForEntities).toHaveBeenCalled();
+
+        // All views should contribute
+        expect(result.merged.viewContributions.semantic).toBeGreaterThan(0);
+        expect(result.merged.viewContributions.entity).toBeGreaterThan(0);
+        expect(result.merged.viewContributions.temporal).toBeGreaterThan(0);
+        expect(result.merged.viewContributions.causal).toBeGreaterThan(0);
+      });
+    });
+
+    describe('forceUniformDepth execution', () => {
+      it('should override all depth hints with forceUniformDepth value', async () => {
+        const graphs = createMockGraphs({
+          enrichedResults: [
+            createEnrichedSemanticMatch('concept1', 0.9, ['entity1'], ['Entity 1']),
+          ],
+          temporalEvents: {
+            entity1: [
+              { uuid: 'event1', description: 'Test event', occurred_at: new Date() },
+            ],
+          },
+          causalNodes: {
+            entity1: [{ uuid: 'causal1', description: 'Causal node', node_type: 'event' }],
+          },
+          causalLinks: [],
+        });
+
+        const executor = new MAGMAExecutor(graphs, { forceUniformDepth: 2 });
+        const intent = createValidIntent('WHY', {
+          depthHints: { entity: 1, temporal: 3, causal: 5 },
+        });
+
+        await executor.execute('test query', intent);
+
+        // Entity expansion: getRelationshipsBatch is called per BFS level,
+        // with forceUniformDepth=2 it should attempt 2 depth levels
+        expect(graphs.entity.getRelationshipsBatch).toHaveBeenCalled();
+
+        // Temporal expansion: depth controls time window scaling
+        // With forceUniformDepth=2, should use depth=2 (±6 months)
+        const temporalCall = vi.mocked(graphs.temporal.queryTimelineForEntities).mock.calls[0];
+        const from = temporalCall[1] as Date;
+        const to = temporalCall[2] as Date;
+        const rangeMs = to.getTime() - from.getTime();
+        // depth=2 → ±6 months → 12 months total ≈ 2 * 2 * 90 days
+        const expectedMs = 2 * 2 * 90 * 24 * 60 * 60 * 1000;
+        expect(rangeMs).toBeCloseTo(expectedMs, -3);
+
+        // Causal expansion: traverseFromNodeIds should receive depth=2
+        if (vi.mocked(graphs.causal.traverseFromNodeIds).mock.calls.length > 0) {
+          const causalCall = vi.mocked(graphs.causal.traverseFromNodeIds).mock.calls[0];
+          expect(causalCall[2]).toBe(2); // depth parameter
+        }
+      });
+
+      it('should pass through intent depth hints when forceUniformDepth is not set', async () => {
+        const graphs = createMockGraphs({
+          enrichedResults: [
+            createEnrichedSemanticMatch('concept1', 0.9, ['entity1'], ['Entity 1']),
+          ],
+          temporalEvents: {
+            entity1: [
+              { uuid: 'event1', description: 'Test event', occurred_at: new Date() },
+            ],
+          },
+          causalNodes: {
+            entity1: [{ uuid: 'causal1', description: 'Causal node', node_type: 'event' }],
+          },
+          causalLinks: [],
+        });
+
+        const executor = new MAGMAExecutor(graphs); // No forceUniformDepth
+        const intent = createValidIntent('WHY', {
+          depthHints: { entity: 1, temporal: 4, causal: 3 },
+        });
+
+        await executor.execute('test query', intent);
+
+        // Temporal should use intent's depth=4 (±12 months → 24 months total)
+        const temporalCall = vi.mocked(graphs.temporal.queryTimelineForEntities).mock.calls[0];
+        const from = temporalCall[1] as Date;
+        const to = temporalCall[2] as Date;
+        const rangeMs = to.getTime() - from.getTime();
+        const expectedMs = 4 * 2 * 90 * 24 * 60 * 60 * 1000;
+        expect(rangeMs).toBeCloseTo(expectedMs, -3);
+
+        // Causal should use intent's depth=3
+        if (vi.mocked(graphs.causal.traverseFromNodeIds).mock.calls.length > 0) {
+          const causalCall = vi.mocked(graphs.causal.traverseFromNodeIds).mock.calls[0];
+          expect(causalCall[2]).toBe(3);
+        }
+      });
+    });
+  });
 });
