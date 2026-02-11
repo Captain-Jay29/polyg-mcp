@@ -146,10 +146,7 @@ function parseConversationSessions(
   return sessions;
 }
 
-function parseQuestions(
-  qa: unknown[],
-  entryIdx: number,
-): LoCoMoQuestion[] {
+function parseQuestions(qa: unknown[], entryIdx: number): LoCoMoQuestion[] {
   return qa.map((q: unknown, qIdx: number) => {
     if (!q || typeof q !== 'object') {
       throw new Error(`Entry ${entryIdx}, question ${qIdx}: not an object`);
@@ -167,9 +164,7 @@ function parseQuestions(
       );
     }
     if (typeof answer !== 'string') {
-      throw new Error(
-        `Entry ${entryIdx}, question ${qIdx}: missing 'answer'`,
-      );
+      throw new Error(`Entry ${entryIdx}, question ${qIdx}: missing 'answer'`);
     }
 
     const normalizedCategory =

@@ -1,7 +1,7 @@
 export {
+  buildExtractionPrompt,
   type ExtractionResult,
   ExtractionResultSchema,
-  buildExtractionPrompt,
 } from './extraction-prompt.js';
 
 export {

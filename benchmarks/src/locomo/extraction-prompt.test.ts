@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { ExtractionResultSchema, buildExtractionPrompt } from './extraction-prompt.js';
+import {
+  buildExtractionPrompt,
+  ExtractionResultSchema,
+} from './extraction-prompt.js';
 import type { LoCoMoConversation } from './types.js';
 
 function makeConversation(): LoCoMoConversation {

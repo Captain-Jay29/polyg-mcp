@@ -1,11 +1,11 @@
-import type { Entity, LLMProvider, StorageStatistics } from '@polyg-mcp/shared';
 import type { MAGMAGraphRegistry } from '@polyg-mcp/core';
-import { validateExtractionQuality } from '../utils/index.js';
+import type { Entity, LLMProvider, StorageStatistics } from '@polyg-mcp/shared';
 import type { ValidationResult } from '../utils/index.js';
+import { validateExtractionQuality } from '../utils/index.js';
 import {
-  ExtractionResultSchema,
   buildExtractionPrompt,
   type ExtractionResult,
+  ExtractionResultSchema,
 } from './extraction-prompt.js';
 import type { LoCoMoConversation } from './types.js';
 
@@ -82,9 +82,7 @@ function parseExtractionResponse(rawJson: string): ExtractionResult {
   try {
     parsed = JSON.parse(rawJson);
   } catch {
-    throw new Error(
-      `LLM returned invalid JSON: ${rawJson.slice(0, 200)}...`,
-    );
+    throw new Error(`LLM returned invalid JSON: ${rawJson.slice(0, 200)}...`);
   }
 
   const result = ExtractionResultSchema.safeParse(parsed);
@@ -159,11 +157,7 @@ async function writeToGraphs(
     const effectNode = await graphs.causal.findOrCreate(cl.effect, 'effect');
 
     // Create the link
-    await graphs.causal.addLink(
-      causeNode.uuid,
-      effectNode.uuid,
-      cl.confidence,
-    );
+    await graphs.causal.addLink(causeNode.uuid, effectNode.uuid, cl.confidence);
 
     // Cross-link causal nodes to entities (X_AFFECTS)
     if (cl.entities) {

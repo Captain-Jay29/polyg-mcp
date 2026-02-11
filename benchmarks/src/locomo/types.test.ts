@@ -67,7 +67,9 @@ describe('parseLoCoMoDataset', () => {
   });
 
   it('rejects non-array input', () => {
-    expect(() => parseLoCoMoDataset('not an array')).toThrow('must be an array');
+    expect(() => parseLoCoMoDataset('not an array')).toThrow(
+      'must be an array',
+    );
   });
 
   it('rejects empty array', () => {
@@ -83,7 +85,11 @@ describe('parseLoCoMoDataset', () => {
   it('rejects entry without qa field', () => {
     expect(() =>
       parseLoCoMoDataset([
-        { conversation: { session_1: { 1: { speaker: 'A', dia_id: 'd1', text: 'hi' } } } },
+        {
+          conversation: {
+            session_1: { 1: { speaker: 'A', dia_id: 'd1', text: 'hi' } },
+          },
+        },
       ]),
     ).toThrow("missing or invalid 'qa'");
   });
