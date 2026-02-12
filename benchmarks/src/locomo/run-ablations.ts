@@ -34,7 +34,7 @@ import {
   type RecallFn,
   type ScoredResult,
 } from './evaluate.js';
-import { ingestConversation } from './ingest.js';
+import { ingestConversation, type IngestionResult } from './ingest.js';
 import type { LoCoMoConversation } from './types.js';
 import {
   type ConfidenceMetrics,
@@ -96,6 +96,10 @@ export const VARIANT_CONFIGS: VariantConfig[] = [
 export function getVariantConfig(key: string): VariantConfig | undefined {
   return VARIANT_CONFIGS.find((v) => v.key === key);
 }
+
+// Shared constants — must match run-baselines.ts for comparability
+const EMBEDDING_MODEL = 'text-embedding-3-small';
+const BENCHMARK_GRAPH_NAME = 'polyg_benchmark';
 
 // ---------------------------------------------------------------------------
 // CLI
@@ -169,6 +173,18 @@ export function createMagmaRecall(
 // Output types
 // ---------------------------------------------------------------------------
 
+interface IngestionStats {
+  conversationId: string;
+  entities: number;
+  events: number;
+  facts: number;
+  causalLinks: number;
+  concepts: number;
+  seconds: number;
+  valid: boolean;
+  issues: string[];
+}
+
 interface VariantOutput {
   status: 'running' | 'complete';
   config: VariantConfig;
@@ -188,7 +204,10 @@ interface VariantOutput {
 
 interface RunOutput {
   config: {
-    model: string;
+    pipelineModel: string;
+    judgeModel: string;
+    embeddingModel: string;
+    falkordbGraph: string;
     concurrency: number;
     totalConversations: number;
     totalQuestions: number;
@@ -197,6 +216,7 @@ interface RunOutput {
     skipJudge: boolean;
     startedAt: string;
   };
+  ingestion: IngestionStats[];
   variants: Record<string, VariantOutput>;
 }
 
@@ -231,6 +251,14 @@ function printSummary(name: string, vo: VariantOutput) {
     );
   }
 
+  console.log('\n  By conversation:');
+  for (const c of vo.metrics.byConversation) {
+    console.log(
+      `    ${c.conversationId.padEnd(12)} ${(c.accuracy * 100).toFixed(1).padStart(5)}%` +
+        `  (${c.correct}/${c.total})`,
+    );
+  }
+
   if (vo.metrics.confidence) {
     const cf = vo.metrics.confidence;
     console.log('\n  Confidence calibration:');
@@ -239,6 +267,19 @@ function printSummary(name: string, vo: VariantOutput) {
     console.log(
       `    Mean (incorrect answers):  ${cf.meanIncorrect.toFixed(3)}`,
     );
+  }
+
+  // Wrong answer summary by category
+  const wrong = vo.results.filter((r) => !r.correct);
+  if (wrong.length > 0) {
+    const wrongByCategory = new Map<string, number>();
+    for (const r of wrong) {
+      wrongByCategory.set(r.category, (wrongByCategory.get(r.category) ?? 0) + 1);
+    }
+    console.log(`\n  Wrong answers (${wrong.length} total):`);
+    for (const [cat, count] of [...wrongByCategory.entries()].sort((a, b) => b[1] - a[1])) {
+      console.log(`    ${cat.padEnd(14)} ${count}`);
+    }
   }
 
   console.log(
@@ -256,39 +297,81 @@ function printComparisonTable(output: RunOutput) {
   const fullVariant = output.variants['full'];
   if (!fullVariant?.metrics.overall) return;
 
-  console.log(`\n${'='.repeat(72)}`);
-  console.log('  Ablation Comparison');
-  console.log('='.repeat(72));
+  console.log(`\n${'='.repeat(90)}`);
+  console.log('  Ablation Comparison (accuracy %)');
+  console.log('='.repeat(90));
 
   // Header
   const categories = fullVariant.metrics.byCategory.map((c) => c.category);
   console.log(
-    `  ${'Variant'.padEnd(22)} ${'Overall'.padStart(8)}` +
-      categories.map((c) => c.padStart(12)).join(''),
+    `  ${'Variant'.padEnd(24)} ${'Overall'.padStart(8)}  ${'Delta'.padStart(6)}` +
+      categories.map((c) => c.padStart(14)).join(''),
   );
-  console.log(`  ${'-'.repeat(22)} ${'-'.repeat(8)}${categories.map(() => ' ' + '-'.repeat(11)).join('')}`);
+  console.log(
+    `  ${'-'.repeat(24)} ${'-'.repeat(8)}  ${'-'.repeat(6)}` +
+      categories.map(() => '  ' + '-'.repeat(12)).join(''),
+  );
 
   for (const key of variantKeys) {
     const v = output.variants[key];
     if (!v.metrics.overall) continue;
 
     const overall = `${(v.metrics.overall.accuracy * 100).toFixed(1)}%`;
-    const delta =
+    const overallDelta =
       key === 'full'
-        ? '  —'
-        : ` ${((v.metrics.overall.accuracy - fullVariant.metrics.overall.accuracy) * 100) >= 0 ? '+' : ''}${((v.metrics.overall.accuracy - fullVariant.metrics.overall.accuracy) * 100).toFixed(1)}`;
+        ? '    —'
+        : `${formatDelta((v.metrics.overall.accuracy - fullVariant.metrics.overall.accuracy) * 100)}`;
 
     const catScores = categories.map((cat) => {
       const score = v.metrics.byCategory.find((c) => c.category === cat);
-      return score ? `${(score.accuracy * 100).toFixed(1)}%` : '  —';
+      const fullScore = fullVariant.metrics.byCategory.find((c) => c.category === cat);
+      if (!score) return '         —';
+      const pct = `${(score.accuracy * 100).toFixed(1)}%`;
+      if (key === 'full' || !fullScore) return pct;
+      const d = (score.accuracy - fullScore.accuracy) * 100;
+      return `${pct}${formatDelta(d)}`;
     });
 
     console.log(
-      `  ${v.config.name.padEnd(22)} ${overall.padStart(6)}${delta.padStart(6)}` +
-        catScores.map((s) => s.padStart(12)).join(''),
+      `  ${v.config.name.padEnd(24)} ${overall.padStart(8)}  ${overallDelta.padStart(6)}` +
+        catScores.map((s) => s.padStart(14)).join(''),
     );
   }
 
+  // CI row for full variant
+  const fullCI = `[${(fullVariant.metrics.overall.ci.lower * 100).toFixed(1)}, ${(fullVariant.metrics.overall.ci.upper * 100).toFixed(1)}]`;
+  console.log(`\n  Full MAGMA 95% CI: ${fullCI}`);
+
+  console.log('');
+}
+
+function formatDelta(d: number): string {
+  if (Math.abs(d) < 0.05) return '  0.0';
+  return d >= 0 ? ` +${d.toFixed(1)}` : ` ${d.toFixed(1)}`;
+}
+
+function printErrorOverlap(output: RunOutput) {
+  const fullVariant = output.variants['full'];
+  const semanticOnly = output.variants['semantic-only'];
+  if (!fullVariant || !semanticOnly) return;
+
+  // Questions wrong in both full and semantic-only
+  const fullWrong = new Set(
+    fullVariant.results.filter((r) => !r.correct).map((r) => `${r.conversationId}:${r.questionIndex}`),
+  );
+  const semanticWrong = new Set(
+    semanticOnly.results.filter((r) => !r.correct).map((r) => `${r.conversationId}:${r.questionIndex}`),
+  );
+
+  const bothWrong = [...fullWrong].filter((q) => semanticWrong.has(q));
+  const fullOnlyWrong = [...fullWrong].filter((q) => !semanticWrong.has(q));
+  const semanticOnlyWrong = [...semanticWrong].filter((q) => !fullWrong.has(q));
+
+  console.log('  Error overlap (Full MAGMA vs Semantic Only):');
+  console.log(`    Both wrong:              ${bothWrong.length}`);
+  console.log(`    Full wrong, Semantic OK: ${fullOnlyWrong.length}`);
+  console.log(`    Full OK, Semantic wrong: ${semanticOnlyWrong.length}`);
+  console.log(`    Both correct:            ${fullVariant.results.length - fullWrong.size - semanticOnlyWrong.length}`);
   console.log('');
 }
 
@@ -338,9 +421,6 @@ async function main() {
   console.log(
     `Running ${conversations.length} conversations, ${totalQuestions} questions`,
   );
-  console.log(`LLM: ${opts.model}  Concurrency: ${opts.concurrency}`);
-  console.log(`Output: ${outputPath}\n`);
-
   // Select variants
   let variants: VariantConfig[];
   if (opts.variant) {
@@ -356,24 +436,40 @@ async function main() {
     variants = VARIANT_CONFIGS;
   }
 
-  console.log(`Variants: ${variants.map((v) => v.key).join(', ')}\n`);
-
   const llm = new OpenAIProvider(apiKey, opts.model);
-  const embeddings = new OpenAIEmbeddings(apiKey, 'text-embedding-3-small');
+  const embeddings = new OpenAIEmbeddings(apiKey, EMBEDDING_MODEL);
   const judgeLlm = new OpenAIProvider(apiKey, opts.model);
 
-  // FalkorDB connection — shared across all variants within a conversation
+  // FalkorDB — always use a dedicated benchmark graph to avoid clobbering production
+  const falkordbGraph = BENCHMARK_GRAPH_NAME;
   const db = new FalkorDBAdapter({
     host: process.env.FALKORDB_HOST ?? 'localhost',
     port: Number(process.env.FALKORDB_PORT ?? 6379),
-    graphName: process.env.FALKORDB_GRAPH ?? 'polyg_benchmark',
+    graphName: falkordbGraph,
   });
   await db.connect();
-  console.log('Connected to FalkorDB\n');
+
+  // Config banner — one-glance verification of standardization
+  console.log(`${'─'.repeat(64)}`);
+  console.log('  Configuration');
+  console.log(`${'─'.repeat(64)}`);
+  console.log(`  Pipeline LLM:    ${opts.model}`);
+  console.log(`  Judge LLM:       ${opts.model}`);
+  console.log(`  Embedding:       ${EMBEDDING_MODEL}`);
+  console.log(`  FalkorDB graph:  ${falkordbGraph}`);
+  console.log(`  Concurrency:     ${opts.concurrency}`);
+  console.log(`  Seed:            ${opts.seed}`);
+  console.log(`  Stratified:      ${opts.stratified > 0 ? `${opts.stratified}/category` : 'off (all questions)'}`);
+  console.log(`  Variants:        ${variants.map((v) => v.key).join(', ')}`);
+  console.log(`  Output:          ${outputPath}`);
+  console.log(`${'─'.repeat(64)}\n`);
 
   const output: RunOutput = {
     config: {
-      model: opts.model,
+      pipelineModel: opts.model,
+      judgeModel: opts.model,
+      embeddingModel: EMBEDDING_MODEL,
+      falkordbGraph,
       concurrency: opts.concurrency,
       totalConversations: conversations.length,
       totalQuestions,
@@ -382,6 +478,7 @@ async function main() {
       skipJudge: opts.skipJudge,
       startedAt: new Date().toISOString(),
     },
+    ingestion: [],
     variants: {},
   };
 
@@ -444,9 +541,22 @@ async function main() {
 
     if (!ingestionResult.validation.valid) {
       console.warn(
-        `  ⚠ Quality gate warnings: ${ingestionResult.validation.issues.join(', ')}`,
+        `  Quality gate warnings: ${ingestionResult.validation.issues.join(', ')}`,
       );
     }
+
+    // Save ingestion stats to JSON output
+    output.ingestion.push({
+      conversationId: conv.conversation_id,
+      entities: ingestionResult.entities,
+      events: ingestionResult.events,
+      facts: ingestionResult.facts,
+      causalLinks: ingestionResult.causalLinks,
+      concepts: ingestionResult.concepts,
+      seconds: ingestMs / 1000,
+      valid: ingestionResult.validation.valid,
+      issues: ingestionResult.validation.issues,
+    });
 
     // 2. Run each variant against the same ingested graph
     for (const v of variants) {
@@ -481,8 +591,12 @@ async function main() {
         const judgeMs = Date.now() - jStart;
 
         const correct = scored.filter((s) => s.correct).length;
+        const runningCorrect = vo.results.filter((s) => s.correct).length;
+        const runningTotal = vo.results.length;
+        const runningAcc = ((runningCorrect / runningTotal) * 100).toFixed(1);
         console.log(
-          `    → ${correct}/${scored.length} correct (${((answerMs + judgeMs) / 1000).toFixed(1)}s)`,
+          `    → ${correct}/${scored.length} correct (${((answerMs + judgeMs) / 1000).toFixed(1)}s)` +
+            `  [running: ${runningAcc}% = ${runningCorrect}/${runningTotal}]`,
         );
 
         vo.timing.answerSeconds += answerMs / 1000;
@@ -517,6 +631,34 @@ async function main() {
     saveOutput(outputPath, output);
   }
 
+  // Ingestion summary
+  console.log(`\n${'='.repeat(64)}`);
+  console.log('  Ingestion Summary');
+  console.log('='.repeat(64));
+  const totals = output.ingestion.reduce(
+    (acc, s) => ({
+      entities: acc.entities + s.entities,
+      events: acc.events + s.events,
+      facts: acc.facts + s.facts,
+      causalLinks: acc.causalLinks + s.causalLinks,
+      concepts: acc.concepts + s.concepts,
+      seconds: acc.seconds + s.seconds,
+    }),
+    { entities: 0, events: 0, facts: 0, causalLinks: 0, concepts: 0, seconds: 0 },
+  );
+  for (const s of output.ingestion) {
+    console.log(
+      `  ${s.conversationId.padEnd(12)} ${String(s.entities).padStart(3)}E ${String(s.events).padStart(3)}Ev` +
+        ` ${String(s.facts).padStart(3)}F ${String(s.causalLinks).padStart(3)}C ${String(s.concepts).padStart(3)}S` +
+        `  ${s.seconds.toFixed(1)}s${s.valid ? '' : '  !!'}`,
+    );
+  }
+  console.log(
+    `  ${'TOTAL'.padEnd(12)} ${String(totals.entities).padStart(3)}E ${String(totals.events).padStart(3)}Ev` +
+      ` ${String(totals.facts).padStart(3)}F ${String(totals.causalLinks).padStart(3)}C ${String(totals.concepts).padStart(3)}S` +
+      `  ${totals.seconds.toFixed(1)}s`,
+  );
+
   // Finalize
   for (const v of variants) {
     const vo = output.variants[v.key];
@@ -531,9 +673,10 @@ async function main() {
 
   saveOutput(outputPath, output);
 
-  // Print comparison table
+  // Print comparison table + error overlap
   if (!opts.skipJudge) {
     printComparisonTable(output);
+    printErrorOverlap(output);
   }
 
   console.log(`Results saved to ${outputPath}`);
