@@ -1,4 +1,24 @@
 export {
+  buildFullContextPrompt,
+  buildRagPrompt,
+  type ConversationChunk,
+  chunkConversation,
+  cosineSimilarity,
+  createFullContextRecall,
+  createVectorRagRecall,
+  DEFAULT_CHUNK_SIZE,
+  DEFAULT_LAMBDA,
+  DEFAULT_OVERLAP,
+  DEFAULT_RERANK_K,
+  DEFAULT_RETRIEVE_K,
+  formatChunk,
+  formatConversation,
+  mmrRerank,
+  type ScoredChunk,
+  type VectorRagOptions,
+} from './baselines/index.js';
+
+export {
   aggregateScores,
   type CategoryScore,
   type EvaluationSummary,

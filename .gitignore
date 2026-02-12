@@ -46,5 +46,8 @@ Thumbs.db
 benchmarks/results/*.yaml
 !benchmarks/results/.gitkeep
 
+# Benchmark datasets (large, downloaded separately)
+benchmarks/src/locomo/dataset/
+
 # Documentation (local only)
 docs/*.md
