@@ -37,6 +37,10 @@ const OrchestratorConfigSchema = z.object({
   maxContextLength: z.number().int().min(100).max(100000).optional(),
   classifierMaxTokens: z.number().int().min(100).max(10000).optional(),
   synthesizerMaxTokens: z.number().int().min(100).max(10000).optional(),
+  disabledGraphs: z
+    .array(z.enum(['entity', 'temporal', 'causal']))
+    .optional(),
+  forceUniformDepth: z.number().int().min(1).max(5).optional(),
 });
 
 export interface OrchestratorConfig {
@@ -56,9 +60,15 @@ export interface OrchestratorConfig {
   classifierMaxTokens?: number;
   /** Maximum tokens for synthesizer LLM response (default: 2000) */
   synthesizerMaxTokens?: number;
+  /** Graphs to disable during MAGMA expansion (for ablation studies) */
+  disabledGraphs?: ('entity' | 'temporal' | 'causal')[];
+  /** Override all depth hints with a fixed value (for ablation studies) */
+  forceUniformDepth?: number;
 }
 
-const DEFAULT_CONFIG: Required<OrchestratorConfig> = {
+const DEFAULT_CONFIG: Required<
+  Omit<OrchestratorConfig, 'disabledGraphs' | 'forceUniformDepth'>
+> = {
   semanticTopK: 10,
   minSemanticScore: 0.5,
   timeout: 5000,
@@ -148,6 +158,8 @@ export class Orchestrator {
       semanticTopK: validatedConfig.semanticTopK,
       minSemanticScore: validatedConfig.minSemanticScore,
       timeout: validatedConfig.timeout,
+      disabledGraphs: validatedConfig.disabledGraphs ?? [],
+      forceUniformDepth: validatedConfig.forceUniformDepth,
     });
 
     // Initialize context linearizer
