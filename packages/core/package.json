@@ -15,7 +15,7 @@
   "dependencies": {
     "@polyg-mcp/shared": "workspace:*",
     "falkordb": "^6.6.0",
-    "openai": "^6.17.0",
+    "openai": "^6.21.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
