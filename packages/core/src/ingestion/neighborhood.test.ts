@@ -60,8 +60,9 @@ describe('gather2HopNeighborhood', () => {
     const entityQuery = queryCalls.find(
       ([cypher]) => typeof cypher === 'string' && cypher.includes('X_INVOLVES'),
     );
-    expect(entityQuery).toBeDefined();
-    const passedIds = entityQuery?.[1].eventIds as string[];
+    if (!entityQuery) throw new Error('entityQuery not found');
+    const params = entityQuery[1] as Record<string, unknown>;
+    const passedIds = params.eventIds as string[];
     expect(passedIds).toHaveLength(6); // positions 2-7
     expect(passedIds[0]).toBe('event-2');
     expect(passedIds[5]).toBe('event-7');

@@ -131,8 +131,8 @@ describe('runFastPath', () => {
     // First createNode call should be for T_Event with the timestamp
     const createCalls = vi.mocked(db.createNode).mock.calls;
     const eventCall = createCalls.find(([label]) => label === 'T_Event');
-    expect(eventCall).toBeDefined();
-    expect(eventCall?.[1].occurred_at).toBe('2024-06-15T14:30:00.000Z');
+    if (!eventCall) throw new Error('eventCall not found');
+    expect(eventCall[1].occurred_at).toBe('2024-06-15T14:30:00.000Z');
   });
 
   it('should truncate content for concept name and description', async () => {
@@ -153,8 +153,8 @@ describe('runFastPath', () => {
     // S_Concept createNode: name should be truncated to 100 chars
     const createCalls = vi.mocked(db.createNode).mock.calls;
     const conceptCall = createCalls.find(([label]) => label === 'S_Concept');
-    expect(conceptCall).toBeDefined();
-    expect((conceptCall?.[1].name as string).length).toBe(100);
-    expect((conceptCall?.[1].description as string).length).toBe(500);
+    if (!conceptCall) throw new Error('conceptCall not found');
+    expect((conceptCall[1].name as string).length).toBe(100);
+    expect((conceptCall[1].description as string).length).toBe(500);
   });
 });
