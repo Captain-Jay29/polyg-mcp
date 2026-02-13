@@ -62,6 +62,11 @@ export const DocumentProfileSchema = z.object({
 export type DocumentProfile = z.infer<typeof DocumentProfileSchema>;
 
 // --- Slow path extraction (per-chunk LLM output) ---
+// Note: Deliberately omits `events` and `concepts` arrays present in the
+// LoCoMo ExtractionResultSchema (benchmarks/src/locomo/extraction-prompt.ts).
+// Events come from the fast path (T_Event per chunk), and concepts are created
+// via batch embeddings (S_Concept per chunk), so the LLM only extracts entities,
+// relationships, causal links, and facts.
 
 export const ChunkExtractionSchema = z.object({
   entities: z.array(
