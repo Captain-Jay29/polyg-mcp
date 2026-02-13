@@ -417,6 +417,51 @@ export class SemanticGraph {
   }
 
   /**
+   * Add a concept with a pre-computed embedding.
+   * Used by ingestion fast path after batch embedding.
+   * If a concept with the same name already exists, returns the existing concept.
+   */
+  async addConceptWithEmbedding(
+    name: string,
+    embedding: number[],
+    description?: string,
+  ): Promise<Concept> {
+    try {
+      // Same dedup check as addConcept
+      const existing = await this.getConceptByName(name);
+      if (existing) {
+        return existing;
+      }
+
+      const nodeProps: Record<string, unknown> = {
+        name,
+        embedding: JSON.stringify(embedding),
+        created_at: new Date().toISOString(),
+      };
+
+      if (description) {
+        nodeProps.description = description;
+      }
+
+      const uuid = await this.db.createNode(CONCEPT_LABEL, nodeProps);
+
+      return {
+        uuid,
+        name,
+        description,
+        embedding,
+      };
+    } catch (error) {
+      throw wrapGraphError(
+        error,
+        `Failed to add concept with embedding: ${name}`,
+        'Semantic',
+        'addConceptWithEmbedding',
+      );
+    }
+  }
+
+  /**
    * Find or create a concept by name
    */
   async findOrCreate(name: string, description?: string): Promise<Concept> {

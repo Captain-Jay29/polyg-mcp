@@ -385,6 +385,47 @@ describe('TemporalGraph', () => {
     });
   });
 
+  describe('linkEventsSequentially', () => {
+    it('should create FOLLOWS edge between two events', async () => {
+      vi.mocked(db.query).mockResolvedValue({ records: [], metadata: [] });
+
+      await graph.linkEventsSequentially('event-1', 'event-2');
+
+      expect(db.query).toHaveBeenCalledWith(
+        expect.stringContaining('FOLLOWS'),
+        expect.objectContaining({
+          prevId: 'event-1',
+          currId: 'event-2',
+        }),
+      );
+    });
+
+    it('should use MERGE for idempotency', async () => {
+      vi.mocked(db.query).mockResolvedValue({ records: [], metadata: [] });
+
+      await graph.linkEventsSequentially('event-1', 'event-2');
+
+      expect(db.query).toHaveBeenCalledWith(
+        expect.stringContaining('MERGE'),
+        expect.any(Object),
+      );
+    });
+
+    it('should prevent self-linking', async () => {
+      await expect(
+        graph.linkEventsSequentially('event-1', 'event-1'),
+      ).rejects.toThrow('Cannot link an event to itself');
+    });
+
+    it('should throw RelationshipError on database failure', async () => {
+      vi.mocked(db.query).mockRejectedValue(new Error('DB error'));
+
+      await expect(
+        graph.linkEventsSequentially('event-1', 'event-2'),
+      ).rejects.toThrow('Failed to link events sequentially');
+    });
+  });
+
   describe('linkEventToEntity', () => {
     it('should create cross-graph relationship', async () => {
       vi.mocked(db.query).mockResolvedValue({ records: [], metadata: [] });
