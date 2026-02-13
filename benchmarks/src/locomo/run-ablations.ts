@@ -21,12 +21,14 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import {
+  ContextLinearizer,
   FalkorDBAdapter,
   OpenAIEmbeddings,
   OpenAIProvider,
   Orchestrator,
   type OrchestratorConfig,
 } from '@polyg-mcp/core';
+import type { LLMProvider } from '@polyg-mcp/shared';
 import {
   aggregateScores,
   type EvaluationSummary,
@@ -154,18 +156,70 @@ function parseArgs() {
 }
 
 // ---------------------------------------------------------------------------
-// RecallFn factory
+// Prompt (matches baseline pattern: context + question → text answer)
+// ---------------------------------------------------------------------------
+
+export function buildMagmaPrompt(context: string, question: string): string {
+  return [
+    'You are given context retrieved from a knowledge graph about a conversation.',
+    'Answer the question based on the context.',
+    '',
+    '## Retrieved Context',
+    context,
+    '',
+    '## Question',
+    question,
+    '',
+    'Provide a concise answer based only on the context above.',
+  ].join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// RecallFn factory — uses recallRaw() + text-mode synthesis
 // ---------------------------------------------------------------------------
 
 export function createMagmaRecall(
   orchestrator: Orchestrator,
+  llm: LLMProvider,
 ): RecallFn {
+  // Same linearizer config as orchestrator default (4000 tokens)
+  const linearizer = new ContextLinearizer(4000);
+
   return async (query: string) => {
-    const result = await orchestrator.recall(query);
-    return {
-      answer: result.answer,
-      confidence: result.confidence,
-    };
+    try {
+      // Step 1: Full MAGMA pipeline (intent → semantic search → graph expand → merge)
+      const raw = await orchestrator.recallRaw(query);
+
+      // Step 2: Early exit — no graph data found
+      if (raw.merged.nodes.length === 0) {
+        return { answer: 'No relevant information found.', confidence: 0 };
+      }
+
+      // Step 3: Linearize context (same class + strategy as orchestrator)
+      const context = linearizer.linearize(raw.merged, raw.intent.type);
+
+      // Step 4: Text-mode LLM synthesis — matches baseline pattern
+      const prompt = buildMagmaPrompt(context.text, query);
+      const answer = await llm.complete({
+        prompt,
+        responseFormat: 'text',
+        maxTokens: 256,
+      });
+
+      // Step 5: Confidence from semantic retrieval quality (analogous to vector-RAG)
+      const confidence =
+        raw.seeds.entitySeeds.length > 0
+          ? Math.max(...raw.seeds.entitySeeds.map((s) => s.semanticScore))
+          : 0;
+
+      return { answer, confidence };
+    } catch (err) {
+      // Per-question resilience — don't crash the whole run
+      process.stderr.write(
+        `    [recall error: ${err instanceof Error ? err.message.slice(0, 100) : String(err)}]\n`,
+      );
+      return { answer: 'Error: recall failed', confidence: 0 };
+    }
   };
 }
 
@@ -506,6 +560,7 @@ async function main() {
     };
   }
 
+  let skippedConversations = 0;
   for (let ci = 0; ci < conversations.length; ci++) {
     const conv = conversations[ci];
     console.log(
@@ -525,12 +580,34 @@ async function main() {
     // Create a default orchestrator for ingestion (no ablation)
     const ingestOrchestrator = new Orchestrator(db, llm, embeddings);
     const graphs = ingestOrchestrator.getGraphs();
-    const ingestionResult = await ingestConversation(
-      conv,
-      graphs,
-      llm,
-      () => db.getStatistics(),
-    );
+    let ingestionResult: Awaited<ReturnType<typeof ingestConversation>>;
+    try {
+      ingestionResult = await ingestConversation(
+        conv,
+        graphs,
+        llm,
+        () => db.getStatistics(),
+      );
+    } catch (err) {
+      console.error(
+        `  INGESTION FAILED: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      console.error('  Skipping this conversation.\n');
+      skippedConversations++;
+      output.ingestion.push({
+        conversationId: conv.conversation_id,
+        entities: 0,
+        events: 0,
+        facts: 0,
+        causalLinks: 0,
+        concepts: 0,
+        seconds: (Date.now() - ingestStart) / 1000,
+        valid: false,
+        issues: [`Ingestion failed: ${err instanceof Error ? err.message : String(err)}`],
+      });
+      saveOutput(outputPath, output);
+      continue;
+    }
     const ingestMs = Date.now() - ingestStart;
 
     console.log(
@@ -539,13 +616,19 @@ async function main() {
         ` (${(ingestMs / 1000).toFixed(1)}s)`,
     );
 
-    if (!ingestionResult.validation.valid) {
+    if (!ingestionResult.validation.passed) {
+      const failedChecks = ingestionResult.validation.checks
+        .filter((c) => !c.passed)
+        .map((c) => c.message);
       console.warn(
-        `  Quality gate warnings: ${ingestionResult.validation.issues.join(', ')}`,
+        `  Quality gate warnings: ${failedChecks.join(', ')}`,
       );
     }
 
     // Save ingestion stats to JSON output
+    const failedIssues = ingestionResult.validation.checks
+      .filter((c) => !c.passed)
+      .map((c) => c.message);
     output.ingestion.push({
       conversationId: conv.conversation_id,
       entities: ingestionResult.entities,
@@ -554,8 +637,8 @@ async function main() {
       causalLinks: ingestionResult.causalLinks,
       concepts: ingestionResult.concepts,
       seconds: ingestMs / 1000,
-      valid: ingestionResult.validation.valid,
-      issues: ingestionResult.validation.issues,
+      valid: ingestionResult.validation.passed,
+      issues: failedIssues,
     });
 
     // 2. Run each variant against the same ingested graph
@@ -575,7 +658,7 @@ async function main() {
         embeddings,
         orchestratorConfig,
       );
-      const recall = createMagmaRecall(orchestrator);
+      const recall = createMagmaRecall(orchestrator, llm);
 
       // Answer
       const aStart = Date.now();
@@ -629,6 +712,12 @@ async function main() {
 
     // Intermediate save after each conversation
     saveOutput(outputPath, output);
+  }
+
+  if (skippedConversations > 0) {
+    console.log(
+      `\n  WARNING: ${skippedConversations}/${conversations.length} conversations skipped due to ingestion errors`,
+    );
   }
 
   // Ingestion summary

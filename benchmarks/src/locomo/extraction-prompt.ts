@@ -1,20 +1,22 @@
 import { z } from 'zod';
 import type { LoCoMoConversation } from './types.js';
 
+// LLMs commonly return null instead of omitting optional fields,
+// so all optional fields use .nullable() to accept both null and undefined.
 export const ExtractionResultSchema = z.object({
   entities: z.array(
     z.object({
       name: z.string(),
       entity_type: z.string(),
-      properties: z.record(z.string(), z.unknown()).optional(),
+      properties: z.record(z.string(), z.unknown()).nullable().optional(),
     }),
   ),
   events: z.array(
     z.object({
       description: z.string(),
       occurred_at: z.string(),
-      duration: z.number().optional(),
-      entities: z.array(z.string()).optional(),
+      duration: z.number().nullable().optional(),
+      entities: z.array(z.string()).nullable().optional(),
     }),
   ),
   facts: z.array(
@@ -23,23 +25,23 @@ export const ExtractionResultSchema = z.object({
       predicate: z.string(),
       object: z.string(),
       valid_from: z.string(),
-      valid_to: z.string().optional(),
-      subject_entity: z.string().optional(),
+      valid_to: z.string().nullable().optional(),
+      subject_entity: z.string().nullable().optional(),
     }),
   ),
   causal_links: z.array(
     z.object({
       cause: z.string(),
       effect: z.string(),
-      confidence: z.number().min(0).max(1).optional(),
-      entities: z.array(z.string()).optional(),
+      confidence: z.number().min(0).max(1).nullable().optional(),
+      entities: z.array(z.string()).nullable().optional(),
     }),
   ),
   concepts: z.array(
     z.object({
       name: z.string(),
-      description: z.string().optional(),
-      entities: z.array(z.string()).optional(),
+      description: z.string().nullable().optional(),
+      entities: z.array(z.string()).nullable().optional(),
     }),
   ),
 });

@@ -96,6 +96,12 @@ function parseExtractionResponse(rawJson: string): ExtractionResult {
   return result.data;
 }
 
+/** Safely parse a date string, returning undefined if invalid */
+function safeDate(str: string): Date | undefined {
+  const d = new Date(str);
+  return Number.isNaN(d.getTime()) ? undefined : d;
+}
+
 async function writeToGraphs(
   extraction: ExtractionResult,
   graphs: MAGMAGraphRegistry,
@@ -108,17 +114,20 @@ async function writeToGraphs(
     const entity = await graphs.entity.addEntity(
       e.name,
       e.entity_type,
-      e.properties,
+      e.properties ?? undefined,
     );
     entityMap.set(e.name, entity);
   }
 
   // Step 2: Events + X_INVOLVES cross-links
   for (const ev of extraction.events) {
+    const occurredAt = safeDate(ev.occurred_at);
+    if (!occurredAt) continue; // skip events with unparseable dates
+
     const event = await graphs.temporal.addEvent(
       ev.description,
-      new Date(ev.occurred_at),
-      ev.duration,
+      occurredAt,
+      ev.duration ?? undefined,
     );
 
     // Cross-link to entities
@@ -134,12 +143,15 @@ async function writeToGraphs(
 
   // Step 3: Facts + X_INVOLVES cross-links
   for (const f of extraction.facts) {
+    const validFrom = safeDate(f.valid_from);
+    if (!validFrom) continue; // skip facts with unparseable dates
+
     const fact = await graphs.temporal.addFact(
       f.subject,
       f.predicate,
       f.object,
-      new Date(f.valid_from),
-      f.valid_to ? new Date(f.valid_to) : undefined,
+      validFrom,
+      f.valid_to ? safeDate(f.valid_to) : undefined,
     );
 
     // Cross-link to subject entity
@@ -157,7 +169,7 @@ async function writeToGraphs(
     const effectNode = await graphs.causal.findOrCreate(cl.effect, 'effect');
 
     // Create the link
-    await graphs.causal.addLink(causeNode.uuid, effectNode.uuid, cl.confidence);
+    await graphs.causal.addLink(causeNode.uuid, effectNode.uuid, cl.confidence ?? undefined);
 
     // Cross-link causal nodes to entities (X_AFFECTS)
     if (cl.entities) {
@@ -173,7 +185,10 @@ async function writeToGraphs(
 
   // Step 5: Concepts + X_REPRESENTS cross-links
   for (const c of extraction.concepts) {
-    const concept = await graphs.semantic.addConcept(c.name, c.description);
+    const concept = await graphs.semantic.addConcept(
+      c.name,
+      c.description ?? undefined,
+    );
 
     // Cross-link to entities (X_REPRESENTS)
     if (c.entities) {
