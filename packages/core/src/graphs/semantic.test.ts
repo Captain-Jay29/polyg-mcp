@@ -409,6 +409,75 @@ describe('SemanticGraph', () => {
     });
   });
 
+  describe('addConceptWithEmbedding', () => {
+    it('should create a concept with pre-computed embedding', async () => {
+      vi.mocked(db.query).mockResolvedValue({ records: [], metadata: [] });
+      vi.mocked(db.createNode).mockResolvedValue('new-uuid');
+
+      const concept = await graph.addConceptWithEmbedding(
+        'Batch Concept',
+        [0.4, 0.5, 0.6],
+        'A batch-embedded concept',
+      );
+
+      expect(embeddings.embed).not.toHaveBeenCalled();
+      expect(db.createNode).toHaveBeenCalledWith('S_Concept', {
+        name: 'Batch Concept',
+        description: 'A batch-embedded concept',
+        embedding: JSON.stringify([0.4, 0.5, 0.6]),
+        created_at: expect.any(String),
+      });
+      expect(concept).toMatchObject({
+        uuid: 'new-uuid',
+        name: 'Batch Concept',
+        description: 'A batch-embedded concept',
+        embedding: [0.4, 0.5, 0.6],
+      });
+    });
+
+    it('should create a concept without description', async () => {
+      vi.mocked(db.query).mockResolvedValue({ records: [], metadata: [] });
+      vi.mocked(db.createNode).mockResolvedValue('new-uuid');
+
+      const concept = await graph.addConceptWithEmbedding('Simple', [0.1, 0.2]);
+
+      expect(db.createNode).toHaveBeenCalledWith(
+        'S_Concept',
+        expect.not.objectContaining({ description: expect.anything() }),
+      );
+      expect(concept.description).toBeUndefined();
+    });
+
+    it('should return existing concept instead of creating duplicate', async () => {
+      const existingConcept = mockConceptNode({
+        uuid: 'existing-uuid',
+        name: 'Existing',
+      });
+      vi.mocked(db.query).mockResolvedValue({
+        records: [{ c: existingConcept }],
+        metadata: [],
+      });
+
+      const concept = await graph.addConceptWithEmbedding(
+        'Existing',
+        [0.1, 0.2],
+      );
+
+      expect(db.createNode).not.toHaveBeenCalled();
+      expect(embeddings.embed).not.toHaveBeenCalled();
+      expect(concept.uuid).toBe('existing-uuid');
+    });
+
+    it('should throw on database error', async () => {
+      vi.mocked(db.query).mockResolvedValue({ records: [], metadata: [] });
+      vi.mocked(db.createNode).mockRejectedValue(new Error('DB error'));
+
+      await expect(
+        graph.addConceptWithEmbedding('Test', [0.1]),
+      ).rejects.toThrow('Failed to add concept with embedding: Test');
+    });
+  });
+
   describe('findOrCreate', () => {
     it('should return existing concept if found', async () => {
       vi.mocked(db.query).mockResolvedValue({

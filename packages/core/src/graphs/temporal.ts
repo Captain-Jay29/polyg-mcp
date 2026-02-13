@@ -22,6 +22,7 @@ import {
 const EVENT_LABEL = 'T_Event';
 const FACT_LABEL = 'T_Fact';
 const INVOLVES_REL = 'X_INVOLVES';
+const FOLLOWS_REL = 'FOLLOWS';
 
 /**
  * Temporal Graph manages events and time-bounded facts.
@@ -329,6 +330,49 @@ export class TemporalGraph {
       throw new TemporalError(
         `Failed to get facts in range ${from.toISOString()} to ${to.toISOString()}`,
         `${from.toISOString()} - ${to.toISOString()}`,
+        error instanceof Error ? error : undefined,
+      );
+    }
+  }
+
+  /**
+   * Link two temporal events in sequence (temporal backbone).
+   * Creates a FOLLOWS edge: previousEvent → currentEvent.
+   * Used by ingestion fast path to build chronological chains.
+   */
+  async linkEventsSequentially(
+    previousEventId: string,
+    currentEventId: string,
+  ): Promise<void> {
+    if (previousEventId === currentEventId) {
+      throw new RelationshipError(
+        'Cannot link an event to itself',
+        previousEventId,
+        currentEventId,
+        FOLLOWS_REL,
+      );
+    }
+
+    try {
+      await this.db.query(
+        `MATCH (prev:${EVENT_LABEL} {uuid: $prevId}), (curr:${EVENT_LABEL} {uuid: $currId})
+         MERGE (prev)-[r:${FOLLOWS_REL}]->(curr)
+         ON CREATE SET r.created_at = $createdAt`,
+        {
+          prevId: previousEventId,
+          currId: currentEventId,
+          createdAt: new Date().toISOString(),
+        },
+      );
+    } catch (error) {
+      if (error instanceof RelationshipError) {
+        throw error;
+      }
+      throw new RelationshipError(
+        'Failed to link events sequentially',
+        previousEventId,
+        currentEventId,
+        FOLLOWS_REL,
         error instanceof Error ? error : undefined,
       );
     }
