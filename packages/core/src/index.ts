@@ -3,6 +3,15 @@ export * from './agents/index.js';
 export * from './embeddings/index.js';
 export * from './executor/index.js';
 export * from './graphs/index.js';
+export { ingest } from './ingestion/index.js';
+export type {
+  DeduplicationResult,
+  DocumentProfile,
+  IngestInput,
+  IngestionDeps,
+  IngestionReport,
+  InputFormat,
+} from './ingestion/types.js';
 export * from './llm/index.js';
 export { Orchestrator, type OrchestratorConfig } from './orchestrator.js';
 export * from './retrieval/index.js';
