@@ -132,8 +132,7 @@ export async function ingest(
       profiler_calls: 0, // Phase 1: no LLM profiler
       extraction_calls: slowResult.extractedChunks + slowResult.skippedChunks,
       embedding_calls: 1,
-      total_llm_calls:
-        slowResult.extractedChunks + slowResult.skippedChunks,
+      total_llm_calls: slowResult.extractedChunks + slowResult.skippedChunks,
     },
     timing: {
       parse_ms: parseMs,
