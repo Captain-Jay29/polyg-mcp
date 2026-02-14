@@ -30,11 +30,11 @@ const EMPTY_NEIGHBORHOOD: NeighborhoodContext = {
  * - Similar concepts (vector similarity)
  */
 export async function gather2HopNeighborhood(
-  _eventId: string,
   conceptId: string,
   deps: IngestionDeps,
   eventIds: string[],
   currentPosition: number,
+  warnings: string[] = [],
 ): Promise<NeighborhoodContext> {
   // Window: previous 5 events (or fewer if near start)
   const windowStart = Math.max(0, currentPosition - 5);
@@ -47,10 +47,10 @@ export async function gather2HopNeighborhood(
   // Run all queries in parallel
   const [knownEntities, recentEvents, activeCausalChains, similarConcepts] =
     await Promise.all([
-      gatherKnownEntities(deps, recentEventIds),
-      gatherRecentEvents(deps, recentEventIds),
-      gatherCausalChains(deps, recentEventIds),
-      gatherSimilarConcepts(deps, conceptId),
+      gatherKnownEntities(deps, recentEventIds, warnings),
+      gatherRecentEvents(deps, recentEventIds, warnings),
+      gatherCausalChains(deps, recentEventIds, warnings),
+      gatherSimilarConcepts(deps, conceptId, warnings),
     ]);
 
   return {
@@ -67,6 +67,7 @@ export async function gather2HopNeighborhood(
 async function gatherKnownEntities(
   deps: IngestionDeps,
   recentEventIds: string[],
+  warnings: string[],
 ): Promise<NeighborhoodContext['knownEntities']> {
   try {
     const result = await deps.db.query(
@@ -89,7 +90,10 @@ async function gatherKnownEntities(
           type: r.type as string,
         }) as NeighborhoodContext['knownEntities'][number],
     );
-  } catch {
+  } catch (err) {
+    warnings.push(
+      `Neighborhood: failed to gather known entities: ${errMsg(err)}`,
+    );
     return [];
   }
 }
@@ -100,6 +104,7 @@ async function gatherKnownEntities(
 async function gatherRecentEvents(
   deps: IngestionDeps,
   recentEventIds: string[],
+  warnings: string[],
 ): Promise<NeighborhoodContext['recentEvents']> {
   try {
     const result = await deps.db.query(
@@ -117,7 +122,10 @@ async function gatherRecentEvents(
           occurred_at: r.occurred_at as string,
         }) as NeighborhoodContext['recentEvents'][number],
     );
-  } catch {
+  } catch (err) {
+    warnings.push(
+      `Neighborhood: failed to gather recent events: ${errMsg(err)}`,
+    );
     return [];
   }
 }
@@ -129,6 +137,7 @@ async function gatherRecentEvents(
 async function gatherCausalChains(
   deps: IngestionDeps,
   recentEventIds: string[],
+  warnings: string[],
 ): Promise<NeighborhoodContext['activeCausalChains']> {
   try {
     // First get entity IDs from recent events
@@ -168,7 +177,10 @@ async function gatherCausalChains(
             confidence: typeof r.confidence === 'number' ? r.confidence : 1.0,
           }) as NeighborhoodContext['activeCausalChains'][number],
       );
-  } catch {
+  } catch (err) {
+    warnings.push(
+      `Neighborhood: failed to gather causal chains: ${errMsg(err)}`,
+    );
     return [];
   }
 }
@@ -179,6 +191,7 @@ async function gatherCausalChains(
 async function gatherSimilarConcepts(
   deps: IngestionDeps,
   conceptId: string,
+  warnings: string[],
 ): Promise<NeighborhoodContext['similarConcepts']> {
   try {
     const semantic = new SemanticGraph(deps.db, deps.embeddings);
@@ -188,7 +201,14 @@ async function gatherSimilarConcepts(
       name: m.concept.name,
       score: m.score,
     }));
-  } catch {
+  } catch (err) {
+    warnings.push(
+      `Neighborhood: failed to gather similar concepts for ${conceptId}: ${errMsg(err)}`,
+    );
     return [];
   }
+}
+
+function errMsg(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }

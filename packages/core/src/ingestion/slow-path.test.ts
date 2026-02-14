@@ -219,6 +219,7 @@ describe('runSlowPath', () => {
     expect(result.relationships_created).toBeGreaterThan(0);
     expect(result.facts_created).toBeGreaterThan(0);
     expect(result.causal_links_created).toBeGreaterThan(0);
+    expect(result.warnings).toEqual([]);
   });
 
   it('should call LLM once per chunk', async () => {
@@ -360,6 +361,58 @@ describe('runSlowPath', () => {
     );
 
     expect(result.cross_links_created).toBeGreaterThan(0);
+  });
+
+  it('should populate warnings when extraction fails', async () => {
+    vi.mocked(llm.complete).mockRejectedValue(new Error('LLM timeout'));
+
+    const chunks = makeChunks(1);
+    const fastResult = makeFastResult(1);
+
+    const result = await runSlowPath(
+      chunks,
+      fastResult,
+      CONVERSATION_PROFILE,
+      deps,
+    );
+
+    expect(result.warnings).toHaveLength(1);
+    expect(result.warnings[0]).toContain('chunk_000');
+    expect(result.warnings[0]).toContain('LLM timeout');
+  });
+
+  it('should populate warnings on entity write failures', async () => {
+    // First LLM call succeeds with extraction containing an entity
+    const extraction: ChunkExtraction = {
+      entities: [{ name: 'FailEnt', entity_type: 'person' }],
+      relationships: [],
+      causal_links: [],
+      facts: [],
+    };
+    vi.mocked(llm.complete).mockResolvedValue(JSON.stringify(extraction));
+
+    // Make createNode fail for entity creation
+    const origCreateNode = vi.mocked(db.createNode);
+    origCreateNode.mockImplementation(
+      async (label: string, _props: Record<string, unknown>) => {
+        if (label === 'E_Entity') throw new Error('DB write failed');
+        return 'uuid-ok';
+      },
+    );
+
+    const chunks = makeChunks(1);
+    const fastResult = makeFastResult(1);
+
+    const result = await runSlowPath(
+      chunks,
+      fastResult,
+      CONVERSATION_PROFILE,
+      deps,
+    );
+
+    expect(result.warnings.length).toBeGreaterThan(0);
+    expect(result.warnings[0]).toContain('FailEnt');
+    expect(result.warnings[0]).toContain('Failed to create entity');
   });
 
   it('should pass responseFormat json to LLM', async () => {

@@ -4,6 +4,7 @@ import { CausalGraph } from '../graphs/causal.js';
 import { EntityGraph } from '../graphs/entity.js';
 import { TemporalGraph } from '../graphs/temporal.js';
 import { buildExtractionPrompt } from './extraction-prompt.js';
+import type { NeighborhoodContext } from './neighborhood.js';
 import { gather2HopNeighborhood } from './neighborhood.js';
 import type {
   ChunkExtraction,
@@ -24,6 +25,7 @@ export interface SlowPathResult {
   causal_nodes_created: number;
   causal_links_created: number;
   cross_links_created: number;
+  warnings: string[];
 }
 
 export async function runSlowPath(
@@ -47,6 +49,7 @@ export async function runSlowPath(
     causal_nodes_created: 0,
     causal_links_created: 0,
     cross_links_created: 0,
+    warnings: [],
   };
 
   // Global entity map across all chunks: normalized name → Entity
@@ -59,11 +62,11 @@ export async function runSlowPath(
 
     // 1. Gather neighborhood context
     const neighborhood = await gather2HopNeighborhood(
-      eventId,
       conceptId,
       deps,
       fastPathResult.eventIds,
       i,
+      result.warnings,
     );
 
     // 2. LLM extraction with retry
@@ -72,6 +75,7 @@ export async function runSlowPath(
       profile,
       neighborhood,
       deps,
+      result.warnings,
     );
     if (!extraction) {
       result.skippedChunks++;
@@ -87,6 +91,7 @@ export async function runSlowPath(
       temporalGraph,
       causalGraph,
       globalEntityMap,
+      result.warnings,
     );
 
     result.extractedChunks++;
@@ -107,12 +112,9 @@ export async function runSlowPath(
 async function extractWithRetry(
   chunk: ParsedChunk,
   profile: DocumentProfile,
-  neighborhood: ReturnType<typeof gather2HopNeighborhood> extends Promise<
-    infer T
-  >
-    ? T
-    : never,
+  neighborhood: NeighborhoodContext,
   deps: IngestionDeps,
+  warnings: string[],
 ): Promise<ChunkExtraction | null> {
   const { system, user } = buildExtractionPrompt(chunk, profile, neighborhood);
   const prompt = `${system}\n\n${user}`;
@@ -124,9 +126,12 @@ async function extractWithRetry(
         responseFormat: 'json',
       });
       return ChunkExtractionSchema.parse(JSON.parse(raw));
-    } catch {
+    } catch (err) {
       if (attempt === 1) {
-        return null; // both attempts failed
+        warnings.push(
+          `Extraction failed for chunk ${chunk.chunk_id} after 2 attempts: ${errMsg(err)}`,
+        );
+        return null;
       }
       // retry
     }
@@ -155,6 +160,7 @@ async function writeChunkExtraction(
   temporalGraph: TemporalGraph,
   causalGraph: CausalGraph,
   globalEntityMap: Map<string, Entity>,
+  warnings: string[],
 ): Promise<WriteResult> {
   const result: WriteResult = {
     entities_created: 0,
@@ -178,8 +184,10 @@ async function writeChunkExtraction(
         result.entities_created++;
       }
       globalEntityMap.set(key, entity);
-    } catch {
-      // Skip individual entity failures
+    } catch (err) {
+      warnings.push(
+        `Failed to create entity "${ent.name}" (${ent.entity_type}): ${errMsg(err)}`,
+      );
     }
   }
 
@@ -196,8 +204,10 @@ async function writeChunkExtraction(
         );
         result.relationships_created++;
       }
-    } catch {
-      // Skip individual relationship failures
+    } catch (err) {
+      warnings.push(
+        `Failed to link "${rel.source}" → "${rel.target}" (${rel.relationship_type}): ${errMsg(err)}`,
+      );
     }
   }
 
@@ -226,8 +236,10 @@ async function writeChunkExtraction(
           result.cross_links_created++;
         }
       }
-    } catch {
-      // Skip individual fact failures
+    } catch (err) {
+      warnings.push(
+        `Failed to create fact "${fact.subject} ${fact.predicate} ${fact.object}": ${errMsg(err)}`,
+      );
     }
   }
 
@@ -261,8 +273,10 @@ async function writeChunkExtraction(
           }
         }
       }
-    } catch {
-      // Skip individual causal link failures
+    } catch (err) {
+      warnings.push(
+        `Failed to create causal link "${causal.cause}" → "${causal.effect}": ${errMsg(err)}`,
+      );
     }
   }
 
@@ -274,8 +288,10 @@ async function writeChunkExtraction(
         await temporalGraph.linkEventToEntity(eventId, entity.uuid);
         result.cross_links_created++;
       }
-    } catch {
-      // Skip individual cross-link failures
+    } catch (err) {
+      warnings.push(
+        `Failed to cross-link event ${eventId} to entity "${ent.name}": ${errMsg(err)}`,
+      );
     }
   }
 
@@ -284,4 +300,8 @@ async function writeChunkExtraction(
 
 function normalizeEntityKey(name: string): string {
   return name.toLowerCase().trim();
+}
+
+function errMsg(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }

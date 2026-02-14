@@ -35,13 +35,7 @@ describe('gather2HopNeighborhood', () => {
   });
 
   it('should return empty neighborhood when no recent events exist', async () => {
-    const result = await gather2HopNeighborhood(
-      'event-1',
-      'concept-1',
-      deps,
-      [],
-      0,
-    );
+    const result = await gather2HopNeighborhood('concept-1', deps, [], 0);
 
     expect(result.knownEntities).toHaveLength(0);
     expect(result.recentEvents).toHaveLength(0);
@@ -52,7 +46,7 @@ describe('gather2HopNeighborhood', () => {
   it('should window to previous 5 events', async () => {
     const eventIds = Array.from({ length: 10 }, (_, i) => `event-${i}`);
 
-    await gather2HopNeighborhood('event-7', 'concept-7', deps, eventIds, 7);
+    await gather2HopNeighborhood('concept-7', deps, eventIds, 7);
 
     // Should query with event IDs from position 2 through 7 (6 events)
     const queryCalls = vi.mocked(db.query).mock.calls;
@@ -71,13 +65,7 @@ describe('gather2HopNeighborhood', () => {
   it('should handle position 0 gracefully', async () => {
     const eventIds = ['event-0'];
 
-    const result = await gather2HopNeighborhood(
-      'event-0',
-      'concept-0',
-      deps,
-      eventIds,
-      0,
-    );
+    const result = await gather2HopNeighborhood('concept-0', deps, eventIds, 0);
 
     // Should still work with just the current event
     expect(result).toBeDefined();
@@ -103,7 +91,6 @@ describe('gather2HopNeighborhood', () => {
     });
 
     const result = await gather2HopNeighborhood(
-      'event-0',
       'concept-0',
       deps,
       ['event-0'],
@@ -136,7 +123,6 @@ describe('gather2HopNeighborhood', () => {
     });
 
     const result = await gather2HopNeighborhood(
-      'event-0',
       'concept-0',
       deps,
       ['event-0'],
@@ -150,12 +136,13 @@ describe('gather2HopNeighborhood', () => {
   it('should gracefully handle DB query failures', async () => {
     vi.mocked(db.query).mockRejectedValue(new Error('DB connection failed'));
 
+    const warnings: string[] = [];
     const result = await gather2HopNeighborhood(
-      'event-0',
       'concept-0',
       deps,
       ['event-0'],
       0,
+      warnings,
     );
 
     // Should return empty results, not throw
@@ -163,6 +150,12 @@ describe('gather2HopNeighborhood', () => {
     expect(result.recentEvents).toHaveLength(0);
     expect(result.activeCausalChains).toHaveLength(0);
     expect(result.similarConcepts).toHaveLength(0);
+
+    // Should populate warnings with descriptive messages
+    expect(warnings.length).toBeGreaterThanOrEqual(3);
+    expect(warnings.some((w) => w.includes('known entities'))).toBe(true);
+    expect(warnings.some((w) => w.includes('recent events'))).toBe(true);
+    expect(warnings.some((w) => w.includes('DB connection failed'))).toBe(true);
   });
 
   it('should run all gather queries in parallel', async () => {
@@ -176,7 +169,7 @@ describe('gather2HopNeighborhood', () => {
       return { records: [], metadata: [] };
     });
 
-    await gather2HopNeighborhood('event-0', 'concept-0', deps, ['event-0'], 0);
+    await gather2HopNeighborhood('concept-0', deps, ['event-0'], 0);
 
     // All queries should have been initiated (parallel via Promise.all)
     expect(callOrder.length).toBeGreaterThanOrEqual(2);

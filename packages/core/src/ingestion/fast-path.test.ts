@@ -1,7 +1,7 @@
 import type { EmbeddingProvider } from '@polyg-mcp/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FalkorDBAdapter } from '../storage/falkordb.js';
-import { runFastPath } from './fast-path.js';
+import { EMBED_TEXT_LIMIT, runFastPath } from './fast-path.js';
 import type { IngestionDeps, ParsedChunk } from './types.js';
 
 function createMockDb(): FalkorDBAdapter {
@@ -68,7 +68,7 @@ describe('runFastPath', () => {
 
     expect(embeddings.embedBatch).toHaveBeenCalledTimes(1);
     expect(embeddings.embedBatch).toHaveBeenCalledWith(
-      chunks.map((c) => c.content.slice(0, 200)),
+      chunks.map((c) => c.content.slice(0, EMBED_TEXT_LIMIT)),
     );
   });
 
@@ -133,6 +133,98 @@ describe('runFastPath', () => {
     const eventCall = createCalls.find(([label]) => label === 'T_Event');
     if (!eventCall) throw new Error('eventCall not found');
     expect(eventCall[1].occurred_at).toBe('2024-06-15T14:30:00.000Z');
+  });
+
+  it('should use synthetic timestamps for chunks without real ones', async () => {
+    // chunk 0 has a timestamp, chunks 1-2 do not
+    const chunks: ParsedChunk[] = [
+      {
+        chunk_id: 'chunk_000',
+        content: 'First message',
+        position: 0,
+        metadata: {
+          source_format: 'conversation',
+          timestamp: '2024-01-15T10:00:00Z',
+        },
+      },
+      {
+        chunk_id: 'chunk_001',
+        content: 'Second message',
+        position: 1,
+        metadata: { source_format: 'conversation' },
+      },
+      {
+        chunk_id: 'chunk_002',
+        content: 'Third message',
+        position: 2,
+        metadata: { source_format: 'conversation' },
+      },
+    ];
+    db = createMockDb();
+    deps.db = db;
+
+    await runFastPath(chunks, deps);
+
+    const createCalls = vi.mocked(db.createNode).mock.calls;
+    const eventCalls = createCalls.filter(([label]) => label === 'T_Event');
+    expect(eventCalls).toHaveLength(3);
+
+    // chunk 0: real timestamp
+    expect(eventCalls[0][1].occurred_at).toBe('2024-01-15T10:00:00.000Z');
+    // chunk 1: base + 1 * 60_000ms = 1 minute after base
+    const base = new Date('2024-01-15T10:00:00Z').getTime();
+    expect(eventCalls[1][1].occurred_at).toBe(
+      new Date(base + 1 * 60_000).toISOString(),
+    );
+    // chunk 2: base + 2 * 60_000ms = 2 minutes after base
+    expect(eventCalls[2][1].occurred_at).toBe(
+      new Date(base + 2 * 60_000).toISOString(),
+    );
+  });
+
+  it('should offset base time when first timestamp is mid-array', async () => {
+    // chunk 0-1 have no timestamp, chunk 2 has one
+    const chunks: ParsedChunk[] = [
+      {
+        chunk_id: 'chunk_000',
+        content: 'First',
+        position: 0,
+        metadata: { source_format: 'conversation' },
+      },
+      {
+        chunk_id: 'chunk_001',
+        content: 'Second',
+        position: 1,
+        metadata: { source_format: 'conversation' },
+      },
+      {
+        chunk_id: 'chunk_002',
+        content: 'Third',
+        position: 2,
+        metadata: {
+          source_format: 'conversation',
+          timestamp: '2024-01-15T10:02:00Z',
+        },
+      },
+    ];
+    db = createMockDb();
+    deps.db = db;
+
+    await runFastPath(chunks, deps);
+
+    const createCalls = vi.mocked(db.createNode).mock.calls;
+    const eventCalls = createCalls.filter(([label]) => label === 'T_Event');
+
+    // base = chunk2 timestamp - 2*60s = 10:00:00
+    const base = new Date('2024-01-15T10:02:00Z').getTime() - 2 * 60_000;
+    // chunk 0: base + 0 = 10:00:00 (before chunk 2)
+    expect(eventCalls[0][1].occurred_at).toBe(new Date(base).toISOString());
+    // chunk 1: base + 60s = 10:01:00 (before chunk 2)
+    expect(eventCalls[1][1].occurred_at).toBe(
+      new Date(base + 60_000).toISOString(),
+    );
+    // chunk 2: real timestamp
+    expect(eventCalls[2][1].occurred_at).toBe('2024-01-15T10:02:00.000Z');
   });
 
   it('should truncate content for concept name and description', async () => {
