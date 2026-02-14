@@ -233,7 +233,7 @@ export function checkQuality(
     );
   }
 
-  if (maxCausalDepth < 2) {
+  if (entityCount >= 5 && maxCausalDepth < 2) {
     warnings.push(
       `Shallow causal chains: max depth ${maxCausalDepth} (expected >= 2)`,
     );
@@ -261,14 +261,14 @@ export async function getQualityMetrics(deps: IngestionDeps): Promise<{
   );
   const entityCount = asNumber(entityResult.records[0]?.cnt) ?? 0;
 
+  // Disconnection: entities not anchored to the temporal backbone via X_INVOLVES.
+  // Better than zero-edge check — catches small islands (entities linked only to
+  // each other via E_RELATES but not to any T_Event or T_Fact).
   let disconnectedRatio = 0;
   if (entityCount > 0) {
     const disconnectedResult = await deps.db.query(
       `MATCH (e:E_Entity)
-       WHERE NOT (e)-[:E_RELATES]-()
-         AND NOT (e)<-[:X_REPRESENTS]-()
-         AND NOT (e)<-[:X_INVOLVES]-()
-         AND NOT (e)<-[:X_AFFECTS]-()
+       WHERE NOT (e)<-[:X_INVOLVES]-()
        RETURN count(e) AS cnt`,
     );
     const disconnected = asNumber(disconnectedResult.records[0]?.cnt) ?? 0;

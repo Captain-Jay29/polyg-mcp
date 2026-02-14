@@ -490,9 +490,14 @@ describe('checkQuality', () => {
     expect(warnings.some((w) => w.includes('failure rate'))).toBe(true);
   });
 
-  it('should warn when max causal depth < 2', () => {
+  it('should warn when max causal depth < 2 and enough entities', () => {
     const warnings = checkQuality(5, 10, 0, 0, 1);
     expect(warnings.some((w) => w.includes('Shallow causal'))).toBe(true);
+  });
+
+  it('should not warn about causal depth when few entities', () => {
+    const warnings = checkQuality(3, 10, 0, 0, 0);
+    expect(warnings.some((w) => w.includes('Shallow causal'))).toBe(false);
   });
 
   it('should warn when >30% disconnected', () => {
@@ -533,9 +538,10 @@ describe('getQualityMetrics', () => {
       ) {
         return { records: [{ cnt: 10 }], metadata: [] };
       }
+      // Disconnection check: entities not anchored via X_INVOLVES
       if (
         typeof cypher === 'string' &&
-        cypher.includes('NOT (e)-[:E_RELATES]')
+        cypher.includes('NOT (e)<-[:X_INVOLVES]')
       ) {
         return { records: [{ cnt: 3 }], metadata: [] };
       }

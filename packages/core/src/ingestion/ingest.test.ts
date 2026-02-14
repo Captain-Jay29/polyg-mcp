@@ -351,12 +351,12 @@ describe('ingest', () => {
     expect(report.status).toMatch(/^completed/);
   });
 
-  it('should report extraction_calls equal to extracted chunks', async () => {
+  it('should report extraction_calls as extracted + skipped chunks', async () => {
     const deps = makeDeps();
     const report = await ingest({ content: makeFiveTurnConversation() }, deps);
 
     expect(report.cost.extraction_calls).toBe(
-      report.chunks.slow_path_extracted,
+      report.chunks.slow_path_extracted + report.chunks.slow_path_skipped,
     );
   });
 
