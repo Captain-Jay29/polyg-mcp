@@ -2,6 +2,7 @@
 // Maintains an internal content-hash cache to avoid redundant LLM calls.
 import { createHash } from 'node:crypto';
 import type { LLMProvider } from '@polyg-mcp/shared';
+import { stripJsonFences } from './normalize.js';
 import { getDefaultProfile } from './profiles.js';
 import type { DocumentProfile, ParsedChunk } from './types.js';
 import { DocumentProfileSchema } from './types.js';
@@ -44,7 +45,7 @@ export async function profileDocument(
   try {
     const prompt = buildProfilerPrompt(chunks, sourceFormat);
     const raw = await llm.complete({ prompt, responseFormat: 'json' });
-    const profile = DocumentProfileSchema.parse(JSON.parse(raw));
+    const profile = DocumentProfileSchema.parse(JSON.parse(stripJsonFences(raw)));
 
     // Store in cache (evict oldest if full)
     if (profileCache.size >= MAX_CACHE_SIZE) {

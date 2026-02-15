@@ -6,7 +6,7 @@ import { TemporalGraph } from '../graphs/temporal.js';
 import { buildExtractionPrompt } from './extraction-prompt.js';
 import type { NeighborhoodContext } from './neighborhood.js';
 import { gather2HopNeighborhood } from './neighborhood.js';
-import { normalizeExtraction } from './normalize.js';
+import { normalizeExtraction, stripJsonFences } from './normalize.js';
 import type {
   ChunkExtraction,
   DocumentProfile,
@@ -133,7 +133,7 @@ async function extractWithRetry(
         prompt,
         responseFormat: 'json',
       });
-      const parsed = ChunkExtractionSchema.parse(JSON.parse(raw));
+      const parsed = ChunkExtractionSchema.parse(JSON.parse(stripJsonFences(raw)));
       return normalizeExtraction(parsed);
     } catch (err) {
       if (attempt === 1) {

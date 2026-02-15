@@ -51,3 +51,17 @@ export function normalizeExtraction(
   }
   return extraction;
 }
+
+/**
+ * Strip markdown JSON code fences from LLM output before parsing.
+ * Handles ```json ... ```, ``` ... ```, and bare JSON.
+ */
+export function stripJsonFences(raw: string): string {
+  const trimmed = raw.trim();
+  // Match ```json ... ``` or ``` ... ```
+  const fenceMatch = trimmed.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?\s*```$/);
+  if (fenceMatch) {
+    return fenceMatch[1].trim();
+  }
+  return trimmed;
+}

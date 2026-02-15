@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeEntityType, normalizeExtraction } from './normalize.js';
+import {
+  normalizeEntityType,
+  normalizeExtraction,
+  stripJsonFences,
+} from './normalize.js';
 import type { ChunkExtraction } from './types.js';
 
 describe('normalizeEntityType', () => {
@@ -114,5 +118,39 @@ describe('normalizeExtraction', () => {
     normalizeExtraction(extraction);
 
     expect(extraction.entities[0].entity_type).toBe('product');
+  });
+});
+
+describe('stripJsonFences', () => {
+  it('should return bare JSON unchanged', () => {
+    const json = '{"key": "value"}';
+    expect(stripJsonFences(json)).toBe('{"key": "value"}');
+  });
+
+  it('should strip ```json fences', () => {
+    const fenced = '```json\n{"key": "value"}\n```';
+    expect(stripJsonFences(fenced)).toBe('{"key": "value"}');
+  });
+
+  it('should strip bare ``` fences', () => {
+    const fenced = '```\n{"key": "value"}\n```';
+    expect(stripJsonFences(fenced)).toBe('{"key": "value"}');
+  });
+
+  it('should handle leading/trailing whitespace', () => {
+    const fenced = '  ```json\n{"key": "value"}\n```  ';
+    expect(stripJsonFences(fenced)).toBe('{"key": "value"}');
+  });
+
+  it('should handle multiline JSON inside fences', () => {
+    const fenced = '```json\n{\n  "entities": [],\n  "facts": []\n}\n```';
+    expect(stripJsonFences(fenced)).toBe(
+      '{\n  "entities": [],\n  "facts": []\n}',
+    );
+  });
+
+  it('should not strip fences from mid-content backticks', () => {
+    const json = '{"code": "use ```bash``` for shell"}';
+    expect(stripJsonFences(json)).toBe(json);
   });
 });
