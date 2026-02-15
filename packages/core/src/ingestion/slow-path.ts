@@ -4,6 +4,7 @@ import { CausalGraph } from '../graphs/causal.js';
 import { EntityGraph } from '../graphs/entity.js';
 import { TemporalGraph } from '../graphs/temporal.js';
 import { buildExtractionPrompt } from './extraction-prompt.js';
+import { normalizeExtraction } from './normalize.js';
 import type { NeighborhoodContext } from './neighborhood.js';
 import { gather2HopNeighborhood } from './neighborhood.js';
 import type {
@@ -132,7 +133,8 @@ async function extractWithRetry(
         prompt,
         responseFormat: 'json',
       });
-      return ChunkExtractionSchema.parse(JSON.parse(raw));
+      const parsed = ChunkExtractionSchema.parse(JSON.parse(raw));
+      return normalizeExtraction(parsed);
     } catch (err) {
       if (attempt === 1) {
         warnings.push(
