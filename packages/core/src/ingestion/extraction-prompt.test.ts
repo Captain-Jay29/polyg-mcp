@@ -163,7 +163,7 @@ describe('buildExtractionPrompt', () => {
       );
     });
 
-    it('should not include neighborhood data when neighborhood is empty', () => {
+    it('should not include neighborhood data or graph header when neighborhood is empty', () => {
       const { user } = buildExtractionPrompt(
         testChunk,
         testProfile,
@@ -174,8 +174,19 @@ describe('buildExtractionPrompt', () => {
       expect(user).not.toContain('Recent events');
       expect(user).not.toContain('Active causal chains');
       expect(user).not.toContain('Related concepts');
+      expect(user).not.toContain('Context from existing graph:');
       // Chunk info is always present
       expect(user).toContain('Chunk info:');
+    });
+
+    it('should show graph header only when neighborhood has data', () => {
+      const { user } = buildExtractionPrompt(
+        testChunk,
+        testProfile,
+        richNeighborhood,
+        10,
+      );
+      expect(user).toContain('Context from existing graph:');
     });
 
     it('should include known entities when available', () => {
@@ -308,6 +319,25 @@ describe('buildExtractionPrompt', () => {
       );
       expect(user).toContain('level: error');
       expect(user).toContain('id: 42');
+    });
+
+    it('should truncate long extra metadata values', () => {
+      const longValue = 'x'.repeat(300);
+      const chunkWithLongExtra: ParsedChunk = {
+        ...testChunk,
+        metadata: {
+          ...testChunk.metadata,
+          extra: { data: longValue },
+        },
+      };
+      const { user } = buildExtractionPrompt(
+        chunkWithLongExtra,
+        testProfile,
+        emptyNeighborhood,
+        10,
+      );
+      expect(user).not.toContain(longValue);
+      expect(user).toContain('x'.repeat(200) + '...');
     });
 
     it('should omit occurred_at when not present in events', () => {

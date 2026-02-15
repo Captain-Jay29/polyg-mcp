@@ -59,19 +59,22 @@ function buildSystemPrompt(profile: DocumentProfile): string {
   return lines.join('\n');
 }
 
+// Max chars per extra metadata value injected into the prompt
+const MAX_EXTRA_VALUE_LENGTH = 200;
+
 function buildUserPrompt(
   chunk: ParsedChunk,
   neighborhood: NeighborhoodContext,
   totalChunks: number,
 ): string {
-  const sections: string[] = [];
+  // Neighborhood context (only from graph data)
+  const neighborhoodSections: string[] = [];
 
-  // Neighborhood context
   if (neighborhood.knownEntities.length > 0) {
     const entityList = neighborhood.knownEntities
       .map((e) => `${e.name} (${e.type})`)
       .join(', ');
-    sections.push(`Known entities: ${entityList}`);
+    neighborhoodSections.push(`Known entities: ${entityList}`);
   }
 
   if (neighborhood.recentEvents.length > 0) {
@@ -80,21 +83,21 @@ function buildUserPrompt(
         e.occurred_at ? `${e.description} (${e.occurred_at})` : e.description,
       )
       .join('; ');
-    sections.push(`Recent events: ${eventList}`);
+    neighborhoodSections.push(`Recent events: ${eventList}`);
   }
 
   if (neighborhood.activeCausalChains.length > 0) {
     const chainList = neighborhood.activeCausalChains
       .map((c) => `${c.cause} → ${c.effect} (${c.confidence})`)
       .join('; ');
-    sections.push(`Active causal chains: ${chainList}`);
+    neighborhoodSections.push(`Active causal chains: ${chainList}`);
   }
 
   if (neighborhood.similarConcepts.length > 0) {
     const conceptList = neighborhood.similarConcepts
       .map((c) => c.name)
       .join(', ');
-    sections.push(`Related concepts: ${conceptList}`);
+    neighborhoodSections.push(`Related concepts: ${conceptList}`);
   }
 
   // Chunk metadata
@@ -115,26 +118,33 @@ function buildUserPrompt(
   if (chunk.metadata.extra) {
     for (const [key, value] of Object.entries(chunk.metadata.extra)) {
       if (value != null) {
-        infoParts.push(`${key}: ${String(value)}`);
+        const truncated = truncateValue(String(value), MAX_EXTRA_VALUE_LENGTH);
+        infoParts.push(`${key}: ${truncated}`);
       }
     }
   }
-  sections.push(`Chunk info: ${infoParts.join(' | ')}`);
 
   // Build user prompt
   const parts: string[] = [];
 
-  if (sections.length > 0) {
+  if (neighborhoodSections.length > 0) {
     parts.push('Context from existing graph:');
-    parts.push(...sections);
+    parts.push(...neighborhoodSections);
     parts.push('');
   }
 
+  parts.push(`Chunk info: ${infoParts.join(' | ')}`);
+  parts.push('');
   parts.push('Extract structured data from this text:');
   parts.push('');
   parts.push(chunk.content);
 
   return parts.join('\n');
+}
+
+function truncateValue(value: string, maxLength: number): string {
+  if (value.length <= maxLength) return value;
+  return `${value.slice(0, maxLength)}...`;
 }
 
 function temporalGuidance(
