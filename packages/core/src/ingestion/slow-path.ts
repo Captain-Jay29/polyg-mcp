@@ -253,11 +253,21 @@ async function writeChunkExtraction(
   }
 
   // 4. Causal links — findOrCreate nodes + addLink + link to entities + link to event
+  const seenCausalDescriptions = new Set<string>();
   for (const causal of extraction.causal_links) {
     try {
       const causeNode = await causalGraph.findOrCreate(causal.cause);
       const effectNode = await causalGraph.findOrCreate(causal.effect);
-      result.causal_nodes_created += 2; // approximate: findOrCreate may reuse
+      const causeKey = causal.cause.toLowerCase().trim();
+      const effectKey = causal.effect.toLowerCase().trim();
+      if (!seenCausalDescriptions.has(causeKey)) {
+        seenCausalDescriptions.add(causeKey);
+        result.causal_nodes_created++;
+      }
+      if (!seenCausalDescriptions.has(effectKey)) {
+        seenCausalDescriptions.add(effectKey);
+        result.causal_nodes_created++;
+      }
 
       await causalGraph.addLink(
         causeNode.uuid,
