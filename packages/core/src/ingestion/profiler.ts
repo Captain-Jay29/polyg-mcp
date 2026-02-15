@@ -11,9 +11,15 @@ import { DocumentProfileSchema } from './types.js';
 const SAMPLE_CHARS = 8000;
 const SAMPLE_CHUNKS = 5;
 const MAX_CACHE_SIZE = 100;
+const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
-// Module-level cache: content hash → DocumentProfile
-const profileCache = new Map<string, DocumentProfile>();
+interface CacheEntry {
+  profile: DocumentProfile;
+  cachedAt: number;
+}
+
+// Module-level cache: content hash → CacheEntry (with TTL)
+const profileCache = new Map<string, CacheEntry>();
 
 export interface ProfileResult {
   profile: DocumentProfile;
@@ -35,10 +41,13 @@ export async function profileDocument(
   const sourceFormat = chunks[0]?.metadata.source_format ?? 'text';
   const hash = hashSample(chunks);
 
-  // Cache hit — skip LLM
+  // Cache hit — skip LLM (check TTL)
   const cached = profileCache.get(hash);
   if (cached) {
-    return { profile: cached, cached: true };
+    if (Date.now() - cached.cachedAt < CACHE_TTL_MS) {
+      return { profile: cached.profile, cached: true };
+    }
+    profileCache.delete(hash);
   }
 
   // Cache miss — call LLM
@@ -54,7 +63,7 @@ export async function profileDocument(
         profileCache.delete(oldest);
       }
     }
-    profileCache.set(hash, profile);
+    profileCache.set(hash, { profile, cachedAt: Date.now() });
 
     return { profile, cached: false };
   } catch {

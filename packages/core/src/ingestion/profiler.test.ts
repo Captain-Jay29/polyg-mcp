@@ -208,6 +208,32 @@ describe('profileDocument', () => {
     expect(complete).toHaveBeenCalledOnce();
   });
 
+  it('should expire cached entries after TTL', async () => {
+    const llm = makeMockLlm(JSON.stringify(validProfile));
+    const chunks = makeChunks(5);
+
+    // First call — cache miss
+    const first = await profileDocument(chunks, llm);
+    expect(first.cached).toBe(false);
+
+    // Second call — cache hit (within TTL)
+    const second = await profileDocument(chunks, llm);
+    expect(second.cached).toBe(true);
+
+    // Advance time past TTL (30 minutes)
+    vi.useFakeTimers();
+    vi.setSystemTime(Date.now() + 31 * 60 * 1000);
+
+    // Third call — cache expired, should miss
+    const third = await profileDocument(chunks, llm);
+    expect(third.cached).toBe(false);
+
+    vi.useRealTimers();
+
+    const complete = llm.complete as ReturnType<typeof vi.fn>;
+    expect(complete).toHaveBeenCalledTimes(2); // first + third (not second)
+  });
+
   it('should clear cache with clearProfileCache()', async () => {
     const llm = makeMockLlm(JSON.stringify(validProfile));
     const chunks = makeChunks(3);
