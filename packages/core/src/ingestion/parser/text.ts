@@ -37,9 +37,7 @@ export function parseText(content: string): ParsedChunk[] {
 
     // Build chunk content from paragraphs [start, end)
     const slicedParagraphs = tagged.slice(start, end);
-    const chunkContent = slicedParagraphs
-      .map((p) => p.text)
-      .join('\n\n');
+    const chunkContent = slicedParagraphs.map((p) => p.text).join('\n\n');
 
     // Section = nearest preceding header for this window
     const section = resolveSection(tagged, start);
@@ -106,7 +104,11 @@ function detectHeader(text: string): string | undefined {
   }
 
   // ALL CAPS line: at least 3 chars, no lowercase letters, allows spaces/punctuation
-  if (firstLine.length >= 3 && /^[^a-z]*$/.test(firstLine) && /[A-Z]/.test(firstLine)) {
+  if (
+    firstLine.length >= 3 &&
+    /^[^a-z]*$/.test(firstLine) &&
+    /[A-Z]/.test(firstLine)
+  ) {
     return firstLine;
   }
 

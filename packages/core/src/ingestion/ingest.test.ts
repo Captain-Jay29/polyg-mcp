@@ -493,9 +493,7 @@ describe('ingest', () => {
 
     // Second ingest with same content — profiler cache hit, no profiler LLM call
     const llm2 = {
-      complete: vi
-        .fn()
-        .mockResolvedValue(JSON.stringify(validExtraction)), // only chunk extraction
+      complete: vi.fn().mockResolvedValue(JSON.stringify(validExtraction)), // only chunk extraction
     } as unknown as LLMProvider;
     const deps2 = makeDeps({ llm: llm2 });
     const second = await ingest({ content }, deps2);

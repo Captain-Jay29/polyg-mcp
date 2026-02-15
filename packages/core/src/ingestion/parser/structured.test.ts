@@ -35,9 +35,7 @@ describe('parseStructured', () => {
 
     expect(chunks).toHaveLength(3);
     for (let i = 0; i < 3; i++) {
-      expect(chunks[i].chunk_id).toBe(
-        `chunk_${i.toString().padStart(3, '0')}`,
-      );
+      expect(chunks[i].chunk_id).toBe(`chunk_${i.toString().padStart(3, '0')}`);
       expect(chunks[i].position).toBe(i);
       expect(chunks[i].metadata.source_format).toBe('structured');
     }
@@ -67,8 +65,12 @@ describe('parseStructured', () => {
       source_format: 'structured',
       name: 'test',
     });
-    expect((chunks[0].metadata as unknown as Record<string, unknown>).nested).toBeUndefined();
-    expect((chunks[0].metadata as unknown as Record<string, unknown>).tags).toBeUndefined();
+    expect(
+      (chunks[0].metadata as unknown as Record<string, unknown>).nested,
+    ).toBeUndefined();
+    expect(
+      (chunks[0].metadata as unknown as Record<string, unknown>).tags,
+    ).toBeUndefined();
   });
 
   it('should not let record override source_format', () => {

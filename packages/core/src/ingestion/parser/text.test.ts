@@ -30,7 +30,8 @@ describe('parseText', () => {
   });
 
   it('should detect markdown headers and assign section metadata', () => {
-    const text = '# Introduction\n\nSome intro text.\n\n## Methods\n\nSome method text.';
+    const text =
+      '# Introduction\n\nSome intro text.\n\n## Methods\n\nSome method text.';
     const chunks = parseText(text);
     expect(chunks.length).toBeGreaterThanOrEqual(1);
     expect(chunks[0].metadata.section).toBe('Introduction');
