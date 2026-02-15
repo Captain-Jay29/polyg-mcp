@@ -71,7 +71,7 @@ describe('profileDocument', () => {
     expect(callArg.prompt).toContain('document analyst');
   });
 
-  it('should include first 5 chunks in prompt even with more chunks', async () => {
+  it('should include first 5 chunks as labeled samples', async () => {
     const llm = makeMockLlm(JSON.stringify(validProfile));
     await profileDocument(makeChunks(10), llm);
 
@@ -79,7 +79,21 @@ describe('profileDocument', () => {
     const prompt = complete.mock.calls[0][0].prompt;
     expect(prompt).toContain('Chunk 1:');
     expect(prompt).toContain('Chunk 5:');
+    // Chunks beyond 5 appear as unlabeled additional content, not as "Chunk N:"
     expect(prompt).not.toContain('Chunk 6:');
+    expect(prompt).toContain('Additional content from later in the document');
+    expect(prompt).toContain('Sample content for chunk 5');
+  });
+
+  it('should not include additional content section for small documents', async () => {
+    const llm = makeMockLlm(JSON.stringify(validProfile));
+    await profileDocument(makeChunks(3), llm);
+
+    const complete = llm.complete as ReturnType<typeof vi.fn>;
+    const prompt = complete.mock.calls[0][0].prompt;
+    expect(prompt).toContain('Chunk 1:');
+    expect(prompt).toContain('Chunk 3:');
+    expect(prompt).not.toContain('Additional content');
   });
 
   // --- Fallback behavior ---
@@ -209,5 +223,26 @@ describe('profileDocument', () => {
 
     const complete = llm.complete as ReturnType<typeof vi.fn>;
     expect(complete).toHaveBeenCalledTimes(2);
+  });
+
+  // --- Format context ---
+
+  it('should include detected document format in prompt', async () => {
+    const llm = makeMockLlm(JSON.stringify(validProfile));
+    await profileDocument(makeChunks(3, 'Sample', 'structured'), llm);
+
+    const complete = llm.complete as ReturnType<typeof vi.fn>;
+    const prompt = complete.mock.calls[0][0].prompt;
+    expect(prompt).toContain('Detected document format: structured');
+  });
+
+  it('should not contain social-biased example arrays in prompt', async () => {
+    const llm = makeMockLlm(JSON.stringify(validProfile));
+    await profileDocument(makeChunks(3), llm);
+
+    const complete = llm.complete as ReturnType<typeof vi.fn>;
+    const prompt = complete.mock.calls[0][0].prompt;
+    expect(prompt).not.toContain('["person", "organization", "place"]');
+    expect(prompt).not.toContain('["knows", "works_at"]');
   });
 });

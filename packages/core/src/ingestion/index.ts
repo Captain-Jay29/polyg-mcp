@@ -7,6 +7,7 @@ import {
   runPostProcess,
 } from './post-process.js';
 import { profileDocument } from './profiler.js';
+import { getDefaultProfile } from './profiles.js';
 import { runSlowPath } from './slow-path.js';
 import type {
   DeduplicationResult,
@@ -53,9 +54,14 @@ export async function ingest(
   if (input.profileOverride) {
     profile = input.profileOverride;
   } else {
-    const profileResult = await profileDocument(chunks, deps.llm);
-    profile = profileResult.profile;
-    profilerCalls = profileResult.cached ? 0 : 1;
+    const detectedFormat = chunks[0]?.metadata.source_format ?? 'auto';
+    if (detectedFormat === 'conversation') {
+      profile = getDefaultProfile('conversation');
+    } else {
+      const profileResult = await profileDocument(chunks, deps.llm);
+      profile = profileResult.profile;
+      profilerCalls = profileResult.cached ? 0 : 1;
+    }
   }
   const profileMs = Date.now() - profileStart;
 

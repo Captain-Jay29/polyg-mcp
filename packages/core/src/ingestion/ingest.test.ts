@@ -313,11 +313,10 @@ describe('ingest', () => {
   });
 
   it('should bubble slow path warnings to quality_warnings', async () => {
+    // Conversation format skips profiler, so all LLM calls are extraction
     const llm = {
       complete: vi
         .fn()
-        // First call: profiler (returns invalid profile → falls back to default)
-        .mockResolvedValueOnce(JSON.stringify({ bad: 'profile' }))
         // Chunk 0 attempt 1: fail
         .mockRejectedValueOnce(new Error('LLM timeout'))
         // Chunk 0 attempt 2 (retry): fail → chunk skipped
@@ -424,9 +423,18 @@ describe('ingest', () => {
     expect(report.chunks.fast_path_written).toBe(2);
   });
 
-  it('should set profiler_calls=1 when no profileOverride', async () => {
+  it('should set profiler_calls=0 for conversations (profiler skipped)', async () => {
     const deps = makeDeps();
     const report = await ingest({ content: makeFiveTurnConversation() }, deps);
+
+    expect(report.cost.profiler_calls).toBe(0);
+    expect(report.cost.total_llm_calls).toBe(report.cost.extraction_calls);
+  });
+
+  it('should set profiler_calls=1 for text content', async () => {
+    const deps = makeDeps();
+    const text = 'A long document about technology and science. '.repeat(20);
+    const report = await ingest({ content: text, format: 'text' }, deps);
 
     expect(report.cost.profiler_calls).toBe(1);
     expect(report.cost.total_llm_calls).toBe(
@@ -460,18 +468,17 @@ describe('ingest', () => {
     expect(report.cost.total_llm_calls).toBe(report.cost.extraction_calls);
   });
 
-  it('should set profiler_calls=0 on cache hit for same content', async () => {
-    const content = makeFiveTurnConversation();
+  it('should set profiler_calls=0 on cache hit for same text content', async () => {
+    // Use text format (not conversation) so profiler is actually invoked
+    const content = 'A document about technology and science. '.repeat(20);
 
-    // LLM must return a valid DocumentProfile for the profiler call (first call)
-    // so it gets cached, then validExtraction for chunk extraction calls.
     const validProfileJson = JSON.stringify({
-      document_type: 'conversation',
+      document_type: 'text_document',
       domain: 'general',
       entity_types_expected: ['person'],
       relationship_types_expected: ['knows'],
       causal_patterns: [],
-      temporal_structure: 'explicit_timestamps',
+      temporal_structure: 'implicit',
       extraction_focus: 'Focus on entities.',
       confidence_calibration: {
         explicit_causation: 1.0,
@@ -488,7 +495,7 @@ describe('ingest', () => {
         .mockResolvedValue(JSON.stringify(validExtraction)), // chunk extraction
     } as unknown as LLMProvider;
     const deps1 = makeDeps({ llm: llm1 });
-    const first = await ingest({ content }, deps1);
+    const first = await ingest({ content, format: 'text' }, deps1);
     expect(first.cost.profiler_calls).toBe(1);
 
     // Second ingest with same content — profiler cache hit, no profiler LLM call
@@ -496,7 +503,7 @@ describe('ingest', () => {
       complete: vi.fn().mockResolvedValue(JSON.stringify(validExtraction)), // only chunk extraction
     } as unknown as LLMProvider;
     const deps2 = makeDeps({ llm: llm2 });
-    const second = await ingest({ content }, deps2);
+    const second = await ingest({ content, format: 'text' }, deps2);
     expect(second.cost.profiler_calls).toBe(0);
     expect(second.cost.total_llm_calls).toBe(second.cost.extraction_calls);
   });

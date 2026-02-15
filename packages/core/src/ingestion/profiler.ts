@@ -42,7 +42,7 @@ export async function profileDocument(
 
   // Cache miss — call LLM
   try {
-    const prompt = buildProfilerPrompt(chunks);
+    const prompt = buildProfilerPrompt(chunks, sourceFormat);
     const raw = await llm.complete({ prompt, responseFormat: 'json' });
     const profile = DocumentProfileSchema.parse(JSON.parse(raw));
 
@@ -87,16 +87,22 @@ function hashSample(chunks: ParsedChunk[]): string {
   return createHash('sha256').update(sample).digest('hex');
 }
 
-function buildProfilerPrompt(chunks: ParsedChunk[]): string {
-  // Concatenate content for a broad sample
-  const allContent = chunks.map((c) => c.content).join('\n');
-  const sampleText = allContent.slice(0, SAMPLE_CHARS);
-
-  // First N chunks as structured examples
+function buildProfilerPrompt(chunks: ParsedChunk[], sourceFormat: string): string {
+  // First N chunks as labeled examples (primary signal)
   const sampleChunks = chunks.slice(0, SAMPLE_CHUNKS);
   const chunkSamples = sampleChunks
     .map((c, i) => `Chunk ${i + 1}:\n${c.content}`)
     .join('\n\n');
+
+  // Additional content beyond the first N chunks for broader coverage
+  const remainingChunks = chunks.slice(SAMPLE_CHUNKS);
+  let additionalSample = '';
+  if (remainingChunks.length > 0) {
+    additionalSample = remainingChunks
+      .map((c) => c.content)
+      .join('\n')
+      .slice(0, SAMPLE_CHARS);
+  }
 
   const system = [
     'You are a document analyst. Given a sample of a document, determine its type,',
@@ -105,9 +111,9 @@ function buildProfilerPrompt(chunks: ParsedChunk[]): string {
     '{',
     '  "document_type": string,          // e.g. "conversation", "technical_doc", "report", "log"',
     '  "domain": string,                 // e.g. "general", "medical", "engineering", "legal"',
-    '  "entity_types_expected": string[], // e.g. ["person", "organization", "place"]',
-    '  "relationship_types_expected": string[], // e.g. ["knows", "works_at"]',
-    '  "causal_patterns": string[],      // e.g. ["decision → action", "event → reaction"]',
+    '  "entity_types_expected": string[], // Types of entities found in the document (be domain-specific)',
+    '  "relationship_types_expected": string[], // Types of relationships between entities (be domain-specific)',
+    '  "causal_patterns": string[],      // Cause-effect patterns present in the document',
     '  "temporal_structure": "explicit_timestamps" | "session_ordered" | "implicit",',
     '  "extraction_focus": string,       // human-readable guidance for extraction',
     '  "confidence_calibration": {',
@@ -120,15 +126,22 @@ function buildProfilerPrompt(chunks: ParsedChunk[]): string {
     'Output ONLY valid JSON. Be specific to the document content.',
   ].join('\n');
 
-  const user = [
-    'Here is a sample from the document:',
+  const userParts = [
+    `Detected document format: ${sourceFormat}`,
     '',
-    sampleText,
-    '',
-    `First ${sampleChunks.length} chunks:`,
+    `First ${sampleChunks.length} chunks from the document:`,
     '',
     chunkSamples,
-  ].join('\n');
+  ];
 
-  return `${system}\n\n${user}`;
+  if (additionalSample) {
+    userParts.push(
+      '',
+      'Additional content from later in the document:',
+      '',
+      additionalSample,
+    );
+  }
+
+  return `${system}\n\n${userParts.join('\n')}`;
 }
