@@ -1,8 +1,10 @@
 // Structured JSON parser — each record becomes one chunk
 import type { ChunkMetadata, ParsedChunk } from '../types.js';
 
+// Max chars per structured chunk content (prevents DoS via large records)
+const MAX_RECORD_CHARS = 8000;
+
 const STANDARD_KEYS = new Set([
-  'source_format',
   'timestamp',
   'speaker',
   'section',
@@ -50,9 +52,14 @@ export function parseStructured(content: string): ParsedChunk[] {
       metadata.extra = extra;
     }
 
+    let content = JSON.stringify(record, null, 2);
+    if (content.length > MAX_RECORD_CHARS) {
+      content = `${content.slice(0, MAX_RECORD_CHARS)}\n... [truncated]`;
+    }
+
     chunks.push({
       chunk_id: `chunk_${position.toString().padStart(3, '0')}`,
-      content: JSON.stringify(record, null, 2),
+      content,
       position,
       metadata,
     });
@@ -76,15 +83,16 @@ function splitMetadata(record: Record<string, unknown>): {
     // Skip keys that conflict with ChunkMetadata fields
     if (key === 'source_format') continue;
 
-    if (typeof value !== 'string' && typeof value !== 'number') {
-      // Skip booleans, objects, arrays — keep metadata simple
+    if (typeof value === 'object' || Array.isArray(value) || value === null) {
+      // Skip objects, arrays, null — keep metadata flat
       continue;
     }
 
     if (STANDARD_KEYS.has(key)) {
-      standard[key] = value;
+      standard[key] = value as string | number;
     } else {
-      extra[key] = value;
+      // Coerce booleans to strings for extra metadata
+      extra[key] = typeof value === 'boolean' ? String(value) : value;
     }
   }
 

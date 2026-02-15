@@ -77,6 +77,26 @@ describe('parseStructured', () => {
     expect(chunks[0].metadata.extra?.tags).toBeUndefined();
   });
 
+  it('should coerce booleans to strings in extra metadata', () => {
+    const json = JSON.stringify({ active: true, enabled: false, name: 'test' });
+    const chunks = parseStructured(json);
+
+    expect(chunks[0].metadata.extra).toEqual({
+      active: 'true',
+      enabled: 'false',
+      name: 'test',
+    });
+  });
+
+  it('should truncate oversized record content', () => {
+    const largeRecord = { data: 'x'.repeat(10000) };
+    const chunks = parseStructured(JSON.stringify(largeRecord));
+
+    expect(chunks).toHaveLength(1);
+    expect(chunks[0].content.length).toBeLessThan(10000);
+    expect(chunks[0].content).toContain('... [truncated]');
+  });
+
   it('should not let record override source_format', () => {
     const json = JSON.stringify({ source_format: 'hacked', name: 'test' });
     const chunks = parseStructured(json);
