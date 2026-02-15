@@ -468,6 +468,47 @@ describe('ingest', () => {
     expect(report.cost.total_llm_calls).toBe(report.cost.extraction_calls);
   });
 
+  it('should normalize non-canonical entity types through the pipeline', async () => {
+    // LLM returns non-canonical types — normalization should map them
+    const nonCanonicalExtraction: ChunkExtraction = {
+      entities: [
+        { name: 'Alice', entity_type: 'Individual' },   // → person
+        { name: 'Acme', entity_type: 'Company' },       // → organization
+        { name: 'Paris', entity_type: 'City' },          // → location
+      ],
+      relationships: [
+        { source: 'Alice', target: 'Acme', relationship_type: 'works_at' },
+      ],
+      causal_links: [],
+      facts: [],
+    };
+
+    const db = createMockDb();
+    const deps: IngestionDeps = {
+      db,
+      embeddings: createMockEmbeddings(),
+      llm: {
+        complete: vi.fn().mockResolvedValue(JSON.stringify(nonCanonicalExtraction)),
+      } as unknown as LLMProvider,
+    };
+
+    await ingest({ content: makeFiveTurnConversation() }, deps);
+
+    // Verify entities were created with canonical types via createNode calls
+    const createNodeCalls = vi.mocked(db.createNode).mock.calls;
+    const entityCalls = createNodeCalls.filter(([label]) => label === 'E_Entity');
+
+    // Should have created entities with normalized types
+    const entityTypes = entityCalls.map(([, props]) => props.entity_type);
+    expect(entityTypes).toContain('person');
+    expect(entityTypes).toContain('organization');
+    expect(entityTypes).toContain('location');
+    // Non-canonical types should NOT appear
+    expect(entityTypes).not.toContain('Individual');
+    expect(entityTypes).not.toContain('Company');
+    expect(entityTypes).not.toContain('City');
+  });
+
   it('should set profiler_calls=0 on cache hit for same text content', async () => {
     // Use text format (not conversation) so profiler is actually invoked
     const content = 'A document about technology and science. '.repeat(20);
