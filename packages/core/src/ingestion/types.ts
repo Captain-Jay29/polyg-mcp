@@ -36,6 +36,7 @@ export interface ChunkMetadata {
   speaker?: string;
   section?: string;
   turn_index?: number; // conversation turn number
+  extra?: Record<string, unknown>; // Domain-specific metadata from parsers
 }
 
 // --- Document Profile ---

@@ -41,15 +41,26 @@ describe('parseStructured', () => {
     }
   });
 
-  it('should preserve record fields in metadata', () => {
-    const json = JSON.stringify({ id: 1, name: 'Alice', score: 95 });
-    const chunks = parseStructured(json);
-
-    expect(chunks[0].metadata).toMatchObject({
-      source_format: 'structured',
-      name: 'Alice',
+  it('should route standard fields to metadata and non-standard to extra', () => {
+    const json = JSON.stringify({
+      timestamp: '2024-01-01T00:00:00Z',
+      speaker: 'Alice',
+      id: 1,
       score: 95,
     });
+    const chunks = parseStructured(json);
+
+    expect(chunks[0].metadata.source_format).toBe('structured');
+    expect(chunks[0].metadata.timestamp).toBe('2024-01-01T00:00:00Z');
+    expect(chunks[0].metadata.speaker).toBe('Alice');
+    expect(chunks[0].metadata.extra).toEqual({ id: 1, score: 95 });
+  });
+
+  it('should omit extra when no non-standard fields exist', () => {
+    const json = JSON.stringify({ timestamp: '2024-01-01T00:00:00Z' });
+    const chunks = parseStructured(json);
+
+    expect(chunks[0].metadata.extra).toBeUndefined();
   });
 
   it('should skip nested objects and arrays in metadata', () => {
@@ -61,16 +72,9 @@ describe('parseStructured', () => {
     });
     const chunks = parseStructured(json);
 
-    expect(chunks[0].metadata).toMatchObject({
-      source_format: 'structured',
-      name: 'test',
-    });
-    expect(
-      (chunks[0].metadata as unknown as Record<string, unknown>).nested,
-    ).toBeUndefined();
-    expect(
-      (chunks[0].metadata as unknown as Record<string, unknown>).tags,
-    ).toBeUndefined();
+    expect(chunks[0].metadata.extra).toEqual({ id: 1, name: 'test' });
+    expect(chunks[0].metadata.extra?.nested).toBeUndefined();
+    expect(chunks[0].metadata.extra?.tags).toBeUndefined();
   });
 
   it('should not let record override source_format', () => {
@@ -101,8 +105,8 @@ describe('parseStructured', () => {
     const chunks = parseStructured(JSON.stringify(logs));
 
     expect(chunks).toHaveLength(2);
-    expect(chunks[0].metadata).toMatchObject({
-      timestamp: '2024-01-01T00:00:00Z',
+    expect(chunks[0].metadata.timestamp).toBe('2024-01-01T00:00:00Z');
+    expect(chunks[0].metadata.extra).toEqual({
       level: 'INFO',
       message: 'started',
     });

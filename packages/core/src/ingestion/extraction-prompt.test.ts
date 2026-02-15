@@ -292,6 +292,24 @@ describe('buildExtractionPrompt', () => {
       );
     });
 
+    it('should include extra metadata in chunk info', () => {
+      const chunkWithExtra: ParsedChunk = {
+        ...testChunk,
+        metadata: {
+          ...testChunk.metadata,
+          extra: { level: 'error', id: 42 },
+        },
+      };
+      const { user } = buildExtractionPrompt(
+        chunkWithExtra,
+        testProfile,
+        emptyNeighborhood,
+        10,
+      );
+      expect(user).toContain('level: error');
+      expect(user).toContain('id: 42');
+    });
+
     it('should omit occurred_at when not present in events', () => {
       const neighborhoodNoDate: NeighborhoodContext = {
         ...emptyNeighborhood,
