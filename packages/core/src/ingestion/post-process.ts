@@ -150,6 +150,7 @@ async function resolveFactConflicts(deps: IngestionDeps): Promise<number> {
        AND f1.uuid <> f2.uuid
        AND f1.valid_from < f2.valid_from
        AND (f1.valid_to IS NULL OR f1.valid_to >= f2.valid_from)
+     ORDER BY f2.valid_from ASC
      RETURN f1.uuid AS f1_uuid, f2.valid_from AS f2_valid_from`,
   );
 
