@@ -87,7 +87,10 @@ function hashSample(chunks: ParsedChunk[]): string {
   return createHash('sha256').update(sample).digest('hex');
 }
 
-function buildProfilerPrompt(chunks: ParsedChunk[], sourceFormat: string): string {
+function buildProfilerPrompt(
+  chunks: ParsedChunk[],
+  sourceFormat: string,
+): string {
   // First N chunks as labeled examples (primary signal)
   const sampleChunks = chunks.slice(0, SAMPLE_CHUNKS);
   const chunkSamples = sampleChunks

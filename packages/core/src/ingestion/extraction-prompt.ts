@@ -77,9 +77,7 @@ function buildUserPrompt(
   if (neighborhood.recentEvents.length > 0) {
     const eventList = neighborhood.recentEvents
       .map((e) =>
-        e.occurred_at
-          ? `${e.description} (${e.occurred_at})`
-          : e.description,
+        e.occurred_at ? `${e.description} (${e.occurred_at})` : e.description,
       )
       .join('; ');
     sections.push(`Recent events: ${eventList}`);

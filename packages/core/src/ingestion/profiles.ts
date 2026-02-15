@@ -62,13 +62,7 @@ export const TEXT_PROFILE: DocumentProfile = {
 export const STRUCTURED_PROFILE: DocumentProfile = {
   document_type: 'structured_data',
   domain: 'general',
-  entity_types_expected: [
-    'record',
-    'entity',
-    'category',
-    'metric',
-    'status',
-  ],
+  entity_types_expected: ['record', 'entity', 'category', 'metric', 'status'],
   relationship_types_expected: [
     'contains',
     'references',
@@ -76,11 +70,7 @@ export const STRUCTURED_PROFILE: DocumentProfile = {
     'measured_by',
     'depends_on',
   ],
-  causal_patterns: [
-    'trigger → event',
-    'threshold → alert',
-    'input → output',
-  ],
+  causal_patterns: ['trigger → event', 'threshold → alert', 'input → output'],
   temporal_structure: 'explicit_timestamps',
   extraction_focus:
     'Extract structured records, their categories, metrics, and cross-references. Use field values as entity properties.',

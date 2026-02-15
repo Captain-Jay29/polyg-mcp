@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   CONVERSATION_PROFILE,
   GENERIC_PROFILE,
+  getDefaultProfile,
   STRUCTURED_PROFILE,
   TEXT_PROFILE,
-  getDefaultProfile,
 } from './profiles.js';
 import { DocumentProfileSchema } from './types.js';
 
@@ -46,9 +46,7 @@ describe('profiles', () => {
     });
 
     it('should have explicit_timestamps temporal structure', () => {
-      expect(STRUCTURED_PROFILE.temporal_structure).toBe(
-        'explicit_timestamps',
-      );
+      expect(STRUCTURED_PROFILE.temporal_structure).toBe('explicit_timestamps');
     });
 
     it('should have structured_data document type', () => {

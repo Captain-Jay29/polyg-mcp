@@ -4,9 +4,9 @@ import { CausalGraph } from '../graphs/causal.js';
 import { EntityGraph } from '../graphs/entity.js';
 import { TemporalGraph } from '../graphs/temporal.js';
 import { buildExtractionPrompt } from './extraction-prompt.js';
-import { normalizeExtraction } from './normalize.js';
 import type { NeighborhoodContext } from './neighborhood.js';
 import { gather2HopNeighborhood } from './neighborhood.js';
+import { normalizeExtraction } from './normalize.js';
 import type {
   ChunkExtraction,
   DocumentProfile,
