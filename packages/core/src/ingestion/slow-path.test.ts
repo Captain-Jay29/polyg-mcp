@@ -271,7 +271,7 @@ describe('runSlowPath', () => {
     expect(result.skippedChunks).toBe(0);
   });
 
-  it('should skip chunks with invalid LLM JSON', async () => {
+  it('should skip chunks with invalid LLM JSON without retrying', async () => {
     vi.mocked(llm.complete).mockResolvedValue('not valid json');
 
     const chunks = makeChunks(1);
@@ -284,8 +284,34 @@ describe('runSlowPath', () => {
       deps,
     );
 
+    // SyntaxError is non-retryable — should only call LLM once
+    expect(llm.complete).toHaveBeenCalledTimes(1);
     expect(result.skippedChunks).toBe(1);
     expect(result.extractedChunks).toBe(0);
+    expect(result.warnings[0]).toContain('invalid response structure');
+  });
+
+  it('should skip chunks with wrong JSON shape without retrying', async () => {
+    // Valid JSON but missing required fields → ZodError
+    vi.mocked(llm.complete).mockResolvedValue(
+      JSON.stringify({ wrong: 'schema' }),
+    );
+
+    const chunks = makeChunks(1);
+    const fastResult = makeFastResult(1);
+
+    const result = await runSlowPath(
+      chunks,
+      fastResult,
+      CONVERSATION_PROFILE,
+      deps,
+    );
+
+    // ZodError is non-retryable — should only call LLM once
+    expect(llm.complete).toHaveBeenCalledTimes(1);
+    expect(result.skippedChunks).toBe(1);
+    expect(result.extractedChunks).toBe(0);
+    expect(result.warnings[0]).toContain('invalid response structure');
   });
 
   it('should accumulate entity map across chunks', async () => {

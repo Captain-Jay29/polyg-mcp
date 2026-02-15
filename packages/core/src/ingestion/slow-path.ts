@@ -1,5 +1,6 @@
 // Slow path — per-chunk LLM extraction + graph writes
 import type { Entity } from '@polyg-mcp/shared';
+import { ZodError } from 'zod';
 import { CausalGraph } from '../graphs/causal.js';
 import { EntityGraph } from '../graphs/entity.js';
 import { TemporalGraph } from '../graphs/temporal.js';
@@ -136,13 +137,20 @@ async function extractWithRetry(
       const parsed = ChunkExtractionSchema.parse(JSON.parse(stripJsonFences(raw)));
       return normalizeExtraction(parsed);
     } catch (err) {
+      // Schema validation errors won't resolve on retry with the same prompt
+      if (err instanceof ZodError || err instanceof SyntaxError) {
+        warnings.push(
+          `Extraction failed for chunk ${chunk.chunk_id} (invalid response structure): ${errMsg(err)}`,
+        );
+        return null;
+      }
       if (attempt === 1) {
         warnings.push(
           `Extraction failed for chunk ${chunk.chunk_id} after 2 attempts: ${errMsg(err)}`,
         );
         return null;
       }
-      // retry
+      // retry on transient errors (network/timeout)
     }
   }
 
