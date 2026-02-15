@@ -23,22 +23,37 @@ describe('parse (router)', () => {
     expect(chunks).toHaveLength(2);
   });
 
-  it('should throw for text format (Phase 2 stub)', () => {
-    expect(() => parse('plain text content', 'text')).toThrow(
-      'Not implemented: text parser',
-    );
+  it('should parse plain text with explicit format', () => {
+    const chunks = parse('plain text content', 'text');
+    expect(chunks).toHaveLength(1);
+    expect(chunks[0].metadata.source_format).toBe('text');
+    expect(chunks[0].content).toBe('plain text content');
   });
 
-  it('should throw for structured format (Phase 2 stub)', () => {
+  it('should parse structured JSON with explicit format', () => {
     const structured = JSON.stringify([{ id: 1, value: 'data' }]);
-    expect(() => parse(structured, 'structured')).toThrow(
-      'Not implemented: structured parser',
-    );
+    const chunks = parse(structured, 'structured');
+    expect(chunks).toHaveLength(1);
+    expect(chunks[0].metadata.source_format).toBe('structured');
   });
 
-  it('should auto-detect plain text and throw Phase 2 stub', () => {
-    expect(() => parse('Just some plain text.')).toThrow(
-      'Not implemented: text parser',
-    );
+  it('should auto-detect plain text', () => {
+    const chunks = parse('Just some plain text.');
+    expect(chunks).toHaveLength(1);
+    expect(chunks[0].metadata.source_format).toBe('text');
+  });
+
+  it('should auto-detect structured JSON (non-conversation array)', () => {
+    const data = JSON.stringify([{ id: 1, value: 'test' }]);
+    const chunks = parse(data);
+    expect(chunks).toHaveLength(1);
+    expect(chunks[0].metadata.source_format).toBe('structured');
+  });
+
+  it('should auto-detect structured JSON (single object)', () => {
+    const data = JSON.stringify({ name: 'config', version: 2 });
+    const chunks = parse(data);
+    expect(chunks).toHaveLength(1);
+    expect(chunks[0].metadata.source_format).toBe('structured');
   });
 });

@@ -256,8 +256,11 @@ describe('ingest', () => {
 
   it('should return failed when parser throws', async () => {
     const deps = makeDeps();
-    // Invalid JSON that starts with [ but is malformed
-    const report = await ingest({ content: '[{invalid json}]' }, deps);
+    // Force conversation format on invalid JSON → parser throws
+    const report = await ingest(
+      { content: '[{invalid json}]', format: 'conversation' },
+      deps,
+    );
 
     expect(report.status).toBe('failed');
     expect(
@@ -311,8 +314,13 @@ describe('ingest', () => {
     const llm = {
       complete: vi
         .fn()
+        // First call: profiler (returns invalid profile → falls back to default)
+        .mockResolvedValueOnce(JSON.stringify({ bad: 'profile' }))
+        // Chunk 0 attempt 1: fail
         .mockRejectedValueOnce(new Error('LLM timeout'))
-        .mockRejectedValueOnce(new Error('LLM timeout')) // retry
+        // Chunk 0 attempt 2 (retry): fail → chunk skipped
+        .mockRejectedValueOnce(new Error('LLM timeout'))
+        // Remaining chunks: succeed
         .mockResolvedValue(JSON.stringify(validExtraction)),
     } as unknown as LLMProvider;
 
@@ -378,5 +386,75 @@ describe('ingest', () => {
 
     expect(report.status).toMatch(/^completed/);
     expect(report.chunks.total).toBe(5);
+  });
+
+  // --- Phase 2: Text + Structured + Profiler ---
+
+  it('should ingest plain text content', async () => {
+    const deps = makeDeps();
+    const text = 'First paragraph about Alice.\n\nSecond paragraph about Bob.';
+    const report = await ingest({ content: text, format: 'text' }, deps);
+
+    expect(report.status).toMatch(/^completed/);
+    expect(report.chunks.total).toBe(1); // small text fits in 1 chunk
+    expect(report.chunks.fast_path_written).toBe(1);
+  });
+
+  it('should auto-detect and ingest plain text', async () => {
+    const deps = makeDeps();
+    const text = 'This is a plain text document about technology and science.';
+    const report = await ingest({ content: text }, deps);
+
+    expect(report.status).toMatch(/^completed/);
+    expect(report.chunks.total).toBeGreaterThan(0);
+  });
+
+  it('should ingest structured JSON content', async () => {
+    const deps = makeDeps();
+    const data = JSON.stringify([
+      { id: 1, type: 'event', message: 'login' },
+      { id: 2, type: 'event', message: 'logout' },
+    ]);
+    const report = await ingest({ content: data, format: 'structured' }, deps);
+
+    expect(report.status).toMatch(/^completed/);
+    expect(report.chunks.total).toBe(2);
+    expect(report.chunks.fast_path_written).toBe(2);
+  });
+
+  it('should set profiler_calls=1 when no profileOverride', async () => {
+    const deps = makeDeps();
+    const report = await ingest({ content: makeFiveTurnConversation() }, deps);
+
+    expect(report.cost.profiler_calls).toBe(1);
+    expect(report.cost.total_llm_calls).toBe(
+      report.cost.profiler_calls + report.cost.extraction_calls,
+    );
+  });
+
+  it('should set profiler_calls=0 when profileOverride provided', async () => {
+    const deps = makeDeps();
+    const customProfile = {
+      document_type: 'technical',
+      domain: 'engineering',
+      entity_types_expected: ['component'],
+      relationship_types_expected: ['depends_on'],
+      causal_patterns: ['failure → outage'],
+      temporal_structure: 'explicit_timestamps' as const,
+      extraction_focus: 'Focus on components.',
+      confidence_calibration: {
+        explicit_causation: 1.0,
+        strong_implication: 0.9,
+        weak_inference: 0.7,
+      },
+    };
+
+    const report = await ingest(
+      { content: makeFiveTurnConversation(), profileOverride: customProfile },
+      deps,
+    );
+
+    expect(report.cost.profiler_calls).toBe(0);
+    expect(report.cost.total_llm_calls).toBe(report.cost.extraction_calls);
   });
 });
