@@ -472,9 +472,9 @@ describe('ingest', () => {
     // LLM returns non-canonical types — normalization should map them
     const nonCanonicalExtraction: ChunkExtraction = {
       entities: [
-        { name: 'Alice', entity_type: 'Individual' },   // → person
-        { name: 'Acme', entity_type: 'Company' },       // → organization
-        { name: 'Paris', entity_type: 'City' },          // → location
+        { name: 'Alice', entity_type: 'Individual' }, // → person
+        { name: 'Acme', entity_type: 'Company' }, // → organization
+        { name: 'Paris', entity_type: 'City' }, // → location
       ],
       relationships: [
         { source: 'Alice', target: 'Acme', relationship_type: 'works_at' },
@@ -488,7 +488,9 @@ describe('ingest', () => {
       db,
       embeddings: createMockEmbeddings(),
       llm: {
-        complete: vi.fn().mockResolvedValue(JSON.stringify(nonCanonicalExtraction)),
+        complete: vi
+          .fn()
+          .mockResolvedValue(JSON.stringify(nonCanonicalExtraction)),
       } as unknown as LLMProvider,
     };
 
@@ -496,7 +498,9 @@ describe('ingest', () => {
 
     // Verify entities were created with canonical types via createNode calls
     const createNodeCalls = vi.mocked(db.createNode).mock.calls;
-    const entityCalls = createNodeCalls.filter(([label]) => label === 'E_Entity');
+    const entityCalls = createNodeCalls.filter(
+      ([label]) => label === 'E_Entity',
+    );
 
     // Should have created entities with normalized types
     const entityTypes = entityCalls.map(([, props]) => props.entity_type);

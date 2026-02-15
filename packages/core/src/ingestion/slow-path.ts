@@ -134,7 +134,9 @@ async function extractWithRetry(
         prompt,
         responseFormat: 'json',
       });
-      const parsed = ChunkExtractionSchema.parse(JSON.parse(stripJsonFences(raw)));
+      const parsed = ChunkExtractionSchema.parse(
+        JSON.parse(stripJsonFences(raw)),
+      );
       return normalizeExtraction(parsed);
     } catch (err) {
       // Schema validation errors won't resolve on retry with the same prompt

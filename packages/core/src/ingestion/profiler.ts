@@ -54,7 +54,9 @@ export async function profileDocument(
   try {
     const prompt = buildProfilerPrompt(chunks, sourceFormat);
     const raw = await llm.complete({ prompt, responseFormat: 'json' });
-    const profile = DocumentProfileSchema.parse(JSON.parse(stripJsonFences(raw)));
+    const profile = DocumentProfileSchema.parse(
+      JSON.parse(stripJsonFences(raw)),
+    );
 
     // Store in cache (evict oldest if full)
     if (profileCache.size >= MAX_CACHE_SIZE) {

@@ -337,7 +337,7 @@ describe('buildExtractionPrompt', () => {
         10,
       );
       expect(user).not.toContain(longValue);
-      expect(user).toContain('x'.repeat(200) + '...');
+      expect(user).toContain(`${'x'.repeat(200)}...`);
     });
 
     it('should omit occurred_at when not present in events', () => {
