@@ -76,6 +76,7 @@ export async function runSlowPath(
       neighborhood,
       deps,
       result.warnings,
+      chunks.length,
     );
     if (!extraction) {
       result.skippedChunks++;
@@ -115,8 +116,14 @@ async function extractWithRetry(
   neighborhood: NeighborhoodContext,
   deps: IngestionDeps,
   warnings: string[],
+  totalChunks: number,
 ): Promise<ChunkExtraction | null> {
-  const { system, user } = buildExtractionPrompt(chunk, profile, neighborhood);
+  const { system, user } = buildExtractionPrompt(
+    chunk,
+    profile,
+    neighborhood,
+    totalChunks,
+  );
   const prompt = `${system}\n\n${user}`;
 
   for (let attempt = 0; attempt < 2; attempt++) {

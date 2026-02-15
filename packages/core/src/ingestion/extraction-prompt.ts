@@ -14,9 +14,10 @@ export function buildExtractionPrompt(
   chunk: ParsedChunk,
   profile: DocumentProfile,
   neighborhood: NeighborhoodContext,
+  totalChunks: number,
 ): { system: string; user: string } {
   const system = buildSystemPrompt(profile);
-  const user = buildUserPrompt(chunk, neighborhood);
+  const user = buildUserPrompt(chunk, neighborhood, totalChunks);
   return { system, user };
 }
 
@@ -33,6 +34,9 @@ function buildSystemPrompt(profile: DocumentProfile): string {
     `Causal patterns to detect: ${profile.causal_patterns.join('; ')}`,
     '',
     `Extraction focus: ${profile.extraction_focus}`,
+    '',
+    `Temporal structure: ${profile.temporal_structure}`,
+    temporalGuidance(profile.temporal_structure),
     '',
     'Confidence calibration:',
     `- Explicit causation (stated directly): ${profile.confidence_calibration.explicit_causation}`,
@@ -58,6 +62,7 @@ function buildSystemPrompt(profile: DocumentProfile): string {
 function buildUserPrompt(
   chunk: ParsedChunk,
   neighborhood: NeighborhoodContext,
+  totalChunks: number,
 ): string {
   const sections: string[] = [];
 
@@ -71,7 +76,11 @@ function buildUserPrompt(
 
   if (neighborhood.recentEvents.length > 0) {
     const eventList = neighborhood.recentEvents
-      .map((e) => e.description)
+      .map((e) =>
+        e.occurred_at
+          ? `${e.description} (${e.occurred_at})`
+          : e.description,
+      )
       .join('; ');
     sections.push(`Recent events: ${eventList}`);
   }
@@ -90,6 +99,30 @@ function buildUserPrompt(
     sections.push(`Related concepts: ${conceptList}`);
   }
 
+  // Chunk metadata
+  const infoParts: string[] = [];
+  infoParts.push(`Chunk ${chunk.position + 1} of ${totalChunks}`);
+  if (chunk.metadata.speaker) {
+    infoParts.push(`Speaker: ${chunk.metadata.speaker}`);
+  }
+  if (chunk.metadata.section) {
+    infoParts.push(`Section: ${chunk.metadata.section}`);
+  }
+  if (chunk.metadata.turn_index != null) {
+    infoParts.push(`Turn: ${chunk.metadata.turn_index}`);
+  }
+  if (chunk.metadata.timestamp) {
+    infoParts.push(`Timestamp: ${chunk.metadata.timestamp}`);
+  }
+  if (chunk.metadata.extra) {
+    for (const [key, value] of Object.entries(chunk.metadata.extra)) {
+      if (value != null) {
+        infoParts.push(`${key}: ${String(value)}`);
+      }
+    }
+  }
+  sections.push(`Chunk info: ${infoParts.join(' | ')}`);
+
   // Build user prompt
   const parts: string[] = [];
 
@@ -104,6 +137,19 @@ function buildUserPrompt(
   parts.push(chunk.content);
 
   return parts.join('\n');
+}
+
+function temporalGuidance(
+  structure: DocumentProfile['temporal_structure'],
+): string {
+  switch (structure) {
+    case 'explicit_timestamps':
+      return 'Use timestamps for fact valid_from/valid_to dates.';
+    case 'session_ordered':
+      return 'Chunks are chronologically ordered. Infer relative timing from position.';
+    case 'implicit':
+      return 'No explicit temporal ordering. Extract temporal references from text.';
+  }
 }
 
 /**
