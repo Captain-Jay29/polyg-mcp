@@ -106,20 +106,21 @@ describe('profileDocument', () => {
     const { profile, cached } = await profileDocument(makeChunks(3), llm);
 
     expect(cached).toBe(false);
-    expect(profile.document_type).toBe('generic');
+    // Chunks have format 'text' → falls back to TEXT_PROFILE
+    expect(profile.document_type).toBe('text_document');
     expect(profile.domain).toBe('general');
   });
 
   it('should fall back on invalid JSON from LLM', async () => {
     const llm = makeMockLlm('not valid json');
     const { profile } = await profileDocument(makeChunks(3), llm);
-    expect(profile.document_type).toBe('generic');
+    expect(profile.document_type).toBe('text_document');
   });
 
   it('should fall back on schema validation failure', async () => {
     const llm = makeMockLlm(JSON.stringify({ document_type: 'test' }));
     const { profile } = await profileDocument(makeChunks(3), llm);
-    expect(profile.document_type).toBe('generic');
+    expect(profile.document_type).toBe('text_document');
   });
 
   // --- Cache hit / miss ---
@@ -169,7 +170,7 @@ describe('profileDocument', () => {
     // First call: LLM fails → fallback, NOT cached
     const first = await profileDocument(chunks, llm);
     expect(first.cached).toBe(false);
-    expect(first.profile.document_type).toBe('generic');
+    expect(first.profile.document_type).toBe('text_document');
 
     // Second call: same content, LLM succeeds → should call LLM again (not cached)
     const second = await profileDocument(chunks, llm);
