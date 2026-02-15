@@ -53,8 +53,9 @@ export async function ingest(
   if (input.profileOverride) {
     profile = input.profileOverride;
   } else {
-    profile = await profileDocument(chunks, deps.llm);
-    profilerCalls = 1;
+    const profileResult = await profileDocument(chunks, deps.llm);
+    profile = profileResult.profile;
+    profilerCalls = profileResult.cached ? 0 : 1;
   }
   const profileMs = Date.now() - profileStart;
 

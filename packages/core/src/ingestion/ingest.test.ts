@@ -2,6 +2,7 @@ import type { EmbeddingProvider, LLMProvider } from '@polyg-mcp/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FalkorDBAdapter } from '../storage/falkordb.js';
 import { ingest } from './index.js';
+import { clearProfileCache } from './profiler.js';
 import type { ChunkExtraction, IngestionDeps } from './types.js';
 
 // ---------------------------------------------------------------------------
@@ -216,6 +217,7 @@ function makeFiveTurnConversation(): string {
 describe('ingest', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    clearProfileCache();
   });
 
   it('should complete full pipeline with 5-turn conversation', async () => {
@@ -456,5 +458,48 @@ describe('ingest', () => {
 
     expect(report.cost.profiler_calls).toBe(0);
     expect(report.cost.total_llm_calls).toBe(report.cost.extraction_calls);
+  });
+
+  it('should set profiler_calls=0 on cache hit for same content', async () => {
+    const content = makeFiveTurnConversation();
+
+    // LLM must return a valid DocumentProfile for the profiler call (first call)
+    // so it gets cached, then validExtraction for chunk extraction calls.
+    const validProfileJson = JSON.stringify({
+      document_type: 'conversation',
+      domain: 'general',
+      entity_types_expected: ['person'],
+      relationship_types_expected: ['knows'],
+      causal_patterns: [],
+      temporal_structure: 'explicit_timestamps',
+      extraction_focus: 'Focus on entities.',
+      confidence_calibration: {
+        explicit_causation: 1.0,
+        strong_implication: 0.85,
+        weak_inference: 0.6,
+      },
+    });
+
+    // First ingest — profiler calls LLM (cache miss), profile gets cached
+    const llm1 = {
+      complete: vi
+        .fn()
+        .mockResolvedValueOnce(validProfileJson) // profiler
+        .mockResolvedValue(JSON.stringify(validExtraction)), // chunk extraction
+    } as unknown as LLMProvider;
+    const deps1 = makeDeps({ llm: llm1 });
+    const first = await ingest({ content }, deps1);
+    expect(first.cost.profiler_calls).toBe(1);
+
+    // Second ingest with same content — profiler cache hit, no profiler LLM call
+    const llm2 = {
+      complete: vi
+        .fn()
+        .mockResolvedValue(JSON.stringify(validExtraction)), // only chunk extraction
+    } as unknown as LLMProvider;
+    const deps2 = makeDeps({ llm: llm2 });
+    const second = await ingest({ content }, deps2);
+    expect(second.cost.profiler_calls).toBe(0);
+    expect(second.cost.total_llm_calls).toBe(second.cost.extraction_calls);
   });
 });
