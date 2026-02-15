@@ -41,15 +41,18 @@ export function normalizeEntityType(type: string): string {
 
 /**
  * Normalize all entity types in a chunk extraction result.
- * Mutates in place and returns the same object.
+ * Returns a shallow copy — the original extraction is not mutated.
  */
 export function normalizeExtraction(
   extraction: ChunkExtraction,
 ): ChunkExtraction {
-  for (const entity of extraction.entities) {
-    entity.entity_type = normalizeEntityType(entity.entity_type);
-  }
-  return extraction;
+  return {
+    ...extraction,
+    entities: extraction.entities.map((e) => ({
+      ...e,
+      entity_type: normalizeEntityType(e.entity_type),
+    })),
+  };
 }
 
 /**

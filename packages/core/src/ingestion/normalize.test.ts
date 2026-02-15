@@ -89,8 +89,9 @@ describe('normalizeExtraction', () => {
     expect(result.entities[0].entity_type).toBe('person');
     expect(result.entities[1].entity_type).toBe('organization');
     expect(result.entities[2].entity_type).toBe('location');
-    // Should return the same object (mutated in place)
-    expect(result).toBe(extraction);
+    // Should return a new object, not mutate the original
+    expect(result).not.toBe(extraction);
+    expect(extraction.entities[0].entity_type).toBe('Individual');
   });
 
   it('should handle empty extraction', () => {
@@ -104,7 +105,8 @@ describe('normalizeExtraction', () => {
     const result = normalizeExtraction(extraction);
 
     expect(result.entities).toEqual([]);
-    expect(result).toBe(extraction);
+    // Still a new object even when empty
+    expect(result).not.toBe(extraction);
   });
 
   it('should preserve unknown entity types', () => {
@@ -115,9 +117,28 @@ describe('normalizeExtraction', () => {
       facts: [],
     };
 
-    normalizeExtraction(extraction);
+    const result = normalizeExtraction(extraction);
 
+    expect(result.entities[0].entity_type).toBe('product');
+    // Original unchanged
     expect(extraction.entities[0].entity_type).toBe('product');
+  });
+
+  it('should share non-entity fields by reference', () => {
+    const relationships = [
+      { source: 'A', target: 'B', relationship_type: 'knows' },
+    ];
+    const extraction: ChunkExtraction = {
+      entities: [{ name: 'A', entity_type: 'Individual' }],
+      relationships,
+      causal_links: [],
+      facts: [],
+    };
+
+    const result = normalizeExtraction(extraction);
+
+    // Shallow copy shares non-entity arrays
+    expect(result.relationships).toBe(relationships);
   });
 });
 
