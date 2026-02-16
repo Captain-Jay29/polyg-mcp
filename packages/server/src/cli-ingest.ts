@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // CLI wrapper for the ingestion pipeline
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import {
   createEmbeddingProvider,
@@ -45,6 +46,11 @@ async function main(): Promise<void> {
 
   if (!args.file) {
     console.error('Error: --file is required');
+    process.exit(1);
+  }
+
+  if (Number.isNaN(args.concurrency) || args.concurrency < 1) {
+    console.error('Error: --concurrency must be a positive integer');
     process.exit(1);
   }
 
@@ -123,10 +129,6 @@ async function main(): Promise<void> {
 }
 
 // Only run when executed directly (not imported by tests)
-const isDirectRun =
-  process.argv[1] &&
-  (process.argv[1].endsWith('cli-ingest.ts') ||
-    process.argv[1].endsWith('cli-ingest.js'));
-if (isDirectRun) {
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
   main();
 }
