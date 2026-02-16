@@ -6,10 +6,16 @@ import {
   type ServerResponse,
 } from 'node:http';
 import {
+  DocumentProfileSchema,
+  type IngestionDeps,
+  ingest,
+} from '@polyg-mcp/core';
+import {
   type HTTPServerOptions,
   HTTPServerOptionsSchema,
   loggers,
 } from '@polyg-mcp/shared';
+import { z } from 'zod';
 import {
   ServerStartError,
   ServerStopError,
@@ -22,6 +28,13 @@ import {
 } from './errors.js';
 import { type SessionContext, SessionManager } from './session-manager.js';
 import type { SharedResources } from './shared-resources.js';
+
+const IngestInputSchema = z.object({
+  content: z.string().min(1),
+  format: z.enum(['conversation', 'text', 'structured', 'auto']).optional(),
+  profileOverride: DocumentProfileSchema.optional(),
+  concurrency: z.number().int().min(1).max(10).optional(),
+});
 
 // Re-export for backwards compatibility
 export type { HTTPServerOptions };
@@ -209,6 +222,12 @@ export class HTTPTransport {
       // Health check endpoint
       if (url.pathname === '/health') {
         await this.handleHealthCheck(req, res);
+        return;
+      }
+
+      // Ingest endpoint
+      if (url.pathname === '/api/ingest') {
+        await this.handleIngestRequest(req, res);
         return;
       }
 
@@ -428,6 +447,60 @@ export class HTTPTransport {
         graphs: 0,
         uptime: 0,
         error: wrappedError.message,
+      });
+    }
+  }
+
+  /**
+   * Handle ingest requests
+   */
+  private async handleIngestRequest(
+    req: IncomingMessage,
+    res: ServerResponse,
+  ): Promise<void> {
+    if (req.method !== 'POST') {
+      this.sendJsonResponse(res, 405, { error: 'Method not allowed' });
+      return;
+    }
+
+    if (!this.sharedResources) {
+      this.sendJsonResponse(res, 503, {
+        error: 'Resources not initialized',
+      });
+      return;
+    }
+
+    let body: unknown;
+    try {
+      body = await this.parseBody(req);
+    } catch (err) {
+      this.sendJsonResponse(res, 400, {
+        error: err instanceof Error ? err.message : 'Invalid request body',
+      });
+      return;
+    }
+
+    const parsed = IngestInputSchema.safeParse(body);
+    if (!parsed.success) {
+      this.sendJsonResponse(res, 400, {
+        error: 'Validation failed',
+        issues: parsed.error.issues,
+      });
+      return;
+    }
+
+    const deps: IngestionDeps = {
+      db: this.sharedResources.db,
+      llm: this.sharedResources.llmProvider,
+      embeddings: this.sharedResources.embeddingProvider,
+    };
+
+    try {
+      const report = await ingest(parsed.data, deps);
+      this.sendJsonResponse(res, 200, report);
+    } catch (err) {
+      this.sendJsonResponse(res, 500, {
+        error: err instanceof Error ? err.message : 'Ingestion failed',
       });
     }
   }

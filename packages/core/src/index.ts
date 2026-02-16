@@ -12,6 +12,7 @@ export type {
   IngestionReport,
   InputFormat,
 } from './ingestion/types.js';
+export { DocumentProfileSchema } from './ingestion/types.js';
 export * from './llm/index.js';
 export { Orchestrator, type OrchestratorConfig } from './orchestrator.js';
 export * from './retrieval/index.js';

@@ -604,6 +604,69 @@ describe('HTTPTransport', () => {
     });
   });
 
+  describe('ingest endpoint', () => {
+    let resources: SharedResources;
+    let transport: HTTPTransport;
+    const TEST_PORT = 13596;
+
+    beforeEach(async () => {
+      resources = new SharedResources(TEST_CONFIG);
+      await resources.start();
+      transport = new HTTPTransport({ port: TEST_PORT });
+      transport.attachResources(resources);
+      await transport.start();
+    });
+
+    afterEach(async () => {
+      await transport.stop();
+      await resources.stop();
+    });
+
+    it('should return 405 for GET', async () => {
+      const response = await fetch(`http://localhost:${TEST_PORT}/api/ingest`);
+      expect(response.status).toBe(405);
+      const data = (await response.json()) as { error: string };
+      expect(data.error).toBe('Method not allowed');
+    });
+
+    it('should return 400 for empty body', async () => {
+      const response = await fetch(`http://localhost:${TEST_PORT}/api/ingest`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      expect(response.status).toBe(400);
+    });
+
+    it('should return 400 for missing content field', async () => {
+      const response = await fetch(`http://localhost:${TEST_PORT}/api/ingest`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ format: 'text' }),
+      });
+      expect(response.status).toBe(400);
+      const data = (await response.json()) as {
+        error: string;
+        issues: unknown[];
+      };
+      expect(data.error).toBe('Validation failed');
+      expect(data.issues).toBeDefined();
+    });
+
+    it('should return 400 for invalid format value', async () => {
+      const response = await fetch(`http://localhost:${TEST_PORT}/api/ingest`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: 'hello', format: 'invalid' }),
+      });
+      expect(response.status).toBe(400);
+      const data = (await response.json()) as {
+        error: string;
+        issues: unknown[];
+      };
+      expect(data.error).toBe('Validation failed');
+    });
+  });
+
   describe('session limit', () => {
     let resources: SharedResources;
     let transport: HTTPTransport;
