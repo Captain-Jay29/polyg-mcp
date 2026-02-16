@@ -451,4 +451,129 @@ describe('runSlowPath', () => {
       expect.objectContaining({ responseFormat: 'json' }),
     );
   });
+
+  describe('runSlowPath with concurrency', () => {
+    it('should produce same results with concurrency=3 as sequential', async () => {
+      const chunks = makeChunks(6);
+      const fastResult = makeFastResult(6);
+
+      // Run sequential
+      const seqResult = await runSlowPath(
+        chunks,
+        fastResult,
+        CONVERSATION_PROFILE,
+        deps,
+      );
+
+      // Reset mocks for concurrent run
+      vi.mocked(llm.complete).mockResolvedValue(
+        JSON.stringify(validExtraction),
+      );
+      const db2 = createMockDb();
+      const deps2: IngestionDeps = {
+        db: db2,
+        llm,
+        embeddings: createMockEmbeddings(),
+      } as unknown as IngestionDeps;
+
+      const concResult = await runSlowPath(
+        chunks,
+        fastResult,
+        CONVERSATION_PROFILE,
+        deps2,
+        3,
+      );
+
+      expect(concResult.extractedChunks).toBe(seqResult.extractedChunks);
+      expect(concResult.skippedChunks).toBe(seqResult.skippedChunks);
+      expect(concResult.entities_created).toBe(seqResult.entities_created);
+      expect(concResult.relationships_created).toBe(
+        seqResult.relationships_created,
+      );
+      expect(concResult.facts_created).toBe(seqResult.facts_created);
+    });
+
+    it('should handle partial batch failures (some extractions null)', async () => {
+      const chunks = makeChunks(4);
+      const fastResult = makeFastResult(4);
+
+      // Chunks 0,2 succeed; chunks 1,3 fail
+      vi.mocked(llm.complete)
+        .mockResolvedValueOnce(JSON.stringify(validExtraction))
+        .mockRejectedValueOnce(new Error('LLM error'))
+        .mockRejectedValueOnce(new Error('LLM error')) // retry for chunk 1
+        .mockResolvedValueOnce(JSON.stringify(validExtraction))
+        .mockRejectedValueOnce(new Error('LLM error'))
+        .mockRejectedValueOnce(new Error('LLM error')); // retry for chunk 3
+
+      const result = await runSlowPath(
+        chunks,
+        fastResult,
+        CONVERSATION_PROFILE,
+        deps,
+        2,
+      );
+
+      expect(result.extractedChunks).toBe(2);
+      expect(result.skippedChunks).toBe(2);
+      expect(result.skippedChunkIds).toContain('chunk_001');
+      expect(result.skippedChunkIds).toContain('chunk_003');
+    });
+
+    it('should handle concurrency > chunk count', async () => {
+      const chunks = makeChunks(2);
+      const fastResult = makeFastResult(2);
+
+      const result = await runSlowPath(
+        chunks,
+        fastResult,
+        CONVERSATION_PROFILE,
+        deps,
+        5,
+      );
+
+      expect(result.extractedChunks).toBe(2);
+      expect(result.skippedChunks).toBe(0);
+      expect(llm.complete).toHaveBeenCalledTimes(2);
+    });
+
+    it('should dedup globalEntityMap across batches', async () => {
+      // Both batches extract Alice — should only count as 1 entity_created
+      const aliceExtraction: ChunkExtraction = {
+        entities: [{ name: 'Alice', entity_type: 'person' }],
+        relationships: [],
+        causal_links: [],
+        facts: [],
+      };
+
+      vi.mocked(llm.complete).mockResolvedValue(
+        JSON.stringify(aliceExtraction),
+      );
+
+      const chunks = makeChunks(4);
+      const fastResult = makeFastResult(4);
+
+      const result = await runSlowPath(
+        chunks,
+        fastResult,
+        CONVERSATION_PROFILE,
+        deps,
+        2,
+      );
+
+      expect(result.extractedChunks).toBe(4);
+      // Alice appears in all 4 chunks but should only be counted once
+      expect(result.entities_created).toBe(1);
+    });
+
+    it('should make correct LLM call count with batching', async () => {
+      const chunks = makeChunks(5);
+      const fastResult = makeFastResult(5);
+
+      await runSlowPath(chunks, fastResult, CONVERSATION_PROFILE, deps, 2);
+
+      // 5 chunks, concurrency=2 → batches of [2, 2, 1] → 5 LLM calls
+      expect(llm.complete).toHaveBeenCalledTimes(5);
+    });
+  });
 });

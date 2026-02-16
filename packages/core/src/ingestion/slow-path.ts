@@ -35,7 +35,7 @@ export async function runSlowPath(
   fastPathResult: FastPathResult,
   profile: DocumentProfile,
   deps: IngestionDeps,
-  _concurrency = 1,
+  concurrency = 1,
 ): Promise<SlowPathResult> {
   const entityGraph = new EntityGraph(deps.db);
   const temporalGraph = new TemporalGraph(deps.db);
@@ -57,53 +57,126 @@ export async function runSlowPath(
   // Global entity map across all chunks: normalized name → Entity
   const globalEntityMap = new Map<string, Entity>();
 
-  for (let i = 0; i < chunks.length; i++) {
-    const chunk = chunks[i];
-    const eventId = fastPathResult.eventIds[i];
-    const conceptId = fastPathResult.conceptIds[i];
+  if (concurrency <= 1) {
+    // --- Sequential path (default) ---
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i];
+      const eventId = fastPathResult.eventIds[i];
+      const conceptId = fastPathResult.conceptIds[i];
 
-    // 1. Gather neighborhood context
-    const neighborhood = await gather2HopNeighborhood(
-      conceptId,
-      deps,
-      fastPathResult.eventIds,
-      i,
-      result.warnings,
-    );
+      // 1. Gather neighborhood context
+      const neighborhood = await gather2HopNeighborhood(
+        conceptId,
+        deps,
+        fastPathResult.eventIds,
+        i,
+        result.warnings,
+      );
 
-    // 2. LLM extraction with retry
-    const extraction = await extractWithRetry(
-      chunk,
-      profile,
-      neighborhood,
-      deps,
-      result.warnings,
-      chunks.length,
-    );
-    if (!extraction) {
-      result.skippedChunks++;
-      result.skippedChunkIds.push(chunk.chunk_id);
-      continue;
+      // 2. LLM extraction with retry
+      const extraction = await extractWithRetry(
+        chunk,
+        profile,
+        neighborhood,
+        deps,
+        result.warnings,
+        chunks.length,
+      );
+      if (!extraction) {
+        result.skippedChunks++;
+        result.skippedChunkIds.push(chunk.chunk_id);
+        continue;
+      }
+
+      // 3. Write extraction to graph
+      const writeResult = await writeChunkExtraction(
+        extraction,
+        eventId,
+        entityGraph,
+        temporalGraph,
+        causalGraph,
+        globalEntityMap,
+        result.warnings,
+      );
+
+      result.extractedChunks++;
+      result.entities_created += writeResult.entities_created;
+      result.relationships_created += writeResult.relationships_created;
+      result.facts_created += writeResult.facts_created;
+      result.causal_nodes_created += writeResult.causal_nodes_created;
+      result.causal_links_created += writeResult.causal_links_created;
+      result.cross_links_created += writeResult.cross_links_created;
     }
+  } else {
+    // --- Concurrent path: gather/extract/write in batches ---
+    for (
+      let batchStart = 0;
+      batchStart < chunks.length;
+      batchStart += concurrency
+    ) {
+      const batchEnd = Math.min(batchStart + concurrency, chunks.length);
+      const batchIndices = Array.from(
+        { length: batchEnd - batchStart },
+        (_, k) => batchStart + k,
+      );
 
-    // 3. Write extraction to graph
-    const writeResult = await writeChunkExtraction(
-      extraction,
-      eventId,
-      entityGraph,
-      temporalGraph,
-      causalGraph,
-      globalEntityMap,
-      result.warnings,
-    );
+      // Phase 1: Parallel neighborhood gathering (read-only, safe to parallelize)
+      const neighborhoods = await Promise.all(
+        batchIndices.map((i) =>
+          gather2HopNeighborhood(
+            fastPathResult.conceptIds[i],
+            deps,
+            fastPathResult.eventIds,
+            i,
+            result.warnings,
+          ),
+        ),
+      );
 
-    result.extractedChunks++;
-    result.entities_created += writeResult.entities_created;
-    result.relationships_created += writeResult.relationships_created;
-    result.facts_created += writeResult.facts_created;
-    result.causal_nodes_created += writeResult.causal_nodes_created;
-    result.causal_links_created += writeResult.causal_links_created;
-    result.cross_links_created += writeResult.cross_links_created;
+      // Phase 2: Parallel LLM extractions (the bottleneck)
+      const extractions = await Promise.all(
+        batchIndices.map((i, batchIdx) =>
+          extractWithRetry(
+            chunks[i],
+            profile,
+            neighborhoods[batchIdx],
+            deps,
+            result.warnings,
+            chunks.length,
+          ),
+        ),
+      );
+
+      // Phase 3: Sequential writes per batch (protects globalEntityMap)
+      for (let batchIdx = 0; batchIdx < batchIndices.length; batchIdx++) {
+        const i = batchIndices[batchIdx];
+        const extraction = extractions[batchIdx];
+
+        if (!extraction) {
+          result.skippedChunks++;
+          result.skippedChunkIds.push(chunks[i].chunk_id);
+          continue;
+        }
+
+        const writeResult = await writeChunkExtraction(
+          extraction,
+          fastPathResult.eventIds[i],
+          entityGraph,
+          temporalGraph,
+          causalGraph,
+          globalEntityMap,
+          result.warnings,
+        );
+
+        result.extractedChunks++;
+        result.entities_created += writeResult.entities_created;
+        result.relationships_created += writeResult.relationships_created;
+        result.facts_created += writeResult.facts_created;
+        result.causal_nodes_created += writeResult.causal_nodes_created;
+        result.causal_links_created += writeResult.causal_links_created;
+        result.cross_links_created += writeResult.cross_links_created;
+      }
+    }
   }
 
   return result;
