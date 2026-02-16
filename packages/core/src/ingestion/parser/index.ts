@@ -2,6 +2,8 @@
 import type { InputFormat, ParsedChunk } from '../types.js';
 import { parseConversation } from './conversation.js';
 import { detectFormat } from './detect.js';
+import { parseStructured } from './structured.js';
+import { parseText } from './text.js';
 
 /**
  * Parse raw content into chunks.
@@ -17,13 +19,9 @@ export function parse(content: string, format?: InputFormat): ParsedChunk[] {
     case 'conversation':
       return parseConversation(content);
     case 'text':
-      throw new Error(
-        'Not implemented: text parser (Phase 2). Use format "conversation" or provide structured JSON.',
-      );
+      return parseText(content);
     case 'structured':
-      throw new Error(
-        'Not implemented: structured parser (Phase 2). Use format "conversation" or provide plain text.',
-      );
+      return parseStructured(content);
     default:
       throw new Error(`Unknown format: ${resolved as string}`);
   }
@@ -31,3 +29,5 @@ export function parse(content: string, format?: InputFormat): ParsedChunk[] {
 
 export { parseConversation } from './conversation.js';
 export { detectFormat } from './detect.js';
+export { parseStructured } from './structured.js';
+export { parseText } from './text.js';

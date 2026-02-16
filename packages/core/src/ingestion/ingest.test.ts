@@ -2,6 +2,7 @@ import type { EmbeddingProvider, LLMProvider } from '@polyg-mcp/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FalkorDBAdapter } from '../storage/falkordb.js';
 import { ingest } from './index.js';
+import { clearProfileCache } from './profiler.js';
 import type { ChunkExtraction, IngestionDeps } from './types.js';
 
 // ---------------------------------------------------------------------------
@@ -216,6 +217,7 @@ function makeFiveTurnConversation(): string {
 describe('ingest', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    clearProfileCache();
   });
 
   it('should complete full pipeline with 5-turn conversation', async () => {
@@ -256,8 +258,11 @@ describe('ingest', () => {
 
   it('should return failed when parser throws', async () => {
     const deps = makeDeps();
-    // Invalid JSON that starts with [ but is malformed
-    const report = await ingest({ content: '[{invalid json}]' }, deps);
+    // Force conversation format on invalid JSON → parser throws
+    const report = await ingest(
+      { content: '[{invalid json}]', format: 'conversation' },
+      deps,
+    );
 
     expect(report.status).toBe('failed');
     expect(
@@ -308,11 +313,15 @@ describe('ingest', () => {
   });
 
   it('should bubble slow path warnings to quality_warnings', async () => {
+    // Conversation format skips profiler, so all LLM calls are extraction
     const llm = {
       complete: vi
         .fn()
+        // Chunk 0 attempt 1: fail
         .mockRejectedValueOnce(new Error('LLM timeout'))
-        .mockRejectedValueOnce(new Error('LLM timeout')) // retry
+        // Chunk 0 attempt 2 (retry): fail → chunk skipped
+        .mockRejectedValueOnce(new Error('LLM timeout'))
+        // Remaining chunks: succeed
         .mockResolvedValue(JSON.stringify(validExtraction)),
     } as unknown as LLMProvider;
 
@@ -378,5 +387,169 @@ describe('ingest', () => {
 
     expect(report.status).toMatch(/^completed/);
     expect(report.chunks.total).toBe(5);
+  });
+
+  // --- Phase 2: Text + Structured + Profiler ---
+
+  it('should ingest plain text content', async () => {
+    const deps = makeDeps();
+    const text = 'First paragraph about Alice.\n\nSecond paragraph about Bob.';
+    const report = await ingest({ content: text, format: 'text' }, deps);
+
+    expect(report.status).toMatch(/^completed/);
+    expect(report.chunks.total).toBe(1); // small text fits in 1 chunk
+    expect(report.chunks.fast_path_written).toBe(1);
+  });
+
+  it('should auto-detect and ingest plain text', async () => {
+    const deps = makeDeps();
+    const text = 'This is a plain text document about technology and science.';
+    const report = await ingest({ content: text }, deps);
+
+    expect(report.status).toMatch(/^completed/);
+    expect(report.chunks.total).toBeGreaterThan(0);
+  });
+
+  it('should ingest structured JSON content', async () => {
+    const deps = makeDeps();
+    const data = JSON.stringify([
+      { id: 1, type: 'event', message: 'login' },
+      { id: 2, type: 'event', message: 'logout' },
+    ]);
+    const report = await ingest({ content: data, format: 'structured' }, deps);
+
+    expect(report.status).toMatch(/^completed/);
+    expect(report.chunks.total).toBe(2);
+    expect(report.chunks.fast_path_written).toBe(2);
+  });
+
+  it('should set profiler_calls=0 for conversations (profiler skipped)', async () => {
+    const deps = makeDeps();
+    const report = await ingest({ content: makeFiveTurnConversation() }, deps);
+
+    expect(report.cost.profiler_calls).toBe(0);
+    expect(report.cost.total_llm_calls).toBe(report.cost.extraction_calls);
+  });
+
+  it('should set profiler_calls=1 for text content', async () => {
+    const deps = makeDeps();
+    const text = 'A long document about technology and science. '.repeat(20);
+    const report = await ingest({ content: text, format: 'text' }, deps);
+
+    expect(report.cost.profiler_calls).toBe(1);
+    expect(report.cost.total_llm_calls).toBe(
+      report.cost.profiler_calls + report.cost.extraction_calls,
+    );
+  });
+
+  it('should set profiler_calls=0 when profileOverride provided', async () => {
+    const deps = makeDeps();
+    const customProfile = {
+      document_type: 'technical',
+      domain: 'engineering',
+      entity_types_expected: ['component'],
+      relationship_types_expected: ['depends_on'],
+      causal_patterns: ['failure → outage'],
+      temporal_structure: 'explicit_timestamps' as const,
+      extraction_focus: 'Focus on components.',
+      confidence_calibration: {
+        explicit_causation: 1.0,
+        strong_implication: 0.9,
+        weak_inference: 0.7,
+      },
+    };
+
+    const report = await ingest(
+      { content: makeFiveTurnConversation(), profileOverride: customProfile },
+      deps,
+    );
+
+    expect(report.cost.profiler_calls).toBe(0);
+    expect(report.cost.total_llm_calls).toBe(report.cost.extraction_calls);
+  });
+
+  it('should normalize non-canonical entity types through the pipeline', async () => {
+    // LLM returns non-canonical types — normalization should map them
+    const nonCanonicalExtraction: ChunkExtraction = {
+      entities: [
+        { name: 'Alice', entity_type: 'Individual' }, // → person
+        { name: 'Acme', entity_type: 'Company' }, // → organization
+        { name: 'Paris', entity_type: 'City' }, // → location
+      ],
+      relationships: [
+        { source: 'Alice', target: 'Acme', relationship_type: 'works_at' },
+      ],
+      causal_links: [],
+      facts: [],
+    };
+
+    const db = createMockDb();
+    const deps: IngestionDeps = {
+      db,
+      embeddings: createMockEmbeddings(),
+      llm: {
+        complete: vi
+          .fn()
+          .mockResolvedValue(JSON.stringify(nonCanonicalExtraction)),
+      } as unknown as LLMProvider,
+    };
+
+    await ingest({ content: makeFiveTurnConversation() }, deps);
+
+    // Verify entities were created with canonical types via createNode calls
+    const createNodeCalls = vi.mocked(db.createNode).mock.calls;
+    const entityCalls = createNodeCalls.filter(
+      ([label]) => label === 'E_Entity',
+    );
+
+    // Should have created entities with normalized types
+    const entityTypes = entityCalls.map(([, props]) => props.entity_type);
+    expect(entityTypes).toContain('person');
+    expect(entityTypes).toContain('organization');
+    expect(entityTypes).toContain('location');
+    // Non-canonical types should NOT appear
+    expect(entityTypes).not.toContain('Individual');
+    expect(entityTypes).not.toContain('Company');
+    expect(entityTypes).not.toContain('City');
+  });
+
+  it('should set profiler_calls=0 on cache hit for same text content', async () => {
+    // Use text format (not conversation) so profiler is actually invoked
+    const content = 'A document about technology and science. '.repeat(20);
+
+    const validProfileJson = JSON.stringify({
+      document_type: 'text_document',
+      domain: 'general',
+      entity_types_expected: ['person'],
+      relationship_types_expected: ['knows'],
+      causal_patterns: [],
+      temporal_structure: 'implicit',
+      extraction_focus: 'Focus on entities.',
+      confidence_calibration: {
+        explicit_causation: 1.0,
+        strong_implication: 0.85,
+        weak_inference: 0.6,
+      },
+    });
+
+    // First ingest — profiler calls LLM (cache miss), profile gets cached
+    const llm1 = {
+      complete: vi
+        .fn()
+        .mockResolvedValueOnce(validProfileJson) // profiler
+        .mockResolvedValue(JSON.stringify(validExtraction)), // chunk extraction
+    } as unknown as LLMProvider;
+    const deps1 = makeDeps({ llm: llm1 });
+    const first = await ingest({ content, format: 'text' }, deps1);
+    expect(first.cost.profiler_calls).toBe(1);
+
+    // Second ingest with same content — profiler cache hit, no profiler LLM call
+    const llm2 = {
+      complete: vi.fn().mockResolvedValue(JSON.stringify(validExtraction)), // only chunk extraction
+    } as unknown as LLMProvider;
+    const deps2 = makeDeps({ llm: llm2 });
+    const second = await ingest({ content, format: 'text' }, deps2);
+    expect(second.cost.profiler_calls).toBe(0);
+    expect(second.cost.total_llm_calls).toBe(second.cost.extraction_calls);
   });
 });

@@ -1,11 +1,13 @@
 // Slow path — per-chunk LLM extraction + graph writes
 import type { Entity } from '@polyg-mcp/shared';
+import { ZodError } from 'zod';
 import { CausalGraph } from '../graphs/causal.js';
 import { EntityGraph } from '../graphs/entity.js';
 import { TemporalGraph } from '../graphs/temporal.js';
 import { buildExtractionPrompt } from './extraction-prompt.js';
 import type { NeighborhoodContext } from './neighborhood.js';
 import { gather2HopNeighborhood } from './neighborhood.js';
+import { normalizeExtraction, stripJsonFences } from './normalize.js';
 import type {
   ChunkExtraction,
   DocumentProfile,
@@ -76,6 +78,7 @@ export async function runSlowPath(
       neighborhood,
       deps,
       result.warnings,
+      chunks.length,
     );
     if (!extraction) {
       result.skippedChunks++;
@@ -115,8 +118,14 @@ async function extractWithRetry(
   neighborhood: NeighborhoodContext,
   deps: IngestionDeps,
   warnings: string[],
+  totalChunks: number,
 ): Promise<ChunkExtraction | null> {
-  const { system, user } = buildExtractionPrompt(chunk, profile, neighborhood);
+  const { system, user } = buildExtractionPrompt(
+    chunk,
+    profile,
+    neighborhood,
+    totalChunks,
+  );
   const prompt = `${system}\n\n${user}`;
 
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -125,15 +134,25 @@ async function extractWithRetry(
         prompt,
         responseFormat: 'json',
       });
-      return ChunkExtractionSchema.parse(JSON.parse(raw));
+      const parsed = ChunkExtractionSchema.parse(
+        JSON.parse(stripJsonFences(raw)),
+      );
+      return normalizeExtraction(parsed);
     } catch (err) {
+      // Schema validation errors won't resolve on retry with the same prompt
+      if (err instanceof ZodError || err instanceof SyntaxError) {
+        warnings.push(
+          `Extraction failed for chunk ${chunk.chunk_id} (invalid response structure): ${errMsg(err)}`,
+        );
+        return null;
+      }
       if (attempt === 1) {
         warnings.push(
           `Extraction failed for chunk ${chunk.chunk_id} after 2 attempts: ${errMsg(err)}`,
         );
         return null;
       }
-      // retry
+      // retry on transient errors (network/timeout)
     }
   }
 
@@ -244,11 +263,21 @@ async function writeChunkExtraction(
   }
 
   // 4. Causal links — findOrCreate nodes + addLink + link to entities + link to event
+  const seenCausalDescriptions = new Set<string>();
   for (const causal of extraction.causal_links) {
     try {
       const causeNode = await causalGraph.findOrCreate(causal.cause);
       const effectNode = await causalGraph.findOrCreate(causal.effect);
-      result.causal_nodes_created += 2; // approximate: findOrCreate may reuse
+      const causeKey = causal.cause.toLowerCase().trim();
+      const effectKey = causal.effect.toLowerCase().trim();
+      if (!seenCausalDescriptions.has(causeKey)) {
+        seenCausalDescriptions.add(causeKey);
+        result.causal_nodes_created++;
+      }
+      if (!seenCausalDescriptions.has(effectKey)) {
+        seenCausalDescriptions.add(effectKey);
+        result.causal_nodes_created++;
+      }
 
       await causalGraph.addLink(
         causeNode.uuid,

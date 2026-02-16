@@ -6,10 +6,12 @@ import {
   getQualityMetrics,
   runPostProcess,
 } from './post-process.js';
+import { profileDocument } from './profiler.js';
 import { getDefaultProfile } from './profiles.js';
 import { runSlowPath } from './slow-path.js';
 import type {
   DeduplicationResult,
+  DocumentProfile,
   IngestInput,
   IngestionDeps,
   IngestionReport,
@@ -47,9 +49,20 @@ export async function ingest(
 
   // --- Step 2: Profile ---
   const profileStart = Date.now();
-  const profile =
-    input.profileOverride ??
-    getDefaultProfile(chunks[0].metadata.source_format);
+  let profile: DocumentProfile;
+  let profilerCalls = 0;
+  if (input.profileOverride) {
+    profile = input.profileOverride;
+  } else {
+    const detectedFormat = chunks[0]?.metadata.source_format ?? 'auto';
+    if (detectedFormat === 'conversation') {
+      profile = getDefaultProfile('conversation');
+    } else {
+      const profileResult = await profileDocument(chunks, deps.llm);
+      profile = profileResult.profile;
+      profilerCalls = profileResult.cached ? 0 : 1;
+    }
+  }
   const profileMs = Date.now() - profileStart;
 
   // --- Step 3: Fast path ---
@@ -129,10 +142,11 @@ export async function ingest(
     deduplication,
     quality_warnings: allWarnings,
     cost: {
-      profiler_calls: 0, // Phase 1: no LLM profiler
+      profiler_calls: profilerCalls,
       extraction_calls: slowResult.extractedChunks + slowResult.skippedChunks,
       embedding_calls: 1,
-      total_llm_calls: slowResult.extractedChunks + slowResult.skippedChunks,
+      total_llm_calls:
+        profilerCalls + slowResult.extractedChunks + slowResult.skippedChunks,
     },
     timing: {
       parse_ms: parseMs,

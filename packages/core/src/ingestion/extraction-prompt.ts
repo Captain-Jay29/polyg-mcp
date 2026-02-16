@@ -14,9 +14,10 @@ export function buildExtractionPrompt(
   chunk: ParsedChunk,
   profile: DocumentProfile,
   neighborhood: NeighborhoodContext,
+  totalChunks: number,
 ): { system: string; user: string } {
   const system = buildSystemPrompt(profile);
-  const user = buildUserPrompt(chunk, neighborhood);
+  const user = buildUserPrompt(chunk, neighborhood, totalChunks);
   return { system, user };
 }
 
@@ -33,6 +34,9 @@ function buildSystemPrompt(profile: DocumentProfile): string {
     `Causal patterns to detect: ${profile.causal_patterns.join('; ')}`,
     '',
     `Extraction focus: ${profile.extraction_focus}`,
+    '',
+    `Temporal structure: ${profile.temporal_structure}`,
+    temporalGuidance(profile.temporal_structure),
     '',
     'Confidence calibration:',
     `- Explicit causation (stated directly): ${profile.confidence_calibration.explicit_causation}`,
@@ -55,55 +59,105 @@ function buildSystemPrompt(profile: DocumentProfile): string {
   return lines.join('\n');
 }
 
+// Max chars per extra metadata value injected into the prompt
+const MAX_EXTRA_VALUE_LENGTH = 200;
+
 function buildUserPrompt(
   chunk: ParsedChunk,
   neighborhood: NeighborhoodContext,
+  totalChunks: number,
 ): string {
-  const sections: string[] = [];
+  // Neighborhood context (only from graph data)
+  const neighborhoodSections: string[] = [];
 
-  // Neighborhood context
   if (neighborhood.knownEntities.length > 0) {
     const entityList = neighborhood.knownEntities
       .map((e) => `${e.name} (${e.type})`)
       .join(', ');
-    sections.push(`Known entities: ${entityList}`);
+    neighborhoodSections.push(`Known entities: ${entityList}`);
   }
 
   if (neighborhood.recentEvents.length > 0) {
     const eventList = neighborhood.recentEvents
-      .map((e) => e.description)
+      .map((e) =>
+        e.occurred_at ? `${e.description} (${e.occurred_at})` : e.description,
+      )
       .join('; ');
-    sections.push(`Recent events: ${eventList}`);
+    neighborhoodSections.push(`Recent events: ${eventList}`);
   }
 
   if (neighborhood.activeCausalChains.length > 0) {
     const chainList = neighborhood.activeCausalChains
       .map((c) => `${c.cause} → ${c.effect} (${c.confidence})`)
       .join('; ');
-    sections.push(`Active causal chains: ${chainList}`);
+    neighborhoodSections.push(`Active causal chains: ${chainList}`);
   }
 
   if (neighborhood.similarConcepts.length > 0) {
     const conceptList = neighborhood.similarConcepts
       .map((c) => c.name)
       .join(', ');
-    sections.push(`Related concepts: ${conceptList}`);
+    neighborhoodSections.push(`Related concepts: ${conceptList}`);
+  }
+
+  // Chunk metadata
+  const infoParts: string[] = [];
+  infoParts.push(`Chunk ${chunk.position + 1} of ${totalChunks}`);
+  if (chunk.metadata.speaker) {
+    infoParts.push(`Speaker: ${chunk.metadata.speaker}`);
+  }
+  if (chunk.metadata.section) {
+    infoParts.push(`Section: ${chunk.metadata.section}`);
+  }
+  if (chunk.metadata.turn_index != null) {
+    infoParts.push(`Turn: ${chunk.metadata.turn_index}`);
+  }
+  if (chunk.metadata.timestamp) {
+    infoParts.push(`Timestamp: ${chunk.metadata.timestamp}`);
+  }
+  if (chunk.metadata.extra) {
+    for (const [key, value] of Object.entries(chunk.metadata.extra)) {
+      if (value != null) {
+        const truncated = truncateValue(String(value), MAX_EXTRA_VALUE_LENGTH);
+        infoParts.push(`${key}: ${truncated}`);
+      }
+    }
   }
 
   // Build user prompt
   const parts: string[] = [];
 
-  if (sections.length > 0) {
+  if (neighborhoodSections.length > 0) {
     parts.push('Context from existing graph:');
-    parts.push(...sections);
+    parts.push(...neighborhoodSections);
     parts.push('');
   }
 
+  parts.push(`Chunk info: ${infoParts.join(' | ')}`);
+  parts.push('');
   parts.push('Extract structured data from this text:');
   parts.push('');
   parts.push(chunk.content);
 
   return parts.join('\n');
+}
+
+function truncateValue(value: string, maxLength: number): string {
+  if (value.length <= maxLength) return value;
+  return `${value.slice(0, maxLength)}...`;
+}
+
+function temporalGuidance(
+  structure: DocumentProfile['temporal_structure'],
+): string {
+  switch (structure) {
+    case 'explicit_timestamps':
+      return 'Use timestamps for fact valid_from/valid_to dates.';
+    case 'session_ordered':
+      return 'Chunks are chronologically ordered. Infer relative timing from position.';
+    case 'implicit':
+      return 'No explicit temporal ordering. Extract temporal references from text.';
+  }
 }
 
 /**
