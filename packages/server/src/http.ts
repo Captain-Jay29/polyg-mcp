@@ -31,7 +31,9 @@ import type { SharedResources } from './shared-resources.js';
 
 const IngestInputSchema = z.object({
   content: z.string().min(1),
-  format: z.enum(['conversation', 'text', 'structured', 'auto']).optional(),
+  format: z
+    .enum(['conversation', 'text', 'structured', 'pdf', 'auto'])
+    .optional(),
   profileOverride: DocumentProfileSchema.optional(),
   concurrency: z.number().int().min(1).max(10).optional(),
 });

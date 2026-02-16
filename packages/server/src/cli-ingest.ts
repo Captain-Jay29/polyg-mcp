@@ -48,7 +48,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const validFormats = ['conversation', 'text', 'structured', 'auto'];
+  const validFormats = ['conversation', 'text', 'structured', 'pdf', 'auto'];
   if (!validFormats.includes(args.format)) {
     console.error(
       `Error: invalid format "${args.format}". Must be one of: ${validFormats.join(', ')}`,
@@ -86,7 +86,12 @@ async function main(): Promise<void> {
     const report = await ingest(
       {
         content,
-        format: args.format as 'conversation' | 'text' | 'structured' | 'auto',
+        format: args.format as
+          | 'conversation'
+          | 'text'
+          | 'structured'
+          | 'pdf'
+          | 'auto',
         concurrency: args.concurrency,
       },
       { db, llm, embeddings },

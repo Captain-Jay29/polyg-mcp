@@ -16,9 +16,11 @@
     "@polyg-mcp/shared": "workspace:*",
     "falkordb": "^6.6.0",
     "openai": "^6.21.0",
+    "pdf-parse": "^2.4.5",
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@types/pdf-parse": "^1.1.5",
     "typescript": "^5.5.0"
   }
 }

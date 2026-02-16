@@ -37,7 +37,12 @@ export async function ingest(
   const parseStart = Date.now();
   let chunks: ReturnType<typeof parse>;
   try {
-    chunks = parse(input.content, input.format);
+    if (input.format === 'pdf') {
+      const { parsePdf } = await import('./parser/pdf.js');
+      chunks = await parsePdf(input.content);
+    } else {
+      chunks = parse(input.content, input.format);
+    }
   } catch (err) {
     return failedReport(`Parse failed: ${errMsg(err)}`);
   }
