@@ -6,7 +6,12 @@ import type { FalkorDBAdapter } from '../storage/falkordb.js';
 
 // --- Pipeline input ---
 
-export type InputFormat = 'conversation' | 'text' | 'structured' | 'auto';
+export type InputFormat =
+  | 'conversation'
+  | 'text'
+  | 'structured'
+  | 'pdf'
+  | 'auto';
 
 export interface IngestInput {
   content: string;

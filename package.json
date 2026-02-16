@@ -19,6 +19,7 @@
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
     "typecheck": "turbo run typecheck",
+    "ingest": "dotenv -e .env -- tsx packages/server/src/cli-ingest.ts",
     "clean": "turbo run clean && rm -rf node_modules"
   },
   "devDependencies": {
