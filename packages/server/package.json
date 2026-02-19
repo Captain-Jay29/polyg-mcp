@@ -52,7 +52,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.26.0",
     "falkordb": "^6.6.0",
-    "openai": "^6.21.0",
+    "openai": "^6.22.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
