@@ -14,8 +14,8 @@
   },
   "dependencies": {
     "@polyg-mcp/shared": "workspace:*",
-    "falkordb": "^6.6.0",
-    "openai": "^6.21.0",
+    "falkordb": "^6.6.1",
+    "openai": "^6.25.0",
     "pdf-parse": "^2.4.5",
     "zod": "^4.3.6"
   },
