@@ -1,0 +1,285 @@
+{
+  "config": {
+    "pipelineModel": "gpt-4o-mini",
+    "judgeModel": "gpt-4o-mini",
+    "embeddingModel": "text-embedding-3-small",
+    "falkordbGraph": "polyg_benchmark",
+    "concurrency": 10,
+    "totalConversations": 1,
+    "totalQuestions": 25,
+    "stratified": 5,
+    "seed": 42,
+    "skipJudge": true,
+    "startedAt": "2026-02-12T06:04:04.642Z"
+  },
+  "ingestion": [
+    {
+      "conversationId": "conv-26",
+      "entities": 2,
+      "events": 8,
+      "facts": 9,
+      "causalLinks": 5,
+      "concepts": 6,
+      "seconds": 47.005,
+      "valid": false,
+      "issues": [
+        "Entity count 2 is outside [5, 50]"
+      ]
+    }
+  ],
+  "variants": {
+    "full": {
+      "status": "complete",
+      "config": {
+        "key": "full",
+        "name": "Full MAGMA",
+        "disabledGraphs": []
+      },
+      "timing": {
+        "totalSeconds": 9.778,
+        "answerSeconds": 9.777,
+        "judgeSeconds": 0,
+        "avgPerQuestion": 0.39112
+      },
+      "metrics": {
+        "overall": null,
+        "byCategory": [],
+        "byConversation": [],
+        "confidence": null
+      },
+      "results": [],
+      "rawResults": [
+        {
+          "conversationId": "conv-26",
+          "questionIndex": 0,
+          "question": "When is Caroline going to the transgender conference?",
+          "expectedAnswer": "July 2023",
+          "predictedAnswer": "The context provided does not mention a transgender conference or any details related to Caroline attending one. Therefore, it is not possible to determine when Caroline is going to the transgender conference based on the given context.",
+          "category": "temporal",
+          "confidence": 0.5719573718149833
+        },
+        {
+          "conversationId": "conv-26",
+          "questionIndex": 1,
+          "question": "When did Melanie go to the museum?",
+          "expectedAnswer": "5 July 2023",
+          "predictedAnswer": "The context provided does not include any information about Melanie going to the museum.",
+          "category": "temporal",
+          "confidence": 0
+        },
+        {
+          "conversationId": "conv-26",
+          "questionIndex": 2,
+          "question": "Would Caroline pursue writing as a career option?",
+          "expectedAnswer": "LIkely no; though she likes reading, she wants to be a counselor",
+          "predictedAnswer": "The context does not provide any information regarding Caroline's pursuit of writing as a career option.",
+          "category": "open-domain",
+          "confidence": 0
+        },
+        {
+          "conversationId": "conv-26",
+          "questionIndex": 3,
+          "question": "Would Melanie be considered a member of the LGBTQ community?",
+          "expectedAnswer": "Likely no, she does not refer to herself as part of it",
+          "predictedAnswer": "The context does not provide specific information about Melanie's sexual orientation or gender identity. Therefore, it cannot be determined if Melanie would be considered a member of the LGBTQ community based solely on the retrieved context.",
+          "category": "open-domain",
+          "confidence": 0
+        },
+        {
+          "conversationId": "conv-26",
+          "questionIndex": 4,
+          "question": "What LGBTQ+ events has Caroline participated in?",
+          "expectedAnswer": "Pride parade, school speech, support group",
+          "predictedAnswer": "Caroline has participated in an LGBTQ support group and volunteers at an LGBTQ youth center.",
+          "category": "single-hop",
+          "confidence": 0.7847033065774446
+        },
+        {
+          "conversationId": "conv-26",
+          "questionIndex": 5,
+          "question": "When did Caroline join a mentorship program?",
+          "expectedAnswer": "The weekend before 17 July 2023",
+          "predictedAnswer": "The retrieved context does not provide information about Caroline joining a mentorship program.",
+          "category": "temporal",
+          "confidence": 0.5011374792113685
+        },
+        {
+          "conversationId": "conv-26",
+          "questionIndex": 6,
+          "question": "What did Melanie paint recently?",
+          "expectedAnswer": "sunset",
+          "predictedAnswer": "The context does not provide information about what Melanie painted recently.",
+          "category": "single-hop",
+          "confidence": 0
+        },
+        {
+          "conversationId": "conv-26",
+          "questionIndex": 7,
+          "question": "What kind of art does Caroline make?",
+          "expectedAnswer": "abstract art",
+          "predictedAnswer": "The context does not specify what kind of art Caroline makes.",
+          "category": "single-hop",
+          "confidence": 0.5487697248158249
+        },
+        {
+          "conversationId": "conv-26",
+          "questionIndex": 8,
+          "question": "Who supports Caroline when she has a negative experience?",
+          "expectedAnswer": "Her mentors, family, and friends",
+          "predictedAnswer": "Caroline's friends, family, and mentor support her journey.",
+          "category": "single-hop",
+          "confidence": 0.5915007939535278
+        },
+        {
+          "conversationId": "conv-26",
+          "questionIndex": 9,
+          "question": "What would Caroline's political leaning likely be?",
+          "expectedAnswer": "Liberal",
+          "predictedAnswer": "Caroline's political leaning would likely be progressive, given her involvement in LGBTQ advocacy, support for LGBTQ youth, and efforts to inspire and help others within the community.",
+          "category": "open-domain",
+          "confidence": 0.5034549836468764
+        },
+        {
+          "conversationId": "conv-26",
+          "questionIndex": 10,
+          "question": "When did Caroline encounter people on a hike and have a negative experience?",
+          "expectedAnswer": "The week before 25 August 2023",
+          "predictedAnswer": "The context provided does not include any information about Caroline encountering people on a hike or having a negative experience related to that situation.",
+          "category": "temporal",
+          "confidence": 0
+        },
+        {
+          "conversationId": "conv-26",
+          "questionIndex": 11,
+          "question": "Would Caroline be considered religious?",
+          "expectedAnswer": "Somewhat, but not extremely religious",
+          "predictedAnswer": "The context provided does not include any information about Caroline's religious beliefs or practices, so it is not possible to determine if she would be considered religious.",
+          "category": "open-domain",
+          "confidence": 0
+        },
+        {
+          "conversationId": "conv-26",
+          "questionIndex": 12,
+          "question": "How long has Melanie been practicing art?",
+          "expectedAnswer": "Since 2016",
+          "predictedAnswer": "The retrieved context does not provide information on how long Melanie has been practicing art.",
+          "category": "temporal",
+          "confidence": 0
+        },
+        {
+          "conversationId": "conv-26",
+          "questionIndex": 13,
+          "question": "What transgender-specific events has Caroline attended?",
+          "expectedAnswer": "Poetry reading, conference",
+          "predictedAnswer": "Caroline attended an LGBTQ support group.",
+          "category": "single-hop",
+          "confidence": 0.6462442923325866
+        },
+        {
+          "conversationId": "conv-26",
+          "questionIndex": 14,
+          "question": "Would Melanie go on another roadtrip soon?",
+          "expectedAnswer": "Likely no; since this one went badly",
+          "predictedAnswer": "The retrieved context does not provide any information about Melanie going on another road trip soon. Therefore, it is unclear if she would.",
+          "category": "open-domain",
+          "confidence": 0
+        },
+        {
+          "conversationId": "conv-26",
+          "questionIndex": 15,
+          "question": "What kind of counseling and mental health services is Caroline interested in pursuing?",
+          "expectedAnswer": "working with trans people, helping them accept themselves and supporting their mental health",
+          "predictedAnswer": "The retrieved context does not provide specific information about the exact kind of counseling and mental health services Caroline is interested in pursuing.",
+          "category": "multi-hop",
+          "confidence": 0.5233756014809152
+        },
+        {
+          "conversationId": "conv-26",
+          "questionIndex": 16,
+          "question": "What workshop did Caroline attend recently?",
+          "expectedAnswer": "LGBTQ+ counseling workshop",
+          "predictedAnswer": "The context does not provide information about a specific workshop that Caroline attended recently.",
+          "category": "multi-hop",
+          "confidence": 0
+        },
+        {
+          "conversationId": "conv-26",
+          "questionIndex": 17,
+          "question": "What kind of place does Caroline want to create for people?",
+          "expectedAnswer": "a safe and inviting place for people to grow",
+          "predictedAnswer": "Caroline wants to create a loving home for children through adoption.",
+          "category": "multi-hop",
+          "confidence": 0.5003691131250061
+        },
+        {
+          "conversationId": "conv-26",
+          "questionIndex": 18,
+          "question": "What happened to Melanie's son on their road trip?",
+          "expectedAnswer": "He got into an accident",
+          "predictedAnswer": "The retrieved context does not provide any information about Melanie's son or any events related to a road trip.",
+          "category": "multi-hop",
+          "confidence": 0
+        },
+        {
+          "conversationId": "conv-26",
+          "questionIndex": 19,
+          "question": "What was Melanie's reaction to her children enjoying the Grand Canyon?",
+          "expectedAnswer": "She was happy and thankful",
+          "predictedAnswer": "The retrieved context does not provide information about Melanie's reaction to her children enjoying the Grand Canyon.",
+          "category": "multi-hop",
+          "confidence": 0
+        },
+        {
+          "conversationId": "conv-26",
+          "questionIndex": 20,
+          "question": "What did Caroline realize after her charity race?",
+          "expectedAnswer": "",
+          "predictedAnswer": "The context does not provide specific details about what Caroline realized after her charity race.",
+          "category": "adversarial",
+          "confidence": 0
+        },
+        {
+          "conversationId": "conv-26",
+          "questionIndex": 21,
+          "question": "What did Caroline and her family do while camping?",
+          "expectedAnswer": "",
+          "predictedAnswer": "The retrieved context does not provide specific information about what Caroline and her family did while camping.",
+          "category": "adversarial",
+          "confidence": 0
+        },
+        {
+          "conversationId": "conv-26",
+          "questionIndex": 22,
+          "question": "How did Caroline feel while watching the meteor shower?",
+          "expectedAnswer": "",
+          "predictedAnswer": "The context does not provide any specific information about how Caroline felt while watching the meteor shower.",
+          "category": "adversarial",
+          "confidence": 0
+        },
+        {
+          "conversationId": "conv-26",
+          "questionIndex": 23,
+          "question": "What precautionary sign did Caroline see at the café?",
+          "expectedAnswer": "",
+          "predictedAnswer": "The context does not provide information about a precautionary sign that Caroline saw at the café.",
+          "category": "adversarial",
+          "confidence": 0
+        },
+        {
+          "conversationId": "conv-26",
+          "questionIndex": 24,
+          "question": "How did Caroline feel about her family after the accident?",
+          "expectedAnswer": "",
+          "predictedAnswer": "The context does not provide specific information about how Caroline felt about her family after the accident.",
+          "category": "adversarial",
+          "confidence": 0
+        }
+      ],
+      "conversationsCompleted": 1,
+      "totalConversations": 1,
+      "ingestionTiming": {
+        "totalSeconds": 47.005
+      }
+    }
+  }
+}
