@@ -50,10 +50,10 @@
     "access": "public"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.26.0",
-    "falkordb": "^6.6.0",
-    "openai": "^6.21.0",
-    "zod": "^4.3.6"
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "falkordb": "^6.6.2",
+    "openai": "^6.35.0",
+    "zod": "^4.4.1"
   },
   "devDependencies": {
     "@polyg-mcp/core": "workspace:*",
