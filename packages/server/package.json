@@ -50,17 +50,17 @@
     "access": "public"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.26.0",
-    "falkordb": "^6.6.0",
-    "openai": "^6.21.0",
-    "zod": "^4.3.6"
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "falkordb": "^6.6.2",
+    "openai": "^6.37.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@polyg-mcp/core": "workspace:*",
     "@polyg-mcp/shared": "workspace:*",
     "dotenv-cli": "^11.0.0",
     "tsup": "^8.5.1",
-    "tsx": "^4.16.0",
+    "tsx": "^4.22.0",
     "typescript": "^5.5.0"
   }
 }
